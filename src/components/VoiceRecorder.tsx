@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from '@/components/ui/sonner';
+import { toast } from '@/lib/toast';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
