@@ -44,22 +44,23 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
-  // Format transcript for better readability with enhanced speaker distinction
-  // Improved to reduce unnecessary spacing
-  const formattedTranscript = transcript.replace(
-    /\[(Doctor|Patient|Identifying)\]:/g, 
-    (match, speaker) => {
+  // Process and format the transcript for better readability with clear speaker distinction
+  const formattedTranscript = transcript
+    .replace(/\[(Doctor|Patient|Identifying)\]:/g, (match, speaker) => {
       if (speaker === 'Doctor') {
-        return `<div class="doctor-message"><div class="speaker-label doctor-label">Doctor:</div><div class="message-content">`;
+        return `<div class="message doctor-message"><div class="speaker-icon doctor-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-circle"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div><div class="speaker-label doctor-label">Doctor</div><div class="message-content">`;
       } else if (speaker === 'Patient') {
-        return `<div class="patient-message"><div class="speaker-label patient-label">Patient:</div><div class="message-content">`;
+        return `<div class="message patient-message"><div class="speaker-icon patient-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg></div><div class="speaker-label patient-label">Patient</div><div class="message-content">`;
       } else {
-        return `<div class="identifying-message"><div class="speaker-label identifying-label">Identifying:</div><div class="message-content">`;
+        return `<div class="message identifying-message"><div class="speaker-label identifying-label">Listening...</div><div class="message-content">`;
       }
-    }
-  ).replace(/\n([^\n<])/g, ' $1') // Handle line breaks within a speaker's text
-   .replace(/([^>])\n*<div class="/g, '$1</div></div>\n<div class="') // Close previous message divs
-   + (transcript && !transcript.endsWith('</div></div>') ? '</div></div>' : '');
+    })
+    // Clean up line breaks within a speaker's text
+    .replace(/\n([^\n<])/g, ' $1')
+    // Close previous message and content divs before starting a new message
+    .replace(/([^>])\n*<div class="message/g, '$1</div></div>\n<div class="message')
+    // Ensure the last message is properly closed
+    + (transcript && !transcript.endsWith('</div></div>') ? '</div></div>' : '');
 
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">
@@ -116,23 +117,47 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         )}
         <style>
           {`
-          .doctor-message, .patient-message, .identifying-message {
-            margin-bottom: 0.75rem;
-            position: relative;
+          .message {
+            margin-bottom: 1rem;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto 1fr;
+            grid-template-areas:
+              "icon label"
+              "content content";
+            gap: 0.25rem 0.5rem;
+          }
+          
+          .speaker-icon {
+            grid-area: icon;
+            width: 1.25rem;
+            height: 1.25rem;
             display: flex;
-            flex-direction: column;
+            align-items: center;
           }
           
           .speaker-label {
+            grid-area: label;
             font-weight: 600;
-            margin-bottom: 0.25rem;
-            display: inline-block;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
           }
           
+          .message-content {
+            grid-area: content;
+            padding-left: 0.5rem;
+            margin-top: 0.25rem;
+            border-left: 2px solid #e5e7eb;
+            line-height: 1.5;
+          }
+          
+          .doctor-message .speaker-icon,
           .doctor-label {
             color: #2563eb;
           }
           
+          .patient-message .speaker-icon,
           .patient-label {
             color: #7c3aed;
           }
@@ -140,16 +165,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           .identifying-label {
             color: #6b7280;
             font-style: italic;
-          }
-          
-          .message-content {
-            padding-left: 0.5rem;
-            margin-left: 0.5rem;
-            border-left: 2px solid #e5e7eb;
+            grid-column: span 2;
           }
           
           .identifying-message {
             opacity: 0.85;
+          }
+          
+          .identifying-message .message-content {
+            font-style: italic;
           }
           `}
         </style>
