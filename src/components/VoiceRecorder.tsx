@@ -80,7 +80,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     // Doctor explanations/diagnoses - authoritative statements
     const doctorExplanationPatterns = [
       /^(your|the|these|those|this|that) (test results|bloodwork|scan|x-ray|levels|numbers|symptoms|condition)/i,
-      /^(it('s| is) (likely|probably|possibly|definitely|just|only)/i,
+      /^(it('s| is) (likely|probably|possibly|definitely|just|only))/i,
       /^(based on|according to|given|i think|i believe|i suspect|it appears|it seems|it could be)/i,
       /^(you (have|need|should|might|may|could|must|will need)|we (should|need|will|can|could|might))/i,
       /^(i('d| would) (recommend|suggest|advise|like|want)|let's)/i,
