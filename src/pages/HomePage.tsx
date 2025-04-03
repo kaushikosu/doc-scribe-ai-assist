@@ -201,11 +201,15 @@ const HomePage = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/signup">
-              <Button size="lg" variant="secondary" className="bg-white text-doctor-primary hover:bg-gray-100">
+              <Button size="lg" variant="secondary" className="bg-white text-doctor-primary hover:bg-gray-100 w-full sm:w-auto">
                 Start Free Trial
               </Button>
             </Link>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-doctor-primary/80 hover:text-white">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-2 border-white text-white bg-doctor-accent hover:bg-doctor-accent/80 hover:border-white w-full sm:w-auto"
+            >
               Schedule Demo
             </Button>
           </div>
