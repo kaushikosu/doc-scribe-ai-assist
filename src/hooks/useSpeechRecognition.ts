@@ -29,13 +29,28 @@ const useSpeechRecognition = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const fullTranscriptRef = useRef<string[]>([]);
   
-  // NEW: Track all results to avoid processing duplicates
+  // Store the complete transcript (not just the latest result)
+  const accumulatedTranscriptRef = useRef<string>('');
+  
+  // Track all results to avoid processing duplicates
   const processedResultsMapRef = useRef<Map<number, boolean>>(new Map());
   
-  // NEW: Keep reference to the current recording session
+  // Keep reference to the current recording session
   const sessionIdRef = useRef<string>(Date.now().toString());
+  
+  // NEW: Enhanced patient name detection
+  const nameDetectionAttemptsRef = useRef<number>(0);
+  const continuousTextBufferRef = useRef<string>('');
+  const nameRecognitionPatterns = [
+    /(?:namaste|hello|hi|hey)\s+([A-Z][a-z]{2,})/i,          // Common greetings
+    /(?:patient|patient's) name is\s+([A-Z][a-z]{2,})/i,     // Explicit statement
+    /(?:this is|i am|i'm)\s+([A-Z][a-z]{2,})/i,              // Self introduction
+    /(?:meet|meeting)\s+([A-Z][a-z]{2,})/i,                  // Meeting introduction
+    /(?:for|about|regarding)\s+([A-Z][a-z]{2,})/i,           // Reference introduction
+    /(?:Mr\.|Mrs\.|Ms\.|Dr\.)\s+([A-Z][a-z]{2,})/i,          // Title with name
+    /\b([A-Z][a-z]{2,})\s+(?:is here|has arrived|is waiting)/i // Person with context
+  ];
   
   // Setup silence detection
   const setupSilenceDetection = () => {
@@ -55,11 +70,47 @@ const useSpeechRecognition = ({
     }, 200);
   };
 
+  // NEW: Enhanced name detection function with multiple methods
+  const detectPatientName = (text: string): string | null => {
+    // Method 1: Try regex patterns
+    for (const pattern of nameRecognitionPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    // Method 2: Look for capitalized words after greeting words
+    const greetingFollowedByName = /(?:namaste|hello|hi|hey)\s+(\w+)/i;
+    const greetingMatch = text.match(greetingFollowedByName);
+    if (greetingMatch && greetingMatch[1]) {
+      // Check if first letter is capital (likely a name)
+      const possibleName = greetingMatch[1];
+      if (possibleName.charAt(0) === possibleName.charAt(0).toUpperCase()) {
+        return possibleName;
+      }
+    }
+    
+    // Method 3: Try to find any capitalized words in the text (less reliable)
+    if (nameDetectionAttemptsRef.current > 3) {
+      const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
+      if (capitalizedWords && capitalizedWords.length > 0) {
+        // Take the first capitalized word as a potential name
+        return capitalizedWords[0];
+      }
+    }
+    
+    return null;
+  };
+
   const startRecording = async () => {
     try {
-      // NEW: Generate new session ID when starting recording
+      // Generate new session ID when starting recording
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
+      nameDetectionAttemptsRef.current = 0;
+      continuousTextBufferRef.current = '';
+      accumulatedTranscriptRef.current = '';
       
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -85,18 +136,24 @@ const useSpeechRecognition = ({
           
           // Process new results, keeping track of what we've seen
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            // NEW: Skip already processed results
+            // Skip already processed results
             if (processedResultsMapRef.current.has(i) && event.results[i].isFinal) {
               continue;
             }
             
             const transcript = event.results[i][0].transcript;
             
+            // Add to continuous buffer for better name detection
+            continuousTextBufferRef.current += ' ' + transcript;
+            
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
               
               // Mark this result as processed
               processedResultsMapRef.current.set(i, true);
+              
+              // Add to accumulated transcript (with explicit line break)
+              accumulatedTranscriptRef.current += transcript + '\n';
               
               // Detect language and update if needed
               const newLanguage = detectLanguage(transcript);
@@ -106,20 +163,31 @@ const useSpeechRecognition = ({
                   recognitionRef.current.lang = newLanguage;
                 }
               }
-              
-              // Add to full transcript
-              fullTranscriptRef.current.push(transcript);
             } else {
               interimTranscript += transcript;
             }
           }
           
-          // Send result to callback with the actual text content
+          // Send both the immediate result and the accumulated transcript
           onResult({
             transcript: finalTranscript || interimTranscript,
             isFinal: !!finalTranscript,
             resultIndex: event.resultIndex
           });
+          
+          // For diagnostic purposes
+          console.log("Accumulated transcript:", accumulatedTranscriptRef.current);
+          console.log("Continuous buffer:", continuousTextBufferRef.current);
+          
+          // Try to detect patient name more aggressively
+          nameDetectionAttemptsRef.current++;
+          const detectedName = detectPatientName(continuousTextBufferRef.current);
+          
+          if (detectedName) {
+            console.log("Detected patient name:", detectedName);
+            // We would trigger a callback here to set the patient name
+            // This needs to be implemented in the onResult handler in VoiceRecorder
+          }
         };
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -188,6 +256,13 @@ const useSpeechRecognition = ({
       } else {
         startRecording();
       }
+    },
+    // NEW: Expose the accumulated transcript
+    getAccumulatedTranscript: () => accumulatedTranscriptRef.current,
+    resetTranscript: () => {
+      accumulatedTranscriptRef.current = '';
+      continuousTextBufferRef.current = '';
+      nameDetectionAttemptsRef.current = 0;
     }
   };
 };
