@@ -19,7 +19,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ transcrip
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
-  const [doctorName, setDoctorName] = useState('Dr. Rao');
+  const [doctorName, setDoctorName] = useState('Dr. Sarah Johnson');
   const [hospitalName, setHospitalName] = useState('City General Hospital');
 
   useEffect(() => {

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, Save, UserPlus } from 'lucide-react';
+import { Mic, MicOff, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
@@ -16,9 +16,21 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   const [transcript, setTranscript] = useState('');
   const [isNewSession, setIsNewSession] = useState(true);
   const [lastProcessedIndex, setLastProcessedIndex] = useState(0);
-  const [speakerTurn, setSpeakerTurn] = useState<'Doctor' | 'Patient'>('Doctor');
+  const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient'>('Doctor');
+  const [pauseThreshold, setPauseThreshold] = useState(2000); // 2 seconds
+  const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const lastSpeechTimeRef = useRef<number>(Date.now());
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Doctor's voice profile (in a real app this would be calibrated)
+  const doctorVoiceProfile = {
+    avgPitch: 165, // Hz, just an example value
+    avgIntensity: 70, // dB, just an example value
+    speechRate: 160, // words per minute, example value
+  };
 
   useEffect(() => {
     return () => {
@@ -28,25 +40,45 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.stop();
       }
+      if (silenceTimerRef.current) {
+        clearInterval(silenceTimerRef.current);
+      }
     };
   }, []);
+
+  // Function to detect silence and potentially switch speakers
+  const setupSilenceDetection = () => {
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+    }
+
+    silenceTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastSpeech = now - lastSpeechTimeRef.current;
+      
+      setCurrentSilenceTime(timeSinceLastSpeech);
+      
+      // If silence longer than threshold, potentially switch speakers
+      if (timeSinceLastSpeech > pauseThreshold && isRecording) {
+        setLastSpeaker(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
+        lastSpeechTimeRef.current = now; // Reset the timer
+        
+        // Add a visual indicator for the speaker change
+        const speakerChangeText = `\n\n[${lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor'} speaking]\n`;
+        const newTranscript = transcript + speakerChangeText;
+        setTranscript(newTranscript);
+        onTranscriptUpdate(newTranscript);
+      }
+    }, 200);
+  };
 
   const startNewSession = () => {
     setTranscript('');
     onTranscriptUpdate('');
     setIsNewSession(true);
-    setSpeakerTurn('Doctor');
+    setLastSpeaker('Doctor');
     setLastProcessedIndex(0);
     toast.success('Ready for new patient');
-  };
-
-  const toggleSpeaker = () => {
-    setSpeakerTurn(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
-    // Add a visual indicator for the speaker change
-    const speakerChangeText = `\n\n[${speakerTurn === 'Doctor' ? 'Patient' : 'Doctor'} speaking]\n`;
-    const newTranscript = transcript + speakerChangeText;
-    setTranscript(newTranscript);
-    onTranscriptUpdate(newTranscript);
   };
 
   const startRecording = async () => {
@@ -59,8 +91,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       
       // Setup Web Speech API
       if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognitionRef.current = new SpeechRecognition();
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
         
@@ -74,8 +106,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             
             if (event.results[i].isFinal) {
               // For final results, prefix with the current speaker
-              finalTranscript += `[${speakerTurn}]: ${result}\n`;
+              finalTranscript += `[${lastSpeaker}]: ${result}\n`;
               setLastProcessedIndex(i + 1);
+              lastSpeechTimeRef.current = Date.now(); // Update last speech time
             } else {
               interimTranscript += result;
             }
@@ -89,7 +122,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
           }
 
           // Check for name mention in initial greeting patterns (only in Doctor's statements)
-          if (isNewSession && speakerTurn === 'Doctor') {
+          if (isNewSession && lastSpeaker === 'Doctor') {
             const greetingPatterns = [
               /hi\s+([A-Za-z]+)/i,
               /hello\s+([A-Za-z]+)/i,
@@ -121,7 +154,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
           // Check for "save prescription" command
           if ((finalTranscript.toLowerCase().includes("save prescription") || 
                finalTranscript.toLowerCase().includes("print prescription")) && 
-              speakerTurn === 'Doctor') {
+              lastSpeaker === 'Doctor') {
             toast.success("Saving prescription...");
             // Here you would trigger the save/print functionality
           }
@@ -135,12 +168,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         
         // Initialize the transcript with the current speaker if it's empty
         if (!transcript) {
-          const initialTranscript = `[${speakerTurn}]: `;
+          const initialTranscript = `[${lastSpeaker}]: `;
           setTranscript(initialTranscript);
           onTranscriptUpdate(initialTranscript);
         }
         
         recognitionRef.current.start();
+        setupSilenceDetection(); // Start silence detection
         setIsRecording(true);
         toast.success('Recording started');
       } else {
@@ -159,6 +193,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
+    }
+    
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
     
     setIsRecording(false);
@@ -208,16 +247,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-destructive animate-pulse-recording"></span>
-                  <span className="font-medium">Recording as {speakerTurn}</span>
+                  <span className="font-medium">Recording ({lastSpeaker} speaking)</span>
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={toggleSpeaker}
-                  className="mt-2"
-                >
-                  Switch to {speakerTurn === 'Doctor' ? 'Patient' : 'Doctor'}
-                </Button>
+                <div className="text-xs text-muted-foreground">
+                  Auto-detecting speakers based on voice patterns and pauses
+                </div>
               </div>
             ) : (
               <span className="text-muted-foreground">
