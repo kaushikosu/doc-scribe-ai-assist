@@ -113,43 +113,45 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             />
           </ScrollArea>
         )}
-        <style jsx>{`
-          :global(.doctor-message) {
+        <style>
+          {`
+          .doctor-message {
             margin-bottom: 1rem;
             padding-left: 1.5rem;
             position: relative;
           }
-          :global(.patient-message) {
+          .patient-message {
             margin-bottom: 1rem;
             padding-left: 1.5rem;
             position: relative;
           }
-          :global(.identifying-message) {
+          .identifying-message {
             margin-bottom: 1rem;
             padding-left: 1.5rem;
             position: relative;
             font-style: italic;
             opacity: 0.8;
           }
-          :global(.doctor-label) {
+          .doctor-label {
             font-weight: 600;
             color: #2563eb;
             position: absolute;
             left: 0;
           }
-          :global(.patient-label) {
+          .patient-label {
             font-weight: 600;
             color: #7c3aed;
             position: absolute;
             left: 0;
           }
-          :global(.identifying-label) {
+          .identifying-label {
             font-weight: 500;
             color: #6b7280;
             position: absolute;
             left: 0;
           }
-        `}</style>
+          `}
+        </style>
       </CardContent>
     </Card>
   );
