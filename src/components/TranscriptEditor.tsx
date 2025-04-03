@@ -45,20 +45,21 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   };
 
   // Format transcript for better readability with enhanced speaker distinction
+  // Improved to reduce unnecessary spacing
   const formattedTranscript = transcript.replace(
     /\[(Doctor|Patient|Identifying)\]:/g, 
     (match, speaker) => {
       if (speaker === 'Doctor') {
-        return `\n\n<div class="doctor-message"><span class="doctor-label"><UserCircle className="inline h-4 w-4 mr-1" />Doctor:</span> `;
+        return `<div class="doctor-message"><div class="speaker-label doctor-label">Doctor:</div><div class="message-content">`;
       } else if (speaker === 'Patient') {
-        return `\n\n<div class="patient-message"><span class="patient-label"><UserRound className="inline h-4 w-4 mr-1" />Patient:</span> `;
+        return `<div class="patient-message"><div class="speaker-label patient-label">Patient:</div><div class="message-content">`;
       } else {
-        return `\n\n<div class="identifying-message"><span class="identifying-label">Identifying:</span> `;
+        return `<div class="identifying-message"><div class="speaker-label identifying-label">Identifying:</div><div class="message-content">`;
       }
     }
   ).replace(/\n([^\n<])/g, ' $1') // Handle line breaks within a speaker's text
-   .replace(/<\/div>$/, '') // Remove trailing close tag if present
-   + (transcript && !transcript.endsWith('</div>') ? '</div>' : '');
+   .replace(/([^>])\n*<div class="/g, '$1</div></div>\n<div class="') // Close previous message divs
+   + (transcript && !transcript.endsWith('</div></div>') ? '</div></div>' : '');
 
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">
@@ -115,40 +116,40 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         )}
         <style>
           {`
-          .doctor-message {
-            margin-bottom: 1rem;
-            padding-left: 1.5rem;
+          .doctor-message, .patient-message, .identifying-message {
+            margin-bottom: 0.75rem;
             position: relative;
+            display: flex;
+            flex-direction: column;
           }
-          .patient-message {
-            margin-bottom: 1rem;
-            padding-left: 1.5rem;
-            position: relative;
+          
+          .speaker-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: inline-block;
           }
-          .identifying-message {
-            margin-bottom: 1rem;
-            padding-left: 1.5rem;
-            position: relative;
-            font-style: italic;
-            opacity: 0.8;
-          }
+          
           .doctor-label {
-            font-weight: 600;
             color: #2563eb;
-            position: absolute;
-            left: 0;
           }
+          
           .patient-label {
-            font-weight: 600;
             color: #7c3aed;
-            position: absolute;
-            left: 0;
           }
+          
           .identifying-label {
-            font-weight: 500;
             color: #6b7280;
-            position: absolute;
-            left: 0;
+            font-style: italic;
+          }
+          
+          .message-content {
+            padding-left: 0.5rem;
+            margin-left: 0.5rem;
+            border-left: 2px solid #e5e7eb;
+          }
+          
+          .identifying-message {
+            opacity: 0.85;
           }
           `}
         </style>
