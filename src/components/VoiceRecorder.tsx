@@ -35,6 +35,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const interimTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
+  const accumulatedTranscriptRef = useRef<string>('');
   const conversationContextRef = useRef<{
     isPatientDescribingSymptoms: boolean;
     doctorAskedQuestion: boolean;
@@ -112,7 +113,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         }
       }
       
-      finalTranscript += `[${detectedSpeaker}]: ${result}\n`;
+      // Accumulate the transcript instead of replacing it
+      finalTranscript = `[${detectedSpeaker}]: ${result}\n`;
+      accumulatedTranscriptRef.current += finalTranscript;
       setLastProcessedIndex(resultIndex + 1);
     } else if (resultIndex >= lastProcessedIndex) {
       // Show interim results immediately with "Identifying" tag
@@ -120,17 +123,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       interimTranscriptRef.current = interimTranscript;
     }
     
-    // Update transcript for immediate display including interim results
-    if (finalTranscript || interimTranscript) {
-      const newTranscript = transcript + finalTranscript + (interimTranscript ? interimTranscript : '');
-      setTranscript(newTranscript);
-      onTranscriptUpdate(newTranscript);
-    }
+    // Update transcript for display including full transcript + interim results
+    const displayTranscript = accumulatedTranscriptRef.current + (interimTranscriptRef.current || '');
+    setTranscript(displayTranscript);
+    onTranscriptUpdate(displayTranscript);
 
     // Check for patient identification in doctor's statements
     if (isNewSession && (lastSpeaker === 'Doctor' || lastSpeaker === 'Identifying')) {
       // Use the full transcript for patient detection
-      const fullText = transcript + finalTranscript + interimTranscript;
+      const fullText = displayTranscript;
       const patientInfo = detectPatientInfo(fullText);
       
       if (patientInfo && !patientIdentifiedRef.current) {
@@ -150,7 +151,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
 
     // Check for "save prescription" command
-    const transcriptLower = (finalTranscript || interimTranscript).toLowerCase();
+    const transcriptLower = (result || '').toLowerCase();
     if ((transcriptLower.includes("save prescription") || 
          transcriptLower.includes("print prescription") ||
          transcriptLower.includes("प्रिस्क्रिप्शन सेव करें") || // Hindi
@@ -176,6 +177,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   // Start a new session
   const startNewSession = () => {
+    accumulatedTranscriptRef.current = '';
     setTranscript('');
     onTranscriptUpdate('');
     setIsNewSession(true);
@@ -200,10 +202,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // If there's an interim transcript, finalize it
     if (interimTranscriptRef.current) {
       const finalizedInterim = interimTranscriptRef.current.replace('[Identifying]:', `[${lastSpeaker}]:`);
-      const newTranscript = transcript.replace(interimTranscriptRef.current, '') + finalizedInterim;
-      setTranscript(newTranscript);
-      onTranscriptUpdate(newTranscript);
+      accumulatedTranscriptRef.current += finalizedInterim;
       interimTranscriptRef.current = '';
+      
+      // Update the display transcript
+      setTranscript(accumulatedTranscriptRef.current);
+      onTranscriptUpdate(accumulatedTranscriptRef.current);
     }
     stopRecording();
   };
@@ -214,8 +218,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       handleStopRecording();
     } else {
       // Initialize the transcript with the current speaker if it's empty
-      if (!transcript) {
+      if (!accumulatedTranscriptRef.current) {
         const initialTranscript = `[${lastSpeaker}]: `;
+        accumulatedTranscriptRef.current = initialTranscript;
         setTranscript(initialTranscript);
         onTranscriptUpdate(initialTranscript);
       }

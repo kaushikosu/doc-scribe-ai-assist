@@ -30,6 +30,7 @@ const useSpeechRecognition = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fullTranscriptRef = useRef<string[]>([]);
   
   // Setup silence detection
   const setupSilenceDetection = () => {
@@ -70,25 +71,37 @@ const useSpeechRecognition = ({
           lastSpeechTimeRef.current = Date.now();
           
           // Process results
-          for (let i = 0; i < event.results.length; i++) {
-            const result = event.results[i][0].transcript;
+          let interimTranscript = '';
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
             
-            // Detect language and update if needed
-            const newLanguage = detectLanguage(result);
-            if (newLanguage !== detectedLanguage) {
-              setDetectedLanguage(newLanguage);
-              if (recognitionRef.current) {
-                recognitionRef.current.lang = newLanguage;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+              
+              // Detect language and update if needed
+              const newLanguage = detectLanguage(transcript);
+              if (newLanguage !== detectedLanguage) {
+                setDetectedLanguage(newLanguage);
+                if (recognitionRef.current) {
+                  recognitionRef.current.lang = newLanguage;
+                }
               }
+              
+              // Add to full transcript
+              fullTranscriptRef.current.push(transcript);
+            } else {
+              interimTranscript += transcript;
             }
-            
-            // Send result to callback
-            onResult({
-              transcript: result,
-              isFinal: event.results[i].isFinal,
-              resultIndex: i
-            });
           }
+          
+          // Send result to callback with the full accumulated transcript
+          onResult({
+            transcript: finalTranscript || interimTranscript,
+            isFinal: !!finalTranscript,
+            resultIndex: event.resultIndex
+          });
         };
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
