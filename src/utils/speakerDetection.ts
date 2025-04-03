@@ -95,6 +95,7 @@ interface ConversationContext {
   isGreeting: boolean;
   lastSpeaker: 'Doctor' | 'Patient' | 'Identifying';
   isFirstInteraction: boolean;
+  turnCount: number; // NEW: Track conversation turns
 }
 
 // Advanced speaker detection using statistical patterns and context
@@ -104,15 +105,38 @@ export function detectSpeaker(
 ): 'Doctor' | 'Patient' {
   const lowerText = text.toLowerCase().trim();
   
-  // Check if this is the beginning of conversation
+  // Initialize scores with bias based on conversation turn count
+  // This helps create more realistic back-and-forth dialogue patterns
+  let doctorScore = context.turnCount % 2 === 0 ? 1 : 0; // Even turns slightly favor doctor
+  let patientScore = context.turnCount % 2 === 1 ? 1 : 0; // Odd turns slightly favor patient
+  
+  // First interaction is likely doctor greeting
   if (context.isFirstInteraction) {
-    // First interaction is likely the doctor greeting
-    return 'Doctor';
+    // Check for doctor greetings at the very beginning
+    if (/(hello|hi|good morning|namaste|welcome)/i.test(lowerText)) {
+      return 'Doctor';
+    }
   }
   
-  // Initialize scores
-  let doctorScore = 0;
-  let patientScore = 0;
+  // STRONG patient indicators - these override most other patterns
+  if (
+    /^i('m| am) (not )?feeling/i.test(lowerText) ||
+    /^i('ve| have) been/i.test(lowerText) ||
+    /^(my|i('ve| have)|the) (pain|headache|problem|issue)/i.test(lowerText) ||
+    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerText)
+  ) {
+    patientScore += 8; // Very strong patient indicators
+  }
+  
+  // STRONG doctor indicators - these override most other patterns
+  if (
+    /^(i would like to|i('ll| will) prescribe|let me|i recommend)/i.test(lowerText) ||
+    /^(based on|according to|looking at) (your|the|these)/i.test(lowerText) ||
+    /^(take|use) (this|these|the|two|three|four|one)/i.test(lowerText) ||
+    /^(we need to|you should|you need to|you must)/i.test(lowerText)
+  ) {
+    doctorScore += 8; // Very strong doctor indicators
+  }
   
   // Check pattern matches for doctor speech
   const isDocQuestion = doctorPatterns.questions.some(pattern => pattern.test(lowerText));
@@ -136,32 +160,43 @@ export function detectSpeaker(
   patientScore += (isPatientSymptom ? 4 : 0) + 
                  (isPatientResponse ? 3 : 0) + 
                  (isPatientQuestion ? 3 : 0) +
-                 (isPatientHistory ? 3 : 0);
+                 (isPatientHistory ? 4 : 0);
   
   // Consider conversation flow context
   if (context.lastSpeaker === 'Doctor') {
     // If doctor spoke last, this is more likely a patient response
-    patientScore += 1;
+    patientScore += 2; // Increased from 1 to 2
     
     // If last utterance was a question, more likely patient is answering
     if (context.doctorAskedQuestion) {
-      patientScore += 2;
+      patientScore += 3; // Increased from 2 to 3
     }
   } else if (context.lastSpeaker === 'Patient') {
     // If patient spoke last, this is more likely a doctor response
-    doctorScore += 1;
+    doctorScore += 2; // Increased from 1 to 2
     
     // If patient was describing symptoms, doctor likely asking follow-up
     if (context.isPatientDescribingSymptoms) {
-      doctorScore += 2;
+      doctorScore += 3; // Increased from 2 to 3
     }
   }
   
+  // Check for first-person pronouns - strong indicator for speaker
+  const firstPersonCount = (text.match(/\b(i|i'm|i've|i'll|i'd|my|mine|me|myself)\b/gi) || []).length;
+  if (firstPersonCount > 0) {
+    // More first-person references likely means patient speaking about themselves
+    patientScore += Math.min(firstPersonCount, 4);
+  }
+  
+  // Check for second-person - more typical of doctor speaking to patient
+  const secondPersonCount = (text.match(/\b(you|your|yours|yourself)\b/gi) || []).length;
+  if (secondPersonCount > 0) {
+    doctorScore += Math.min(secondPersonCount, 3);
+  }
+  
   // Check for prescription-related content - strongly biased toward doctor
-  // This is a critical fix to ensure prescription discussions are attributed to the doctor
   if (isPrescriptionContent) {
-    // Heavy bias for doctor when discussing medications and prescriptions
-    doctorScore += 6;  // Increased from 5 to 6 for stronger bias
+    doctorScore += 6;  
   }
   
   // If we're in prescribing mode, maintain doctor bias
@@ -171,7 +206,6 @@ export function detectSpeaker(
     lowerText.includes("medicine") ||
     lowerText.includes("treatment") ||
     lowerText.includes("therapy") ||
-    // Additional prescription keywords
     lowerText.includes("tablet") ||
     lowerText.includes("capsule") ||
     lowerText.includes("pill") ||
@@ -179,16 +213,25 @@ export function detectSpeaker(
     lowerText.includes("mg") ||
     lowerText.includes("ml")
   )) {
-    doctorScore += 4;  // Increased from 3 to 4
+    doctorScore += 5;  // Increased from 4 to 5
   }
   
   // Analyze text length and complexity
   if (text.length > 100) {
-    // Longer text is more likely a doctor explanation
-    doctorScore += 1;
+    // Longer explanations are more likely from doctor
+    doctorScore += 2; // Increased from 1 to 2
   } else if (text.length < 15 && patientPatterns.responses.some(pattern => pattern.test(lowerText))) {
     // Very short response is likely patient
-    patientScore += 1;
+    patientScore += 2; // Increased from 1 to 2
+  }
+  
+  // Special case: If text contains both "I" and medical terms, could be a doctor 
+  // sharing personal experience or explaining a concept
+  if (firstPersonCount > 0 && hasMedicalTerms) {
+    // If contains "as a doctor" or similar phrases, boost doctor score
+    if (/(as (a|your) doctor|in my experience|in my practice|in my medical opinion)/i.test(text)) {
+      doctorScore += 5;
+    }
   }
   
   // Return the most likely speaker based on scoring
@@ -219,7 +262,7 @@ export interface PatientInfo {
   time: string;
 }
 
-// IMPROVED: Enhanced patient name detection with more robust patterns
+// Enhanced patient name detection
 export function detectPatientInfo(text: string): PatientInfo | null {
   // Normalize text: remove extra spaces and convert to lowercase for better matching
   const normalizedText = text.replace(/\s+/g, ' ').trim();

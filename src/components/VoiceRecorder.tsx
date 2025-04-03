@@ -26,16 +26,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [lastProcessedIndex, setLastProcessedIndex] = useState(0);
   const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient' | 'Identifying'>('Doctor');
-  const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds (reduced for faster response)
+  const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
+  
+  // Track complete formatted transcript with speaker labels
+  const [formattedTranscript, setFormattedTranscript] = useState('');
 
   // Refs
   const interimTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
+  const turnCountRef = useRef<number>(0); // NEW: Track conversation turns
   
   // Conversation context tracking
   const conversationContextRef = useRef<{
@@ -58,6 +62,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       const newSpeaker = lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor';
       setLastSpeaker(newSpeaker);
       setSpeakerChanged(true);
+      turnCountRef.current += 1; // Increment turn counter on speaker change
       
       // Only flash animation on actual speaker change
       setTimeout(() => {
@@ -116,22 +121,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // For diagnostic purposes
     console.log("Received speech result:", { result, isFinal, resultIndex });
     
-    let currentTranscript = '';
-    
     if (isFinal) {
       // When we have final result, analyze context to determine speaker
-      const detectedSpeaker = resultIndex >= lastProcessedIndex ? 
-        detectSpeaker(result, {
-          ...conversationContextRef.current,
-          lastSpeaker,
-          isFirstInteraction: isFirstInteractionRef.current
-        }) : lastSpeaker;
+      const detectedSpeaker = detectSpeaker(result, {
+        ...conversationContextRef.current,
+        lastSpeaker,
+        isFirstInteraction: isFirstInteractionRef.current,
+        turnCount: turnCountRef.current
+      });
       
-      // Update speaker
+      // Update speaker and increment turn counter
       setLastSpeaker(detectedSpeaker);
+      turnCountRef.current += 1;
       
-      // Format with speaker tag
+      // Format with speaker tag for final results
       const formattedResult = `[${detectedSpeaker}]: ${result}\n`;
+      
+      // Update our complete formatted transcript
+      setFormattedTranscript(prev => prev + formattedResult);
+      
       interimTranscriptRef.current = '';
       setLastProcessedIndex(resultIndex + 1);
       
@@ -145,17 +153,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       
       // Get the accumulated transcript from our hook
       const fullTranscript = getAccumulatedTranscript();
-      setTranscript(fullTranscript);
-      onTranscriptUpdate(fullTranscript);
+      
+      // Update the parent component with the formatted transcript (with speaker labels)
+      onTranscriptUpdate(formattedTranscript + formattedResult);
       
     } else {
       // For interim results, show with "Identifying" tag
       interimTranscriptRef.current = `[Identifying]: ${result}`;
       
-      // Full transcript is accumulated + interim
-      const displayTranscript = getAccumulatedTranscript() + interimTranscriptRef.current;
-      setTranscript(displayTranscript);
-      onTranscriptUpdate(displayTranscript);
+      // Combine formatted transcript with interim for real-time display
+      onTranscriptUpdate(formattedTranscript + interimTranscriptRef.current);
       
       // Even for interim results, try to identify patient
       if (isNewSession && !patientIdentifiedRef.current) {
@@ -179,6 +186,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           content.toLowerCase().startsWith('what') || content.toLowerCase().startsWith('when')) {
         conversationContextRef.current.doctorAskedQuestion = true;
       } else {
+        conversationContextRef.current.doctorAskedQuestion = false;
         // If doctor is talking about medication, mark as prescribing
         if (content.toLowerCase().includes('prescribe') || 
             content.toLowerCase().includes('medication') || 
@@ -317,6 +325,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const startNewSession = () => {
     resetTranscript();
     setTranscript('');
+    setFormattedTranscript(''); // Clear formatted transcript
     onTranscriptUpdate('');
     setIsNewSession(true);
     setLastSpeaker('Doctor');
@@ -324,6 +333,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
     patientNameScanAttempts.current = 0;
+    turnCountRef.current = 0; // Reset turn counter
     setShowPatientIdentified(false);
     
     // Reset conversation context
@@ -345,10 +355,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       const finalizedInterim = interimTranscriptRef.current.replace('[Identifying]:', `[${lastSpeaker}]:`);
       interimTranscriptRef.current = '';
       
-      // Update the accumulated transcript in our hook
-      const fullTranscript = getAccumulatedTranscript() + finalizedInterim + '\n';
-      setTranscript(fullTranscript);
-      onTranscriptUpdate(fullTranscript);
+      // Update the formatted transcript with the finalized interim
+      setFormattedTranscript(prev => prev + finalizedInterim + '\n');
+      
+      // Update the parent with the complete transcript
+      onTranscriptUpdate(formattedTranscript + finalizedInterim + '\n');
     }
     stopRecording();
   };

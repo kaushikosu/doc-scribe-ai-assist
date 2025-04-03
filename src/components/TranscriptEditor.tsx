@@ -46,21 +46,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   // Process and format the transcript for better readability with clear speaker distinction
   const formattedTranscript = transcript
-    .replace(/\[(Doctor|Patient|Identifying)\]:/g, (match, speaker) => {
+    .replace(/\[(Doctor|Patient|Identifying)\]:\s*([^\n]*)/g, (match, speaker, content) => {
       if (speaker === 'Doctor') {
-        return `<div class="message doctor-message"><div class="speaker-icon doctor-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-circle"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div><div class="speaker-label doctor-label">Doctor</div><div class="message-content">`;
+        return `<div class="message doctor-message"><div class="speaker-icon doctor-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-circle"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div><div class="speaker-label doctor-label">Doctor</div><div class="message-content">${content}</div></div>`;
       } else if (speaker === 'Patient') {
-        return `<div class="message patient-message"><div class="speaker-icon patient-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg></div><div class="speaker-label patient-label">Patient</div><div class="message-content">`;
+        return `<div class="message patient-message"><div class="speaker-icon patient-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg></div><div class="speaker-label patient-label">Patient</div><div class="message-content">${content}</div></div>`;
       } else {
-        return `<div class="message identifying-message"><div class="speaker-label identifying-label">Listening...</div><div class="message-content">`;
+        return `<div class="message identifying-message"><div class="speaker-label identifying-label">Listening...</div><div class="message-content">${content}</div></div>`;
       }
-    })
-    // Clean up line breaks within a speaker's text
-    .replace(/\n([^\n<])/g, ' $1')
-    // Close previous message and content divs before starting a new message
-    .replace(/([^>])\n*<div class="message/g, '$1</div></div>\n<div class="message')
-    // Ensure the last message is properly closed
-    + (transcript && !transcript.endsWith('</div></div>') ? '</div></div>' : '');
+    });
 
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">

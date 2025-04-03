@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { detectLanguage } from '@/utils/speakerDetection';
@@ -30,7 +31,7 @@ const useSpeechRecognition = ({
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Store the complete transcript (not just the latest result)
+  // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
   
   // Track all results to avoid processing duplicates
@@ -39,7 +40,7 @@ const useSpeechRecognition = ({
   // Keep reference to the current recording session
   const sessionIdRef = useRef<string>(Date.now().toString());
   
-  // NEW: Enhanced patient name detection
+  // Enhanced patient name detection
   const nameDetectionAttemptsRef = useRef<number>(0);
   const continuousTextBufferRef = useRef<string>('');
   const nameRecognitionPatterns = [
@@ -70,7 +71,7 @@ const useSpeechRecognition = ({
     }, 200);
   };
 
-  // NEW: Enhanced name detection function with multiple methods
+  // Enhanced name detection function with multiple methods
   const detectPatientName = (text: string): string | null => {
     // Method 1: Try regex patterns
     for (const pattern of nameRecognitionPatterns) {
@@ -152,8 +153,12 @@ const useSpeechRecognition = ({
               // Mark this result as processed
               processedResultsMapRef.current.set(i, true);
               
-              // Add to accumulated transcript (with explicit line break)
-              accumulatedTranscriptRef.current += transcript + '\n';
+              // Add to accumulated transcript with an explicit line break
+              // This ensures each speech segment is on its own line
+              if (accumulatedTranscriptRef.current && !accumulatedTranscriptRef.current.endsWith('\n')) {
+                accumulatedTranscriptRef.current += '\n';
+              }
+              accumulatedTranscriptRef.current += transcript;
               
               // Detect language and update if needed
               const newLanguage = detectLanguage(transcript);
@@ -257,7 +262,7 @@ const useSpeechRecognition = ({
         startRecording();
       }
     },
-    // NEW: Expose the accumulated transcript
+    // Expose the accumulated transcript
     getAccumulatedTranscript: () => accumulatedTranscriptRef.current,
     resetTranscript: () => {
       accumulatedTranscriptRef.current = '';
