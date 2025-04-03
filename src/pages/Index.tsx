@@ -24,43 +24,43 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-doctor-light">
+    <div className="min-h-screen bg-gradient-to-b from-doctor-light to-white">
       <div className="container py-8 max-w-6xl">
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
           {/* Voice Recorder Column */}
-          <div className="md:col-span-4">
+          <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate} 
             />
             
-            <Card className="mt-6 p-4 border-none bg-doctor-primary/5">
-              <h2 className="font-semibold text-doctor-primary mb-3">How to use DocScribe</h2>
-              <ol className="space-y-2 text-sm">
-                <li className="flex gap-2">
-                  <span className="font-bold">1.</span>
+            <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/10 via-doctor-primary/5 to-transparent">
+              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
+              <ol className="space-y-3 text-sm">
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
                   <span>Say "Hi [patient name]" to begin a new session</span>
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-bold">2.</span>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
                   <span>Speak naturally about the patient's condition, symptoms, and medications</span>
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-bold">3.</span>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
                   <span>The transcript will appear in real-time and can be edited if needed</span>
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-bold">4.</span>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
                   <span>A prescription will be automatically generated based on the conversation</span>
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-bold">5.</span>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
                   <span>Review, edit if necessary, print or save the prescription</span>
                 </li>
-                <li className="flex gap-2">
-                  <span className="font-bold">6.</span>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
                   <span>Press the "New Patient" button for the next consultation</span>
                 </li>
               </ol>

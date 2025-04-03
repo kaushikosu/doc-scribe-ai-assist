@@ -24,32 +24,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient'>('Doctor');
   const [pauseThreshold, setPauseThreshold] = useState(2000); // 2 seconds
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
+  const [speakerChanged, setSpeakerChanged] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Doctor's voice profile (in a real app this would be calibrated)
-  const doctorVoiceProfile = {
-    avgPitch: 165, // Hz, just an example value
-    avgIntensity: 70, // dB, just an example value
-    speechRate: 160, // words per minute, example value
-  };
-
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop();
-      }
-      if (silenceTimerRef.current) {
-        clearInterval(silenceTimerRef.current);
-      }
-    };
-  }, []);
 
   // Function to detect silence and potentially switch speakers
   const setupSilenceDetection = () => {
@@ -65,7 +45,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       
       // If silence longer than threshold, potentially switch speakers
       if (timeSinceLastSpeech > pauseThreshold && isRecording) {
-        setLastSpeaker(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
+        const newSpeaker = lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor';
+        setLastSpeaker(newSpeaker);
+        setSpeakerChanged(true);
+        
+        // Reset the animation after 2 seconds
+        setTimeout(() => {
+          setSpeakerChanged(false);
+        }, 2000);
+        
         lastSpeechTimeRef.current = now; // Reset the timer
       }
     }, 200);
@@ -108,12 +96,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
               finalTranscript += `[${lastSpeaker}]: ${result}\n`;
               setLastProcessedIndex(i + 1);
               lastSpeechTimeRef.current = Date.now(); // Update last speech time
-              
-              // Switch speaker after final result if enough silence
-              const now = Date.now();
-              if (now - lastSpeechTimeRef.current > pauseThreshold) {
-                setLastSpeaker(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
-              }
             } else {
               interimTranscript += result;
             }
@@ -218,14 +200,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   };
 
   return (
-    <Card className="border-2 border-doctor-primary/30">
-      <CardContent className="p-4">
+    <Card className="border-2 border-doctor-primary/30 shadow-md">
+      <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/5 to-transparent">
         <div className="flex flex-col items-center gap-4">
           <div className="flex space-x-4">
             <Button 
               onClick={toggleRecording}
               className={cn(
-                "w-16 h-16 rounded-full flex justify-center items-center",
+                "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all",
                 isRecording 
                   ? "bg-destructive hover:bg-destructive/90" 
                   : "bg-doctor-primary hover:bg-doctor-primary/90"
@@ -240,7 +222,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             
             <Button
               onClick={startNewSession}
-              className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90"
+              className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
               disabled={isRecording}
             >
               <UserPlus className="h-8 w-8" />
@@ -251,7 +233,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             {isRecording ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-destructive animate-pulse-recording"></span>
+                  <span className={cn(
+                    "h-3 w-3 rounded-full bg-destructive",
+                    speakerChanged ? "animate-pulse-recording" : ""
+                  )}></span>
                   <span className="font-medium">Recording ({lastSpeaker} speaking)</span>
                 </div>
                 <div className="text-xs text-muted-foreground">

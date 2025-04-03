@@ -1,7 +1,15 @@
 
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Stethoscope, FileText, User, Building } from 'lucide-react';
+import { Stethoscope, FileText, Building, LogOut } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { toast } from '@/lib/toast';
 
 interface DocHeaderProps {
   patientInfo: {
@@ -13,10 +21,15 @@ interface DocHeaderProps {
 const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   const doctorName = "Dr. Sarah Johnson";
   const hospitalName = "City General Hospital";
+  
+  const handleLogout = () => {
+    toast.success("Logged out successfully");
+    // In a real app, you would implement actual logout functionality here
+  };
 
   return (
     <div className="flex flex-col gap-2 mb-6">
-      <Card className="bg-doctor-primary text-white w-full">
+      <Card className="bg-gradient-to-r from-doctor-primary to-doctor-primary/80 text-white w-full shadow-md">
         <CardContent className="p-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -28,26 +41,50 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
               <p className="text-doctor-primary-foreground/80">Voice-powered medical documentation</p>
             </div>
           </div>
-          <div className="hidden md:flex flex-col items-end">
-            <div className="flex items-center gap-2 mb-1">
-              <Building className="h-4 w-4" />
-              <p className="text-sm font-medium text-doctor-primary-foreground/90">
-                {hospitalName}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4" />
+          <div className="hidden md:flex justify-between items-center gap-8">
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-2 mb-1">
+                <Building className="h-4 w-4" />
+                <p className="text-sm font-medium text-doctor-primary-foreground/90">
+                  {hospitalName}
+                </p>
+              </div>
               <p className="text-sm text-doctor-primary-foreground/90">
-                Logged in: <span className="font-medium">{doctorName}</span>
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
               </p>
             </div>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity">
+                  <div className="flex flex-col items-end">
+                    <p className="font-medium">{doctorName}</p>
+                    <p className="text-xs opacity-80">Attending Physician</p>
+                  </div>
+                  <Avatar className="h-12 w-12 border-2 border-white/50">
+                    <AvatarImage src="https://i.pravatar.cc/150?img=29" alt={doctorName} />
+                    <AvatarFallback className="bg-doctor-secondary text-white">SJ</AvatarFallback>
+                  </Avatar>
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardContent>
       </Card>
       {patientInfo.name && (
-        <div className="bg-doctor-secondary/10 p-2 rounded-md">
+        <div className="bg-gradient-to-r from-doctor-secondary/20 to-doctor-secondary/5 p-3 rounded-md shadow-sm">
           <p className="text-sm text-doctor-secondary font-medium">
-            Current patient: {patientInfo.name} | Session started: {patientInfo.time} | {new Date().toLocaleDateString()}
+            Current patient: <span className="font-bold">{patientInfo.name}</span> | Session started: {patientInfo.time} | {new Date().toLocaleDateString()}
           </p>
         </div>
       )}

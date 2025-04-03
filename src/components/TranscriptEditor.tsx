@@ -28,7 +28,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       const scrollContainer = scrollAreaRef.current;
       setTimeout(() => {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }, 100);
+      }, 50); // Reduced timeout for faster updates
     }
   }, [transcript]);
 
@@ -45,11 +45,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
+  // Format transcript for better readability - highlight speaker changes
+  const formattedTranscript = transcript.replace(
+    /\[(Doctor|Patient)\]:/g, 
+    (match) => `\n${match}`
+  );
+
   return (
-    <Card className="border-2 border-doctor-secondary/30">
-      <CardHeader className="pb-3">
+    <Card className="border-2 border-doctor-secondary/30 shadow-md">
+      <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/10 to-doctor-primary/5">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-xl text-doctor-secondary">Transcript</CardTitle>
+          <CardTitle className="text-xl text-doctor-secondary font-semibold">Transcript</CardTitle>
           <Button 
             variant="outline" 
             size="sm"
@@ -83,9 +89,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             placeholder="Transcript will appear here..."
           />
         ) : (
-          <ScrollArea className="h-[300px] rounded-md overflow-auto" ref={scrollAreaRef}>
-            <div className="bg-muted p-3 rounded-md whitespace-pre-wrap">
-              {transcript || "Transcript will appear here..."}
+          <ScrollArea className="h-[300px] rounded-md overflow-auto pr-2" ref={scrollAreaRef}>
+            <div className="bg-muted p-4 rounded-md whitespace-pre-wrap">
+              {formattedTranscript || "Transcript will appear here..."}
             </div>
           </ScrollArea>
         )}
