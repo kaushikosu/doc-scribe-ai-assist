@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,6 +8,11 @@ import { toast } from '@/lib/toast';
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
+}
+
+// Define a custom error event interface for SpeechRecognition
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPatientInfoUpdate }) => {
@@ -160,7 +164,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
           }
         };
         
-        recognitionRef.current.onerror = (event) => {
+        recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error('Speech recognition error', event.error);
           toast.error('Error with speech recognition. Please try again.');
           setIsRecording(false);
