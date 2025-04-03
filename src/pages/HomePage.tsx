@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -206,7 +205,7 @@ const HomePage = () => {
                 Start Free Trial
               </Button>
             </Link>
-            <Button size="lg" variant="outline" className="border-white text-white hover:bg-doctor-primary/80">
+            <Button size="lg" variant="outline" className="border-white text-white hover:bg-doctor-primary/80 hover:text-white">
               Schedule Demo
             </Button>
           </div>
