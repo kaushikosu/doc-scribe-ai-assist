@@ -56,6 +56,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       }
     });
 
+  // Ensure we preserve line breaks in the transcript
+  const processedTranscript = formattedTranscript.replace(/\n/g, '<br/>');
+
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">
       <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/20 to-doctor-primary/10">
@@ -100,11 +103,11 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md"
+              className="bg-muted p-4 rounded-md h-full w-full"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
-                __html: formattedTranscript || 
-                "<div class='text-muted-foreground text-center italic'>Transcript will appear here...</div>"
+                __html: processedTranscript || 
+                "<div class='text-muted-foreground text-center italic h-full flex items-center justify-center'>Transcript will appear here...</div>"
               }}
             />
           </ScrollArea>
