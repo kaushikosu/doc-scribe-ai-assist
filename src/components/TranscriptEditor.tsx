@@ -46,7 +46,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   // Process and format the transcript for better readability with clear speaker distinction
   const formattedTranscript = transcript
-    .replace(/\[(Doctor|Patient|Identifying)\]:\s*([^\n]*)/g, (match, speaker, content) => {
+    .split('\n')
+    .filter(line => line.trim() !== '')  // Filter out empty lines
+    .map((line, index) => {
+      // Extract speaker and content using regex
+      const match = line.match(/\[(Doctor|Patient|Identifying)\]:\s*(.*)/);
+      if (!match) return line; // If no match, return the original line
+      
+      const [_, speaker, content] = match;
+      
       if (speaker === 'Doctor') {
         return `<div class="message doctor-message"><div class="speaker-icon doctor-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-circle"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div><div class="speaker-label doctor-label">Doctor</div><div class="message-content">${content}</div></div>`;
       } else if (speaker === 'Patient') {
@@ -54,10 +62,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       } else {
         return `<div class="message identifying-message"><div class="speaker-label identifying-label">Listening...</div><div class="message-content">${content}</div></div>`;
       }
-    });
-
-  // Ensure we preserve line breaks in the transcript
-  const processedTranscript = formattedTranscript.replace(/\n/g, '<br/>');
+    })
+    .join(''); // Join all formatted lines together
 
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">
@@ -106,7 +112,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               className="bg-muted p-4 rounded-md h-full w-full"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
-                __html: processedTranscript || 
+                __html: formattedTranscript || 
                 "<div class='text-muted-foreground text-center italic h-full flex items-center justify-center'>Transcript will appear here...</div>"
               }}
             />
