@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Languages } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
@@ -16,13 +16,6 @@ interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 
-// List of supported languages
-const SUPPORTED_LANGUAGES = [
-  { code: 'en-IN', name: 'English (India)' },
-  { code: 'hi-IN', name: 'Hindi' },
-  { code: 'te-IN', name: 'Telugu' },
-];
-
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPatientInfoUpdate }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -32,46 +25,167 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds (reduced for faster response)
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState(SUPPORTED_LANGUAGES[0]);
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const interimTranscriptRef = useRef<string>('');
+  const isFirstInteractionRef = useRef<boolean>(true);
+  const conversationContextRef = useRef<{
+    isPatientDescribingSymptoms: boolean;
+    doctorAskedQuestion: boolean;
+    patientResponded: boolean;
+    isPrescribing: boolean;
+    isGreeting: boolean;
+  }>({
+    isPatientDescribingSymptoms: false,
+    doctorAskedQuestion: false,
+    patientResponded: false,
+    isPrescribing: false,
+    isGreeting: true
+  });
 
-  // Function to detect speaker based on context and silence
+  // Function to detect speaker based on context clues
   const detectSpeaker = (text: string): 'Doctor' | 'Patient' => {
     const lowerText = text.toLowerCase();
     
-    // Doctor indication keywords
-    const doctorPatterns = [
-      /\b(i recommend|i suggest|i prescribe|you should|you need to|your condition|your symptoms)\b/i,
-      /\b(the diagnosis|the treatment|your test results|your blood pressure|your heart rate)\b/i,
-      /\b(what brings you here|how can i help|tell me about your symptoms|when did this start)\b/i,
-      /\b(take this medication|twice daily|once daily|after meals|doctor|dr\.)\b/i
+    // Track conversation state for better detection
+    const context = conversationContextRef.current;
+    
+    // Check if this is the beginning of conversation
+    if (isFirstInteractionRef.current) {
+      // First interaction is likely the doctor greeting
+      isFirstInteractionRef.current = false;
+      context.isGreeting = true;
+      return 'Doctor';
+    }
+    
+    // Doctor indication patterns
+    const doctorGreetingPatterns = [
+      /\b(hi|hello|namaste|namaskar|good morning|good afternoon)\b/i,
+      /\b(how are you feeling|what brings you here|what seems to be the problem)\b/i,
+      /\b(tell me about your symptoms|when did this start|how long have you been feeling)\b/i
     ];
     
-    // Patient indication keywords
-    const patientPatterns = [
-      /\b(i feel|i have been|i am experiencing|i've been|my stomach|my head|my body|my chest)\b/i,
-      /\b(pain in my|hurts when i|started|ago|thank you doctor|yes doctor|no doctor)\b/i,
-      /\b(medicine|tablet|injection|prescription|sick|pain|ache|fever|cough|cold)\b/i
+    const doctorQuestionPatterns = [
+      /\b(have you taken any medication|any allergies|do you have|are you feeling)\b/i,
+      /\b(how severe is|rate your pain|any other symptoms|family history)\b/i,
+      /\b(how long have you been|when did you notice|does it hurt when)\b/i
     ];
     
-    // Check for doctor or patient patterns
-    let doctorMatches = 0;
-    let patientMatches = 0;
+    const doctorPrescribingPatterns = [
+      /\b(i recommend|i suggest|i prescribe|you should take|you need to take)\b/i,
+      /\b(take this medicine|take these tablets|this will help|this medication)\b/i,
+      /\b(twice daily|once daily|after meals|before meals|every morning|every night)\b/i,
+      /\b(for \d+ days|for a week|for two weeks|follow up|come back|next visit)\b/i
+    ];
     
-    doctorPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) doctorMatches++;
+    // Patient indication patterns
+    const patientSymptomPatterns = [
+      /\b(i have|i've been|i am having|i feel|i am experiencing|suffering from)\b/i,
+      /\b(pain in my|hurts when|started|days ago|since yesterday|last week|morning|night)\b/i,
+      /\b(fever|cough|cold|headache|stomachache|pain|ache|vomiting|nausea)\b/i,
+      /\b(not feeling well|sick|unwell|dizzy|tired|weakness|no appetite)\b/i
+    ];
+    
+    const patientResponsePatterns = [
+      /\b(yes doctor|no doctor|thank you|thanks|ok|okay|i will|i'll try|i understand)\b/i,
+      /\b(i took|i've taken|i have taken|i haven't taken|i stopped|i started)\b/i,
+      /\b(tablet|tablets|medicine|pill|pills|syrup|injection|capsule|dose)\b/i
+    ];
+
+    // Someone being addressed
+    const addressingDoctor = /\b(doctor|dr\.|डॉक्टर|डाक्टर|वैद्य|डॉक्टर साहब|डॉक्‍टर|డాక్టర్|వైద్యుడు)\b/i;
+    const addressingPatient = /\b(मरीज़|रोगी|పేషెంట్|రోగి)\b/i;
+    
+    // Check for conversation context and language markers
+    if (context.isGreeting && doctorGreetingPatterns.some(pattern => pattern.test(lowerText))) {
+      context.isGreeting = false;
+      context.doctorAskedQuestion = true;
+      return 'Doctor';
+    }
+    
+    if (context.doctorAskedQuestion && patientSymptomPatterns.some(pattern => pattern.test(lowerText))) {
+      context.doctorAskedQuestion = false;
+      context.isPatientDescribingSymptoms = true;
+      context.patientResponded = true;
+      return 'Patient';
+    }
+    
+    if (context.isPatientDescribingSymptoms && doctorQuestionPatterns.some(pattern => pattern.test(lowerText))) {
+      context.isPatientDescribingSymptoms = false;
+      context.doctorAskedQuestion = true;
+      return 'Doctor';
+    }
+    
+    if (context.patientResponded && doctorPrescribingPatterns.some(pattern => pattern.test(lowerText))) {
+      context.patientResponded = false;
+      context.isPrescribing = true;
+      return 'Doctor';
+    }
+    
+    // Direct addressing overrides
+    if (addressingDoctor.test(lowerText)) {
+      return 'Patient';
+    }
+    
+    if (addressingPatient.test(lowerText)) {
+      return 'Doctor';
+    }
+    
+    // Score-based approach as fallback
+    let doctorScore = 0;
+    let patientScore = 0;
+    
+    // Check each pattern category for matches
+    doctorGreetingPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) doctorScore += 2;
     });
     
-    patientPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) patientMatches++;
+    doctorQuestionPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) doctorScore += 2;
     });
     
-    return doctorMatches > patientMatches ? 'Doctor' : 'Patient';
+    doctorPrescribingPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) doctorScore += 3; // Stronger indicator
+    });
+    
+    patientSymptomPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) patientScore += 2;
+    });
+    
+    patientResponsePatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) patientScore += 2;
+    });
+    
+    // Consider the last speaker for continuity
+    if (lastSpeaker === 'Doctor') {
+      patientScore += 1; // Slight bias toward alternating speakers
+    } else if (lastSpeaker === 'Patient') {
+      doctorScore += 1;
+    }
+    
+    return doctorScore > patientScore ? 'Doctor' : 'Patient';
+  };
+
+  // Function to detect language based on text
+  const detectLanguage = (text: string): string => {
+    // Simple language detection based on script characteristics
+    // Hindi/Devanagari detection
+    const devanagariPattern = /[\u0900-\u097F\u0981-\u09DC\u09DD-\u09DF]/;
+    
+    // Telugu detection
+    const teluguPattern = /[\u0C00-\u0C7F]/;
+    
+    if (devanagariPattern.test(text)) {
+      return 'hi-IN'; // Hindi
+    } else if (teluguPattern.test(text)) {
+      return 'te-IN'; // Telugu
+    } else {
+      return 'en-IN'; // Default to English
+    }
   };
 
   // Function to detect silence and potentially switch speakers
@@ -106,21 +220,18 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     setTranscript('');
     onTranscriptUpdate('');
     setIsNewSession(true);
-    setLastSpeaker('Doctor');
+    setLastSpeaker('Doctor'); // Doctor speaks first in a new session
     setLastProcessedIndex(0);
+    isFirstInteractionRef.current = true;
+    // Reset conversation context
+    conversationContextRef.current = {
+      isPatientDescribingSymptoms: false,
+      doctorAskedQuestion: false,
+      patientResponded: false,
+      isPrescribing: false,
+      isGreeting: true
+    };
     toast.success('Ready for new patient');
-  };
-
-  const changeLanguage = (language: typeof SUPPORTED_LANGUAGES[0]) => {
-    setSelectedLanguage(language);
-    
-    // Restart recognition if already recording
-    if (isRecording) {
-      stopRecording();
-      setTimeout(() => startRecording(), 300);
-    }
-    
-    toast.success(`Language changed to ${language.name}`);
   };
 
   const startRecording = async () => {
@@ -137,7 +248,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
-        recognitionRef.current.lang = selectedLanguage.code;
+        recognitionRef.current.lang = detectedLanguage; // Start with default language
         
         recognitionRef.current.onresult = (event) => {
           let interimTranscript = '';
@@ -155,6 +266,17 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
                 // Only update speaker for new results
                 setLastSpeaker(detectedSpeaker);
                 lastSpeechTimeRef.current = Date.now(); // Update last speech time
+                
+                // Detect language and update recognition if needed
+                const newLanguage = detectLanguage(result);
+                if (newLanguage !== detectedLanguage) {
+                  setDetectedLanguage(newLanguage);
+                  // Restart recognition with new language
+                  if (recognitionRef.current) {
+                    recognitionRef.current.lang = newLanguage;
+                    // No need to restart - just update the language
+                  }
+                }
               }
               
               finalTranscript += `[${detectedSpeaker}]: ${result}\n`;
@@ -223,8 +345,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error('Speech recognition error', event.error);
-          toast.error('Error with speech recognition. Please try again.');
-          setIsRecording(false);
+          if (event.error === 'language-not-supported') {
+            setDetectedLanguage('en-IN'); // Fallback to English
+            if (recognitionRef.current) {
+              recognitionRef.current.lang = 'en-IN';
+            }
+            toast.error('Language not supported, switching to English');
+          } else {
+            toast.error('Error with speech recognition. Please try again.');
+            setIsRecording(false);
+          }
         };
         
         // Initialize the transcript with the current speaker if it's empty
@@ -237,7 +367,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         recognitionRef.current.start();
         setupSilenceDetection(); // Start silence detection
         setIsRecording(true);
-        toast.success(`Recording started in ${selectedLanguage.name}`);
+        toast.success(`Recording started with auto-language detection`);
       } else {
         toast.error('Speech recognition is not supported in this browser');
       }
@@ -323,7 +453,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
                   <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Auto-detecting speakers based on context and pauses
+                  Auto-detecting language and speakers in conversation
                 </div>
               </div>
             ) : (
@@ -336,22 +466,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             )}
           </div>
           
-          {/* Language selector */}
+          {/* Language indicator */}
           <div className="flex items-center gap-2 mt-2">
-            <Languages className="h-4 w-4 text-doctor-primary" />
-            <div className="flex gap-2">
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <Button
-                  key={lang.code}
-                  variant={selectedLanguage.code === lang.code ? "default" : "outline"}
-                  size="sm"
-                  className={selectedLanguage.code === lang.code ? "bg-doctor-primary" : ""}
-                  onClick={() => changeLanguage(lang)}
-                  disabled={isRecording}
-                >
-                  {lang.name}
-                </Button>
-              ))}
+            <Globe className="h-4 w-4 text-doctor-primary" />
+            <div className="text-sm font-medium">
+              {isRecording ? 
+                `Auto-detecting: ${detectedLanguage === 'en-IN' ? 'English' : detectedLanguage === 'hi-IN' ? 'Hindi' : 'Telugu'}` : 
+                'Auto language detection enabled'
+              }
             </div>
           </div>
         </div>

@@ -44,7 +44,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
-  // Format transcript for better readability - highlight speaker changes
+  // Format transcript for better readability - highlight speaker changes and maintain real-time updates
   const formattedTranscript = transcript.replace(
     /\[(Doctor|Patient|Identifying)\]:/g, 
     (match) => `\n${match}`
@@ -88,7 +88,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             placeholder="Transcript will appear here..."
           />
         ) : (
-          <ScrollArea className="h-[300px] rounded-md overflow-auto pr-2" ref={scrollAreaRef}>
+          <ScrollArea 
+            className="h-[300px] rounded-md overflow-auto pr-2" 
+            ref={scrollAreaRef}
+          >
             <div 
               ref={contentRef} 
               className="bg-muted p-4 rounded-md whitespace-pre-wrap"

@@ -19,8 +19,8 @@ interface DocHeaderProps {
 }
 
 const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
-  const doctorName = "Dr. Sarah Johnson";
-  const hospitalName = "City General Hospital";
+  const doctorName = "Dr. Indra Reddy";
+  const hospitalName = "Arogya General Hospital";
   
   const handleLogout = () => {
     toast.success("Logged out successfully");
@@ -63,11 +63,11 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
                 <div className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity">
                   <div className="flex flex-col items-end">
                     <p className="font-medium">{doctorName}</p>
-                    <p className="text-xs opacity-80">Attending Physician</p>
+                    <p className="text-xs opacity-80">Senior Consultant</p>
                   </div>
                   <Avatar className="h-12 w-12 border-2 border-white/50">
-                    <AvatarImage src="https://i.pravatar.cc/150?img=29" alt={doctorName} />
-                    <AvatarFallback className="bg-doctor-secondary text-white">SJ</AvatarFallback>
+                    <AvatarImage src="https://i.pravatar.cc/150?img=32" alt={doctorName} />
+                    <AvatarFallback className="bg-doctor-secondary text-white">IR</AvatarFallback>
                   </Avatar>
                 </div>
               </DropdownMenuTrigger>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,8 +18,8 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ transcrip
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
-  const [doctorName, setDoctorName] = useState('Dr. Sarah Johnson');
-  const [hospitalName, setHospitalName] = useState('City General Hospital');
+  const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
+  const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
 
   useEffect(() => {
     if (transcript.length > 0) {
@@ -33,11 +32,9 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ transcrip
 
   const generatePrescription = (transcriptText: string) => {
     try {
-      // Extract potential medications (just a simple demo extraction)
       const medications = extractMedications(transcriptText);
       const symptoms = extractSymptoms(transcriptText);
       
-      // Create a more official prescription template
       const currentDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric', 
         month: 'long', 
@@ -83,8 +80,6 @@ Department of General Medicine
   };
 
   const extractMedications = (text: string): string[] => {
-    // This is a very simple extraction for demo purposes
-    // A real implementation would use medical NLP/AI models
     const commonMedications = [
       'Paracetamol', 'Ibuprofen', 'Aspirin', 'Amoxicillin',
       'Azithromycin', 'Metformin', 'Omeprazole', 'Atorvastatin'
@@ -93,7 +88,6 @@ Department of General Medicine
     return commonMedications
       .filter(med => text.toLowerCase().includes(med.toLowerCase()))
       .map(med => {
-        // Add some random dosing info for demo purposes
         const dosages = ['500mg twice daily', '250mg once daily', '1 tablet three times daily'];
         const randomDosage = dosages[Math.floor(Math.random() * dosages.length)];
         return `${med} - ${randomDosage}`;
@@ -101,7 +95,6 @@ Department of General Medicine
   };
 
   const extractSymptoms = (text: string): string[] => {
-    // Simple extraction for demo
     const commonSymptoms = [
       'fever', 'headache', 'pain', 'cough', 'cold', 
       'nausea', 'dizziness', 'fatigue', 'weakness'
