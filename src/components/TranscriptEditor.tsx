@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Edit, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface TranscriptEditorProps {
   transcript: string;
@@ -17,9 +18,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setEditableTranscript(transcript);
+    
+    // Scroll to bottom when transcript updates
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current;
+      setTimeout(() => {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }, 100);
+    }
   }, [transcript]);
 
   const handleEdit = () => {
@@ -69,13 +79,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className="min-h-[200px] resize-none focus-visible:ring-doctor-secondary"
+            className="min-h-[300px] max-h-[500px] resize-none focus-visible:ring-doctor-secondary"
             placeholder="Transcript will appear here..."
           />
         ) : (
-          <div className="bg-muted p-3 rounded-md min-h-[200px] whitespace-pre-wrap">
-            {transcript || "Transcript will appear here..."}
-          </div>
+          <ScrollArea className="h-[300px] rounded-md" ref={scrollAreaRef}>
+            <div className="bg-muted p-3 rounded-md whitespace-pre-wrap">
+              {transcript || "Transcript will appear here..."}
+            </div>
+          </ScrollArea>
         )}
       </CardContent>
     </Card>
