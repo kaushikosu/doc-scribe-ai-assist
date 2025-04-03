@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save } from 'lucide-react';
+import { Edit, Save, UserCircle, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -44,11 +44,21 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
-  // Format transcript for better readability - highlight speaker changes and maintain real-time updates
+  // Format transcript for better readability with enhanced speaker distinction
   const formattedTranscript = transcript.replace(
     /\[(Doctor|Patient|Identifying)\]:/g, 
-    (match) => `\n${match}`
-  );
+    (match, speaker) => {
+      if (speaker === 'Doctor') {
+        return `\n\n<div class="doctor-message"><span class="doctor-label"><UserCircle className="inline h-4 w-4 mr-1" />Doctor:</span> `;
+      } else if (speaker === 'Patient') {
+        return `\n\n<div class="patient-message"><span class="patient-label"><UserRound className="inline h-4 w-4 mr-1" />Patient:</span> `;
+      } else {
+        return `\n\n<div class="identifying-message"><span class="identifying-label">Identifying:</span> `;
+      }
+    }
+  ).replace(/\n([^\n<])/g, ' $1') // Handle line breaks within a speaker's text
+   .replace(/<\/div>$/, '') // Remove trailing close tag if present
+   + (transcript && !transcript.endsWith('</div>') ? '</div>' : '');
 
   return (
     <Card className="border-2 border-doctor-secondary/30 shadow-lg">
@@ -94,13 +104,52 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md whitespace-pre-wrap"
+              className="bg-muted p-4 rounded-md"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-            >
-              {formattedTranscript || "Transcript will appear here..."}
-            </div>
+              dangerouslySetInnerHTML={{ 
+                __html: formattedTranscript || 
+                "<div class='text-muted-foreground text-center italic'>Transcript will appear here...</div>"
+              }}
+            />
           </ScrollArea>
         )}
+        <style jsx>{`
+          :global(.doctor-message) {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+          }
+          :global(.patient-message) {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+          }
+          :global(.identifying-message) {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+            font-style: italic;
+            opacity: 0.8;
+          }
+          :global(.doctor-label) {
+            font-weight: 600;
+            color: #2563eb;
+            position: absolute;
+            left: 0;
+          }
+          :global(.patient-label) {
+            font-weight: 600;
+            color: #7c3aed;
+            position: absolute;
+            left: 0;
+          }
+          :global(.identifying-label) {
+            font-weight: 500;
+            color: #6b7280;
+            position: absolute;
+            left: 0;
+          }
+        `}</style>
       </CardContent>
     </Card>
   );
