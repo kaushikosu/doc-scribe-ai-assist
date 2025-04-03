@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,6 +26,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
+  const [showPatientIdentified, setShowPatientIdentified] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -32,6 +34,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const interimTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
+  const patientIdentifiedRef = useRef<boolean>(false);
   const conversationContextRef = useRef<{
     isPatientDescribingSymptoms: boolean;
     doctorAskedQuestion: boolean;
@@ -77,7 +80,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     // Doctor explanations/diagnoses - authoritative statements
     const doctorExplanationPatterns = [
       /^(your|the|these|those|this|that) (test results|bloodwork|scan|x-ray|levels|numbers|symptoms|condition)/i,
-      /^(it('s| is) (likely|probably|possibly|definitely|just|only) (a|an|the) /i,
+      /^(it('s| is) (likely|probably|possibly|definitely|just|only)/i,
       /^(based on|according to|given|i think|i believe|i suspect|it appears|it seems|it could be)/i,
       /^(you (have|need|should|might|may|could|must|will need)|we (should|need|will|can|could|might))/i,
       /^(i('d| would) (recommend|suggest|advise|like|want)|let's)/i,
@@ -90,6 +93,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       /^(i('ll| will) (prescribe|give|recommend|refer|schedule))/i,
       /^(come back|return|follow up|check in|call|contact|see me)/i,
       /^(say|open|close|breathe|cough|lift|move|turn|relax|deep breath)/i,
+    ];
+    
+    // Prescription-related patterns - almost always doctor
+    const prescriptionPatterns = [
+      /\b(prescribe|prescription|take|dosage|dose|tablet|capsule|pill|syrup|injection|medication|medicine|drug|antibiotic|cream|ointment|drops)\b/i,
+      /\b(twice|thrice|daily|once|every|morning|night|evening|before|after|meal|empty stomach)\b/i,
+      /\b(mg|mcg|ml|g|milligram|gram)\b/i,
+      /^(for|until|over|the next) \d+ (days|weeks|months)/i,
+      /\b(side effects|allergic reaction|refill|pharmacy)\b/i
     ];
     
     // ---- PATIENT LINGUISTIC PATTERNS ----
@@ -131,6 +143,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     // Check if the text is a doctor's directive
     const isDocDirective = doctorDirectivePatterns.some(pattern => pattern.test(lowerText));
     
+    // Check if the text contains prescription-related content
+    const isPrescriptionContent = prescriptionPatterns.some(pattern => pattern.test(lowerText));
+    
     // Check if the text is a patient describing symptoms
     const isPatientSymptom = patientSymptomPatterns.some(pattern => pattern.test(lowerText));
     
@@ -167,6 +182,27 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       }
     }
     
+    // Check for prescription-related content - strongly biased toward doctor
+    if (isPrescriptionContent) {
+      // Heavy bias for doctor when discussing medications and prescriptions
+      // This addresses the issue of incorrectly labeling prescription talk as patient
+      doctorScore += 5;
+      
+      // Mark context as prescribing
+      context.isPrescribing = true;
+    }
+    
+    // If we're in prescribing mode and still talking about similar topics, maintain doctor bias
+    if (context.isPrescribing && (
+      lowerText.includes("take") || 
+      lowerText.includes("medication") || 
+      lowerText.includes("medicine") ||
+      lowerText.includes("treatment") ||
+      lowerText.includes("therapy")
+    )) {
+      doctorScore += 3;
+    }
+    
     // Analyze text length and complexity
     // Doctors often give longer explanations, patients often give shorter responses
     if (text.length > 100) {
@@ -190,7 +226,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     } else if (isPatientSymptom) {
       context.isPatientDescribingSymptoms = true;
       context.doctorAskedQuestion = false;
-    } else if (isDocDirective) {
+    } else if (isDocDirective || isPrescriptionContent) {
       context.isPrescribing = true;
       context.isPatientDescribingSymptoms = false;
     }
@@ -201,7 +237,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     // Update conversation context for next detection
     if (detectedSpeaker === 'Doctor') {
       if (isDocQuestion) context.doctorAskedQuestion = true;
-      if (isDocDirective) context.isPrescribing = true;
+      if (isDocDirective || isPrescriptionContent) context.isPrescribing = true;
     } else {
       if (isPatientSymptom) context.isPatientDescribingSymptoms = true;
       if (isPatientResponse) context.patientResponded = true;
@@ -263,6 +299,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     setLastSpeaker('Doctor'); // Doctor speaks first in a new session
     setLastProcessedIndex(0);
     isFirstInteractionRef.current = true;
+    patientIdentifiedRef.current = false;
+    setShowPatientIdentified(false);
     // Reset conversation context
     conversationContextRef.current = {
       isPatientDescribingSymptoms: false,
@@ -356,7 +394,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             
             for (const pattern of greetingPatterns) {
               const match = fullText.match(pattern);
-              if (match && match[1]) {
+              if (match && match[1] && !patientIdentifiedRef.current) {
                 const patientName = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
                 const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 
@@ -365,6 +403,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
                   time: currentTime
                 });
                 setIsNewSession(false);
+                patientIdentifiedRef.current = true;
+                
+                // Show the patient identified notification temporarily
+                setShowPatientIdentified(true);
+                setTimeout(() => {
+                  setShowPatientIdentified(false);
+                }, 3000); // Hide after 3 seconds
+                
                 toast.success(`Patient identified: ${patientName}`);
                 break;
               }
@@ -505,6 +551,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
               </span>
             )}
           </div>
+          
+          {/* Patient identified animation - only shows temporarily */}
+          {showPatientIdentified && (
+            <div className="animate-fade-in text-sm font-medium text-doctor-accent">
+              Patient identified!
+            </div>
+          )}
           
           {/* Language indicator */}
           <div className="flex items-center gap-2 mt-2">
