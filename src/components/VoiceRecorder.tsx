@@ -36,6 +36,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const accumulatedTranscriptRef = useRef<string>('');
+  const patientNameScanAttempts = useRef<number>(0);
+  
+  // NEW: Track continuous text for better name detection
+  const continuousTextBufferRef = useRef<string>('');
+  
   const conversationContextRef = useRef<{
     isPatientDescribingSymptoms: boolean;
     doctorAskedQuestion: boolean;
@@ -64,12 +69,75 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
+  // NEW: Check for patient name in buffered text
+  const checkForPatientName = (textToCheck: string) => {
+    if (!isNewSession || patientIdentifiedRef.current) return;
+    
+    console.log("Checking for patient name in:", textToCheck);
+    const patientInfo = detectPatientInfo(textToCheck);
+    
+    if (patientInfo) {
+      console.log("Patient identified:", patientInfo);
+      onPatientInfoUpdate(patientInfo);
+      setIsNewSession(false);
+      patientIdentifiedRef.current = true;
+      
+      // Show the patient identified notification temporarily
+      setShowPatientIdentified(true);
+      setTimeout(() => {
+        setShowPatientIdentified(false);
+      }, 3000); // Hide after 3 seconds
+      
+      toast.success(`Patient identified: ${patientInfo.name}`);
+      isFirstInteractionRef.current = false;
+    } else {
+      // Increment the scan attempt counter
+      patientNameScanAttempts.current += 1;
+      
+      // After several attempts, check if there are common name patterns
+      if (patientNameScanAttempts.current > 5) {
+        // Try to extract possible names from capitalized words
+        const capitalizedWords = textToCheck.match(/\b[A-Z][a-z]{2,}\b/g);
+        if (capitalizedWords && capitalizedWords.length > 0) {
+          // Use the first capitalized word as a potential name
+          const possibleName = capitalizedWords[0];
+          const currentTime = new Date().toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+          
+          const suggestedPatient = {
+            name: possibleName,
+            time: currentTime
+          };
+          
+          console.log("Suggested patient from capitalized words:", suggestedPatient);
+          onPatientInfoUpdate(suggestedPatient);
+          setIsNewSession(false);
+          patientIdentifiedRef.current = true;
+          
+          // Show notification
+          setShowPatientIdentified(true);
+          setTimeout(() => {
+            setShowPatientIdentified(false);
+          }, 3000);
+          
+          toast.success(`Patient identified: ${possibleName}`);
+          isFirstInteractionRef.current = false;
+        }
+      }
+    }
+  };
+
   // Handle speech recognition results
   const handleSpeechResult = ({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number 
   }) => {
+    // Add to continuous text buffer for better name detection
+    continuousTextBufferRef.current += " " + result;
+    
     let interimTranscript = '';
     let finalTranscript = '';
     
@@ -128,26 +196,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setTranscript(displayTranscript);
     onTranscriptUpdate(displayTranscript);
 
-    // Check for patient identification in doctor's statements
-    if (isNewSession && (lastSpeaker === 'Doctor' || lastSpeaker === 'Identifying')) {
-      // Use the full transcript for patient detection
-      const fullText = displayTranscript;
-      const patientInfo = detectPatientInfo(fullText);
+    // Check for patient identification in initial conversation
+    if (isNewSession && !patientIdentifiedRef.current) {
+      // Check both the current result and the full buffer
+      checkForPatientName(result);
+      checkForPatientName(continuousTextBufferRef.current);
       
-      if (patientInfo && !patientIdentifiedRef.current) {
-        onPatientInfoUpdate(patientInfo);
-        setIsNewSession(false);
-        patientIdentifiedRef.current = true;
-        
-        // Show the patient identified notification temporarily
-        setShowPatientIdentified(true);
-        setTimeout(() => {
-          setShowPatientIdentified(false);
-        }, 3000); // Hide after 3 seconds
-        
-        toast.success(`Patient identified: ${patientInfo.name}`);
-        isFirstInteractionRef.current = false;
-      }
+      // Also check the current display transcript
+      checkForPatientName(displayTranscript);
     }
 
     // Check for "save prescription" command
@@ -185,6 +241,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setLastProcessedIndex(0);
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
+    patientNameScanAttempts.current = 0;
+    continuousTextBufferRef.current = '';
     setShowPatientIdentified(false);
     // Reset conversation context
     conversationContextRef.current = {
@@ -202,7 +260,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // If there's an interim transcript, finalize it
     if (interimTranscriptRef.current) {
       const finalizedInterim = interimTranscriptRef.current.replace('[Identifying]:', `[${lastSpeaker}]:`);
-      accumulatedTranscriptRef.current += finalizedInterim;
+      accumulatedTranscriptRef.current += finalizedInterim + '\n';
       interimTranscriptRef.current = '';
       
       // Update the display transcript
@@ -276,7 +334,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             ) : (
               <span className="text-muted-foreground">
                 {isNewSession ? 
-                  "Say 'Namaste [patient name]' to start" : 
+                  "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
                   "Press to resume recording"
                 }
               </span>

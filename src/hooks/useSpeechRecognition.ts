@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { detectLanguage } from '@/utils/speakerDetection';
@@ -32,6 +31,12 @@ const useSpeechRecognition = ({
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const fullTranscriptRef = useRef<string[]>([]);
   
+  // NEW: Track all results to avoid processing duplicates
+  const processedResultsMapRef = useRef<Map<number, boolean>>(new Map());
+  
+  // NEW: Keep reference to the current recording session
+  const sessionIdRef = useRef<string>(Date.now().toString());
+  
   // Setup silence detection
   const setupSilenceDetection = () => {
     if (silenceTimerRef.current) {
@@ -52,6 +57,10 @@ const useSpeechRecognition = ({
 
   const startRecording = async () => {
     try {
+      // NEW: Generate new session ID when starting recording
+      sessionIdRef.current = Date.now().toString();
+      processedResultsMapRef.current.clear();
+      
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -74,11 +83,20 @@ const useSpeechRecognition = ({
           let interimTranscript = '';
           let finalTranscript = '';
           
+          // Process new results, keeping track of what we've seen
           for (let i = event.resultIndex; i < event.results.length; i++) {
+            // NEW: Skip already processed results
+            if (processedResultsMapRef.current.has(i) && event.results[i].isFinal) {
+              continue;
+            }
+            
             const transcript = event.results[i][0].transcript;
             
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
+              
+              // Mark this result as processed
+              processedResultsMapRef.current.set(i, true);
               
               // Detect language and update if needed
               const newLanguage = detectLanguage(transcript);
@@ -96,7 +114,7 @@ const useSpeechRecognition = ({
             }
           }
           
-          // Send result to callback with the full accumulated transcript
+          // Send result to callback with the actual text content
           onResult({
             transcript: finalTranscript || interimTranscript,
             isFinal: !!finalTranscript,
@@ -112,6 +130,9 @@ const useSpeechRecognition = ({
               recognitionRef.current.lang = 'en-IN';
             }
             toast.error('Language not supported, switching to English');
+          } else if (event.error === 'no-speech') {
+            // This is normal, don't show an error
+            console.log('No speech detected');
           } else {
             toast.error('Error with speech recognition. Please try again.');
             setIsRecording(false);
