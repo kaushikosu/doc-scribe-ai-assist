@@ -83,7 +83,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             placeholder="Transcript will appear here..."
           />
         ) : (
-          <ScrollArea className="h-[300px] rounded-md" ref={scrollAreaRef}>
+          <ScrollArea className="h-[300px] rounded-md overflow-auto" ref={scrollAreaRef}>
             <div className="bg-muted p-3 rounded-md whitespace-pre-wrap">
               {transcript || "Transcript will appear here..."}
             </div>

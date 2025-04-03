@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -66,12 +67,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       if (timeSinceLastSpeech > pauseThreshold && isRecording) {
         setLastSpeaker(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
         lastSpeechTimeRef.current = now; // Reset the timer
-        
-        // Add a visual indicator for the speaker change
-        const speakerChangeText = `\n\n[${lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor'} speaking]\n`;
-        const newTranscript = transcript + speakerChangeText;
-        setTranscript(newTranscript);
-        onTranscriptUpdate(newTranscript);
       }
     }, 200);
   };
@@ -113,6 +108,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
               finalTranscript += `[${lastSpeaker}]: ${result}\n`;
               setLastProcessedIndex(i + 1);
               lastSpeechTimeRef.current = Date.now(); // Update last speech time
+              
+              // Switch speaker after final result if enough silence
+              const now = Date.now();
+              if (now - lastSpeechTimeRef.current > pauseThreshold) {
+                setLastSpeaker(prev => prev === 'Doctor' ? 'Patient' : 'Doctor');
+              }
             } else {
               interimTranscript += result;
             }
