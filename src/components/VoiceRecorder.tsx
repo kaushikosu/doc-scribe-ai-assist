@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,9 +46,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     isGreeting: true
   });
 
-  // Function to detect speaker based on context clues
+  // Function to detect speaker based on context clues and linguistic patterns
   const detectSpeaker = (text: string): 'Doctor' | 'Patient' => {
-    const lowerText = text.toLowerCase();
+    const lowerText = text.toLowerCase().trim();
     
     // Track conversation state for better detection
     const context = conversationContextRef.current;
@@ -62,112 +61,153 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       return 'Doctor';
     }
     
-    // Doctor indication patterns
-    const doctorGreetingPatterns = [
-      /\b(hi|hello|namaste|namaskar|good morning|good afternoon)\b/i,
-      /\b(how are you feeling|what brings you here|what seems to be the problem)\b/i,
-      /\b(tell me about your symptoms|when did this start|how long have you been feeling)\b/i
-    ];
+    // ---- DOCTOR LINGUISTIC PATTERNS ----
     
+    // Doctor questions - typically short, direct questions
     const doctorQuestionPatterns = [
-      /\b(have you taken any medication|any allergies|do you have|are you feeling)\b/i,
-      /\b(how severe is|rate your pain|any other symptoms|family history)\b/i,
-      /\b(how long have you been|when did you notice|does it hurt when)\b/i
+      /^(how|what|when|where|why|do you|are you|have you|can you|did you|is there|are there|does it|has this)/i,
+      /^any (fever|pain|discomfort|symptoms|nausea|difficulty|trouble|issues|medication|allergies|history)/i,
+      /^(tell me about|describe|explain|elaborate on)/i,
+      /^(let me|i('ll| will) take|i need to)/i,
+      /^(how (long|often|frequently|severe|bad)|when did)/i,
+      /^(do you (feel|have|experience|get|take)|are you (feeling|experiencing|having))/i,
+      /^(is it|does it|has it|could be|seems like|looks like|sounds like)/i,
     ];
     
-    const doctorPrescribingPatterns = [
-      /\b(i recommend|i suggest|i prescribe|you should take|you need to take)\b/i,
-      /\b(take this medicine|take these tablets|this will help|this medication)\b/i,
-      /\b(twice daily|once daily|after meals|before meals|every morning|every night)\b/i,
-      /\b(for \d+ days|for a week|for two weeks|follow up|come back|next visit)\b/i
+    // Doctor explanations/diagnoses - authoritative statements
+    const doctorExplanationPatterns = [
+      /^(your|the|these|those|this|that) (test results|bloodwork|scan|x-ray|levels|numbers|symptoms|condition)/i,
+      /^(it('s| is) (likely|probably|possibly|definitely|just|only) (a|an|the) /i,
+      /^(based on|according to|given|i think|i believe|i suspect|it appears|it seems|it could be)/i,
+      /^(you (have|need|should|might|may|could|must|will need)|we (should|need|will|can|could|might))/i,
+      /^(i('d| would) (recommend|suggest|advise|like|want)|let's)/i,
+      /^(that('s| is) (normal|common|unusual|concerning|expected|fine|okay|good|not good))/i,
     ];
     
-    // Patient indication patterns
+    // Doctor directives - instructions to patient
+    const doctorDirectivePatterns = [
+      /^(take|use|apply|try|avoid|reduce|increase|continue with|stop)/i,
+      /^(i('ll| will) (prescribe|give|recommend|refer|schedule))/i,
+      /^(come back|return|follow up|check in|call|contact|see me)/i,
+      /^(say|open|close|breathe|cough|lift|move|turn|relax|deep breath)/i,
+    ];
+    
+    // ---- PATIENT LINGUISTIC PATTERNS ----
+    
+    // Patient symptom descriptions
     const patientSymptomPatterns = [
-      /\b(i have|i've been|i am having|i feel|i am experiencing|suffering from)\b/i,
-      /\b(pain in my|hurts when|started|days ago|since yesterday|last week|morning|night)\b/i,
-      /\b(fever|cough|cold|headache|stomachache|pain|ache|vomiting|nausea)\b/i,
-      /\b(not feeling well|sick|unwell|dizzy|tired|weakness|no appetite)\b/i
+      /^(i('ve| have|'m| am) (been|feeling|having|getting|experiencing|noticing|suffering))/i,
+      /^(it (feels|hurts|aches|burns|itches|started|began|comes|goes|gets))/i,
+      /^(my (head|throat|chest|stomach|back|arm|leg|neck|foot|ear|eye|nose) (hurts|aches|feels|is))/i,
+      /^(i (feel|hurt|ache|can't|don't|haven't|won't|didn't|isn't|aren't|wasn't|weren't))/i,
+      /^(the pain|this feeling|the sensation|the discomfort|the issue|the problem)/i,
     ];
     
+    // Patient responses to doctor
     const patientResponsePatterns = [
-      /\b(yes doctor|no doctor|thank you|thanks|ok|okay|i will|i'll try|i understand)\b/i,
-      /\b(i took|i've taken|i have taken|i haven't taken|i stopped|i started)\b/i,
-      /\b(tablet|tablets|medicine|pill|pills|syrup|injection|capsule|dose)\b/i
+      /^(yes|no|sometimes|occasionally|rarely|never|always|usually|not really|kind of|sort of|maybe|i think so)/i,
+      /^(about|around|approximately|like|probably|possibly|definitely|absolutely|actually|honestly)/i,
+      /^(a (little|bit|lot|few|couple)|some|many|much|several|plenty|hardly any|barely any)/i,
+      /^(in the (morning|evening|afternoon|night)|during the day|at night|while|when|after|before)/i,
+      /^(only when|especially when|mostly when|every time|whenever)/i,
     ];
-
-    // Someone being addressed
-    const addressingDoctor = /\b(doctor|dr\.|डॉक्टर|डाक्टर|वैद्य|डॉक्टर साहब|डॉक्‍टर|డాక్టర్|వైద్యుడు)\b/i;
-    const addressingPatient = /\b(मरीज़|रोगी|పేషెంట్|రోగి)\b/i;
     
-    // Check for conversation context and language markers
-    if (context.isGreeting && doctorGreetingPatterns.some(pattern => pattern.test(lowerText))) {
-      context.isGreeting = false;
-      context.doctorAskedQuestion = true;
-      return 'Doctor';
-    }
+    // Patient questions - usually about treatment, prognosis, or clarification
+    const patientQuestionPatterns = [
+      /^(is that|does that|will this|should i|can i|do i need|how long|how often|how bad)/i,
+      /^(what (about|should|could|is|does|will|causes|caused)|when (can|should|will|is))/i,
+      /^(will i (need|have to|be able to)|can i (still|go|eat|drink|take))/i,
+      /^(is (it|this|that) (serious|normal|bad|concerning|dangerous|common|contagious))/i,
+    ];
     
-    if (context.doctorAskedQuestion && patientSymptomPatterns.some(pattern => pattern.test(lowerText))) {
-      context.doctorAskedQuestion = false;
-      context.isPatientDescribingSymptoms = true;
-      context.patientResponded = true;
-      return 'Patient';
-    }
+    // ---- CONVERSATION FLOW ANALYSIS ----
     
-    if (context.isPatientDescribingSymptoms && doctorQuestionPatterns.some(pattern => pattern.test(lowerText))) {
-      context.isPatientDescribingSymptoms = false;
-      context.doctorAskedQuestion = true;
-      return 'Doctor';
-    }
+    // Check if the text is a doctor's question
+    const isDocQuestion = doctorQuestionPatterns.some(pattern => pattern.test(lowerText));
     
-    if (context.patientResponded && doctorPrescribingPatterns.some(pattern => pattern.test(lowerText))) {
-      context.patientResponded = false;
-      context.isPrescribing = true;
-      return 'Doctor';
-    }
+    // Check if the text is a doctor's explanation
+    const isDocExplanation = doctorExplanationPatterns.some(pattern => pattern.test(lowerText));
     
-    // Direct addressing overrides
-    if (addressingDoctor.test(lowerText)) {
-      return 'Patient';
-    }
+    // Check if the text is a doctor's directive
+    const isDocDirective = doctorDirectivePatterns.some(pattern => pattern.test(lowerText));
     
-    if (addressingPatient.test(lowerText)) {
-      return 'Doctor';
-    }
+    // Check if the text is a patient describing symptoms
+    const isPatientSymptom = patientSymptomPatterns.some(pattern => pattern.test(lowerText));
     
-    // Score-based approach as fallback
+    // Check if the text is a patient response
+    const isPatientResponse = patientResponsePatterns.some(pattern => pattern.test(lowerText));
+    
+    // Check if the text is a patient question
+    const isPatientQuestion = patientQuestionPatterns.some(pattern => pattern.test(lowerText));
+    
+    // Calculate speaker probabilities
     let doctorScore = 0;
     let patientScore = 0;
     
-    // Check each pattern category for matches
-    doctorGreetingPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) doctorScore += 2;
-    });
+    // Add scores based on pattern matches
+    doctorScore += (isDocQuestion ? 3 : 0) + (isDocExplanation ? 4 : 0) + (isDocDirective ? 4 : 0);
+    patientScore += (isPatientSymptom ? 4 : 0) + (isPatientResponse ? 3 : 0) + (isPatientQuestion ? 3 : 0);
     
-    doctorQuestionPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) doctorScore += 2;
-    });
-    
-    doctorPrescribingPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) doctorScore += 3; // Stronger indicator
-    });
-    
-    patientSymptomPatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) patientScore += 2;
-    });
-    
-    patientResponsePatterns.forEach(pattern => {
-      if (pattern.test(lowerText)) patientScore += 2;
-    });
-    
-    // Consider the last speaker for continuity
+    // Consider conversation flow context
     if (lastSpeaker === 'Doctor') {
-      patientScore += 1; // Slight bias toward alternating speakers
+      // If doctor spoke last, this is more likely a patient response
+      patientScore += 1;
+      
+      // If last utterance was a question, more likely patient is answering
+      if (context.doctorAskedQuestion) {
+        patientScore += 2;
+      }
     } else if (lastSpeaker === 'Patient') {
+      // If patient spoke last, this is more likely a doctor response
       doctorScore += 1;
+      
+      // If patient was describing symptoms, doctor likely asking follow-up
+      if (context.isPatientDescribingSymptoms) {
+        doctorScore += 2;
+      }
     }
     
-    return doctorScore > patientScore ? 'Doctor' : 'Patient';
+    // Analyze text length and complexity
+    // Doctors often give longer explanations, patients often give shorter responses
+    if (text.length > 100) {
+      // Longer text is more likely a doctor explanation
+      doctorScore += 1;
+    } else if (text.length < 15 && patientResponsePatterns.some(pattern => pattern.test(lowerText))) {
+      // Very short response is likely patient
+      patientScore += 1;
+    }
+    
+    // Check for specialized medical terminology
+    const medicalTerms = /\b(diagnosis|prognosis|chronic|acute|symptom|inflammation|prescription|dosage|treatment|therapy|medication|antibiotic|analgesic|consultation|referral|examination|assessment)\b/i;
+    if (medicalTerms.test(lowerText)) {
+      doctorScore += 2;
+    }
+    
+    // Update conversation context based on what was detected
+    if (isDocQuestion) {
+      context.doctorAskedQuestion = true;
+      context.isPatientDescribingSymptoms = false;
+    } else if (isPatientSymptom) {
+      context.isPatientDescribingSymptoms = true;
+      context.doctorAskedQuestion = false;
+    } else if (isDocDirective) {
+      context.isPrescribing = true;
+      context.isPatientDescribingSymptoms = false;
+    }
+    
+    // Return the most likely speaker based on scoring
+    const detectedSpeaker = doctorScore > patientScore ? 'Doctor' : 'Patient';
+    
+    // Update conversation context for next detection
+    if (detectedSpeaker === 'Doctor') {
+      if (isDocQuestion) context.doctorAskedQuestion = true;
+      if (isDocDirective) context.isPrescribing = true;
+    } else {
+      if (isPatientSymptom) context.isPatientDescribingSymptoms = true;
+      if (isPatientResponse) context.patientResponded = true;
+    }
+    
+    return detectedSpeaker;
   };
 
   // Function to detect language based on text
