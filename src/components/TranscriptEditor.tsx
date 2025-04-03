@@ -19,16 +19,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setEditableTranscript(transcript);
     
-    // Scroll to bottom when transcript updates
-    if (scrollAreaRef.current) {
+    // Scroll to bottom immediately when transcript updates
+    if (scrollAreaRef.current && contentRef.current) {
       const scrollContainer = scrollAreaRef.current;
-      setTimeout(() => {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }, 50); // Reduced timeout for faster updates
+      scrollContainer.scrollTop = contentRef.current.scrollHeight;
     }
   }, [transcript]);
 
@@ -47,13 +46,13 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   // Format transcript for better readability - highlight speaker changes
   const formattedTranscript = transcript.replace(
-    /\[(Doctor|Patient)\]:/g, 
+    /\[(Doctor|Patient|Identifying)\]:/g, 
     (match) => `\n${match}`
   );
 
   return (
-    <Card className="border-2 border-doctor-secondary/30 shadow-md">
-      <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/10 to-doctor-primary/5">
+    <Card className="border-2 border-doctor-secondary/30 shadow-lg">
+      <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/20 to-doctor-primary/10">
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl text-doctor-secondary font-semibold">Transcript</CardTitle>
           <Button 
@@ -90,7 +89,11 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           />
         ) : (
           <ScrollArea className="h-[300px] rounded-md overflow-auto pr-2" ref={scrollAreaRef}>
-            <div className="bg-muted p-4 rounded-md whitespace-pre-wrap">
+            <div 
+              ref={contentRef} 
+              className="bg-muted p-4 rounded-md whitespace-pre-wrap"
+              style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
+            >
               {formattedTranscript || "Transcript will appear here..."}
             </div>
           </ScrollArea>

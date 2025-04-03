@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
@@ -16,20 +16,63 @@ interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 
+// List of supported languages
+const SUPPORTED_LANGUAGES = [
+  { code: 'en-IN', name: 'English (India)' },
+  { code: 'hi-IN', name: 'Hindi' },
+  { code: 'te-IN', name: 'Telugu' },
+];
+
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPatientInfoUpdate }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [isNewSession, setIsNewSession] = useState(true);
   const [lastProcessedIndex, setLastProcessedIndex] = useState(0);
-  const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient'>('Doctor');
-  const [pauseThreshold, setPauseThreshold] = useState(2000); // 2 seconds
+  const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient' | 'Identifying'>('Doctor');
+  const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds (reduced for faster response)
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState(SUPPORTED_LANGUAGES[0]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const interimTranscriptRef = useRef<string>('');
+
+  // Function to detect speaker based on context and silence
+  const detectSpeaker = (text: string): 'Doctor' | 'Patient' => {
+    const lowerText = text.toLowerCase();
+    
+    // Doctor indication keywords
+    const doctorPatterns = [
+      /\b(i recommend|i suggest|i prescribe|you should|you need to|your condition|your symptoms)\b/i,
+      /\b(the diagnosis|the treatment|your test results|your blood pressure|your heart rate)\b/i,
+      /\b(what brings you here|how can i help|tell me about your symptoms|when did this start)\b/i,
+      /\b(take this medication|twice daily|once daily|after meals|doctor|dr\.)\b/i
+    ];
+    
+    // Patient indication keywords
+    const patientPatterns = [
+      /\b(i feel|i have been|i am experiencing|i've been|my stomach|my head|my body|my chest)\b/i,
+      /\b(pain in my|hurts when i|started|ago|thank you doctor|yes doctor|no doctor)\b/i,
+      /\b(medicine|tablet|injection|prescription|sick|pain|ache|fever|cough|cold)\b/i
+    ];
+    
+    // Check for doctor or patient patterns
+    let doctorMatches = 0;
+    let patientMatches = 0;
+    
+    doctorPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) doctorMatches++;
+    });
+    
+    patientPatterns.forEach(pattern => {
+      if (pattern.test(lowerText)) patientMatches++;
+    });
+    
+    return doctorMatches > patientMatches ? 'Doctor' : 'Patient';
+  };
 
   // Function to detect silence and potentially switch speakers
   const setupSilenceDetection = () => {
@@ -44,12 +87,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
       setCurrentSilenceTime(timeSinceLastSpeech);
       
       // If silence longer than threshold, potentially switch speakers
-      if (timeSinceLastSpeech > pauseThreshold && isRecording) {
+      if (timeSinceLastSpeech > pauseThreshold && isRecording && lastSpeaker !== 'Identifying') {
         const newSpeaker = lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor';
         setLastSpeaker(newSpeaker);
         setSpeakerChanged(true);
         
-        // Reset the animation after 2 seconds
+        // Only flash animation on actual speaker change, not on every recognition
         setTimeout(() => {
           setSpeakerChanged(false);
         }, 2000);
@@ -68,6 +111,18 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
     toast.success('Ready for new patient');
   };
 
+  const changeLanguage = (language: typeof SUPPORTED_LANGUAGES[0]) => {
+    setSelectedLanguage(language);
+    
+    // Restart recognition if already recording
+    if (isRecording) {
+      stopRecording();
+      setTimeout(() => startRecording(), 300);
+    }
+    
+    toast.success(`Language changed to ${language.name}`);
+  };
+
   const startRecording = async () => {
     try {
       // Request microphone permission
@@ -82,40 +137,56 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         recognitionRef.current = new SpeechRecognitionAPI();
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = selectedLanguage.code;
         
         recognitionRef.current.onresult = (event) => {
           let interimTranscript = '';
           let finalTranscript = '';
           
-          // Only process new results
-          for (let i = lastProcessedIndex; i < event.results.length; i++) {
+          // Process all results for immediate display
+          for (let i = 0; i < event.results.length; i++) {
             const result = event.results[i][0].transcript;
             
             if (event.results[i].isFinal) {
-              // For final results, prefix with the current speaker
-              finalTranscript += `[${lastSpeaker}]: ${result}\n`;
+              // When we have final result, analyze context to determine speaker
+              const detectedSpeaker = i >= lastProcessedIndex ? detectSpeaker(result) : lastSpeaker;
+              
+              if (i >= lastProcessedIndex) {
+                // Only update speaker for new results
+                setLastSpeaker(detectedSpeaker);
+                lastSpeechTimeRef.current = Date.now(); // Update last speech time
+              }
+              
+              finalTranscript += `[${detectedSpeaker}]: ${result}\n`;
               setLastProcessedIndex(i + 1);
-              lastSpeechTimeRef.current = Date.now(); // Update last speech time
-            } else {
-              interimTranscript += result;
+            } else if (i >= lastProcessedIndex) {
+              // Show interim results immediately with "Identifying" tag
+              interimTranscript = `[Identifying]: ${result}`;
+              interimTranscriptRef.current = interimTranscript;
             }
           }
           
-          // Update transcript without losing previous content
-          if (finalTranscript) {
-            const newTranscript = transcript + finalTranscript;
+          // Update transcript for immediate display including interim results
+          if (finalTranscript || interimTranscript) {
+            const newTranscript = transcript + finalTranscript + (interimTranscript ? interimTranscript : '');
             setTranscript(newTranscript);
             onTranscriptUpdate(newTranscript);
           }
 
           // Check for name mention in initial greeting patterns (only in Doctor's statements)
-          if (isNewSession && lastSpeaker === 'Doctor') {
+          if (isNewSession && (lastSpeaker === 'Doctor' || lastSpeaker === 'Identifying')) {
             const greetingPatterns = [
               /hi\s+([A-Za-z]+)/i,
               /hello\s+([A-Za-z]+)/i,
               /patient\s+(?:is|name\s+is)?\s*([A-Za-z]+)/i,
               /this\s+is\s+([A-Za-z]+)/i,
-              /([A-Za-z]+)\s+is\s+here/i
+              /([A-Za-z]+)\s+is\s+here/i,
+              // Indian name patterns
+              /namaste\s+([A-Za-z]+)/i,
+              /namaskar\s+([A-Za-z]+)/i,
+              /शुभ प्रभात\s+([A-Za-z]+)/i, // Good morning in Hindi
+              /नमस्ते\s+([A-Za-z]+)/i,     // Namaste in Hindi
+              /నమస్కారం\s+([A-Za-z]+)/i,   // Namaskaram in Telugu
             ];
             
             // Use the full transcript for pattern matching
@@ -138,10 +209,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
             }
           }
 
-          // Check for "save prescription" command
-          if ((finalTranscript.toLowerCase().includes("save prescription") || 
-               finalTranscript.toLowerCase().includes("print prescription")) && 
-              lastSpeaker === 'Doctor') {
+          // Check for "save prescription" command in various languages
+          const transcriptLower = (finalTranscript || interimTranscript).toLowerCase();
+          if ((transcriptLower.includes("save prescription") || 
+               transcriptLower.includes("print prescription") ||
+               transcriptLower.includes("प्रिस्क्रिप्शन सेव करें") || // Hindi
+               transcriptLower.includes("చికిత్స పత్రం సేవ్ చేయండి")) && // Telugu
+              (lastSpeaker === 'Doctor' || lastSpeaker === 'Identifying')) {
             toast.success("Saving prescription...");
             // Here you would trigger the save/print functionality
           }
@@ -163,7 +237,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
         recognitionRef.current.start();
         setupSilenceDetection(); // Start silence detection
         setIsRecording(true);
-        toast.success('Recording started');
+        toast.success(`Recording started in ${selectedLanguage.name}`);
       } else {
         toast.error('Speech recognition is not supported in this browser');
       }
@@ -174,6 +248,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
   };
 
   const stopRecording = () => {
+    // If there's an interim transcript, finalize it
+    if (interimTranscriptRef.current) {
+      const finalizedInterim = interimTranscriptRef.current.replace('[Identifying]:', `[${lastSpeaker}]:`);
+      const newTranscript = transcript.replace(interimTranscriptRef.current, '') + finalizedInterim;
+      setTranscript(newTranscript);
+      onTranscriptUpdate(newTranscript);
+      interimTranscriptRef.current = '';
+    }
+
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
@@ -201,7 +284,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
 
   return (
     <Card className="border-2 border-doctor-primary/30 shadow-md">
-      <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/5 to-transparent">
+      <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
         <div className="flex flex-col items-center gap-4">
           <div className="flex space-x-4">
             <Button 
@@ -237,20 +320,39 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPat
                     "h-3 w-3 rounded-full bg-destructive",
                     speakerChanged ? "animate-pulse-recording" : ""
                   )}></span>
-                  <span className="font-medium">Recording ({lastSpeaker} speaking)</span>
+                  <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Auto-detecting speakers based on voice patterns and pauses
+                  Auto-detecting speakers based on context and pauses
                 </div>
               </div>
             ) : (
               <span className="text-muted-foreground">
                 {isNewSession ? 
-                  "Say 'Hi [patient name]' to start" : 
+                  "Say 'Namaste [patient name]' to start" : 
                   "Press to resume recording"
                 }
               </span>
             )}
+          </div>
+          
+          {/* Language selector */}
+          <div className="flex items-center gap-2 mt-2">
+            <Languages className="h-4 w-4 text-doctor-primary" />
+            <div className="flex gap-2">
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <Button
+                  key={lang.code}
+                  variant={selectedLanguage.code === lang.code ? "default" : "outline"}
+                  size="sm"
+                  className={selectedLanguage.code === lang.code ? "bg-doctor-primary" : ""}
+                  onClick={() => changeLanguage(lang)}
+                  disabled={isRecording}
+                >
+                  {lang.name}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>
