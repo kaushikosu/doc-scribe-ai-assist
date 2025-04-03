@@ -10,27 +10,38 @@ import { Toaster } from '@/components/ui/sonner';
 
 const Index = () => {
   const [transcript, setTranscript] = useState('');
+  const [patientInfo, setPatientInfo] = useState({
+    name: '',
+    time: ''
+  });
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     setTranscript(newTranscript);
   };
 
+  const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
+    setPatientInfo(newPatientInfo);
+  };
+
   return (
     <div className="min-h-screen bg-doctor-light">
       <div className="container py-8 max-w-6xl">
-        <DocHeader />
+        <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
           {/* Voice Recorder Column */}
           <div className="md:col-span-4">
-            <VoiceRecorder onTranscriptUpdate={handleTranscriptUpdate} />
+            <VoiceRecorder 
+              onTranscriptUpdate={handleTranscriptUpdate} 
+              onPatientInfoUpdate={handlePatientInfoUpdate} 
+            />
             
             <Card className="mt-6 p-4 border-none bg-doctor-primary/5">
               <h2 className="font-semibold text-doctor-primary mb-3">How to use DocScribe</h2>
               <ol className="space-y-2 text-sm">
                 <li className="flex gap-2">
                   <span className="font-bold">1.</span>
-                  <span>Press the microphone button to start a new session</span>
+                  <span>Say "Hi [patient name]" to begin a new session</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="font-bold">2.</span>
@@ -46,7 +57,11 @@ const Index = () => {
                 </li>
                 <li className="flex gap-2">
                   <span className="font-bold">5.</span>
-                  <span>Review, edit if necessary, and save the prescription to patient records</span>
+                  <span>Review, edit if necessary, print or save the prescription</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-bold">6.</span>
+                  <span>Press the "New Patient" button for the next consultation</span>
                 </li>
               </ol>
             </Card>
@@ -59,7 +74,10 @@ const Index = () => {
               onTranscriptChange={setTranscript} 
             />
             
-            <PrescriptionGenerator transcript={transcript} />
+            <PrescriptionGenerator 
+              transcript={transcript} 
+              patientInfo={patientInfo} 
+            />
           </div>
         </div>
       </div>

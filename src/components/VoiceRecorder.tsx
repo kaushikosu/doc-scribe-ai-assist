@@ -2,17 +2,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, Save } from 'lucide-react';
+import { Mic, MicOff, Save, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
+  onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
 }
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => {
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate, onPatientInfoUpdate }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [isNewSession, setIsNewSession] = useState(true);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
@@ -26,6 +28,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => 
       }
     };
   }, []);
+
+  const startNewSession = () => {
+    setTranscript('');
+    onTranscriptUpdate('');
+    setIsNewSession(true);
+    toast.success('Ready for new patient');
+  };
 
   const startRecording = async () => {
     try {
@@ -58,6 +67,33 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => 
           const newTranscript = transcript + finalTranscript + interimTranscript;
           setTranscript(newTranscript);
           onTranscriptUpdate(newTranscript);
+
+          // Check for name mention in initial greeting patterns
+          if (isNewSession) {
+            const greetingPatterns = [
+              /hi\s+([A-Za-z]+)/i,
+              /hello\s+([A-Za-z]+)/i,
+              /patient\s+(?:is|name\s+is)?\s*([A-Za-z]+)/i,
+              /this\s+is\s+([A-Za-z]+)/i,
+              /([A-Za-z]+)\s+is\s+here/i
+            ];
+            
+            for (const pattern of greetingPatterns) {
+              const match = newTranscript.match(pattern);
+              if (match && match[1]) {
+                const patientName = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+                const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                onPatientInfoUpdate({ 
+                  name: patientName, 
+                  time: currentTime
+                });
+                setIsNewSession(false);
+                toast.success(`Patient identified: ${patientName}`);
+                break;
+              }
+            }
+          }
         };
         
         recognitionRef.current.onerror = (event) => {
@@ -95,8 +131,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => 
     if (isRecording) {
       stopRecording();
     } else {
-      setTranscript('');
-      onTranscriptUpdate('');
       startRecording();
     }
   };
@@ -105,21 +139,31 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => 
     <Card className="border-2 border-doctor-primary/30">
       <CardContent className="p-4">
         <div className="flex flex-col items-center gap-4">
-          <Button 
-            onClick={toggleRecording}
-            className={cn(
-              "w-16 h-16 rounded-full flex justify-center items-center",
-              isRecording 
-                ? "bg-destructive hover:bg-destructive/90" 
-                : "bg-doctor-primary hover:bg-doctor-primary/90"
-            )}
-          >
-            {isRecording ? (
-              <MicOff className="h-8 w-8" />
-            ) : (
-              <Mic className="h-8 w-8" />
-            )}
-          </Button>
+          <div className="flex space-x-4">
+            <Button 
+              onClick={toggleRecording}
+              className={cn(
+                "w-16 h-16 rounded-full flex justify-center items-center",
+                isRecording 
+                  ? "bg-destructive hover:bg-destructive/90" 
+                  : "bg-doctor-primary hover:bg-doctor-primary/90"
+              )}
+            >
+              {isRecording ? (
+                <MicOff className="h-8 w-8" />
+              ) : (
+                <Mic className="h-8 w-8" />
+              )}
+            </Button>
+            
+            <Button
+              onClick={startNewSession}
+              className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90"
+              disabled={isRecording}
+            >
+              <UserPlus className="h-8 w-8" />
+            </Button>
+          </div>
           
           <div className="text-center">
             {isRecording ? (
@@ -128,7 +172,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptUpdate }) => 
                 <span className="font-medium">Recording in progress...</span>
               </div>
             ) : (
-              <span className="text-muted-foreground">Press to start recording</span>
+              <span className="text-muted-foreground">
+                {isNewSession ? 
+                  "Say 'Hi [patient name]' to start" : 
+                  "Press to resume recording"
+                }
+              </span>
             )}
           </div>
         </div>
