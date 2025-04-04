@@ -312,6 +312,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           turnCount,
           isPatientDescribingSymptoms: line.toLowerCase().includes('pain') || line.toLowerCase().includes('symptom'),
           doctorAskedQuestion: line.includes('?'),
+          patientResponded: lastSpeaker === 'Doctor' && turnCount > 0,
           isPrescribing: line.toLowerCase().includes('prescribe') || line.toLowerCase().includes('medicine'),
           isGreeting: line.toLowerCase().includes('hello') || line.toLowerCase().includes('namaste')
         });
