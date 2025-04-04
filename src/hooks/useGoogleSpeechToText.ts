@@ -34,6 +34,7 @@ const useGoogleSpeechToText = ({
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const processingRef = useRef<boolean>(false);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
@@ -81,12 +82,14 @@ const useGoogleSpeechToText = ({
       accumulatedTranscriptRef.current = '';
       processingRef.current = false;
       
-      // Request microphone permission
+      // Request microphone permission with enhanced settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 16000
         } 
       });
       
@@ -109,6 +112,19 @@ const useGoogleSpeechToText = ({
       
       // Start continuous processing
       processContinuously();
+      
+      // Setup automatic processing every few seconds
+      if (recordingTimeoutRef.current) {
+        clearInterval(recordingTimeoutRef.current);
+      }
+      
+      recordingTimeoutRef.current = setInterval(() => {
+        if (isRecording && !processingRef.current) {
+          console.log("Triggering periodic processing of audio");
+          processContinuously();
+        }
+      }, 10000); // Process every 10 seconds
+      
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
@@ -116,8 +132,8 @@ const useGoogleSpeechToText = ({
   };
 
   const processContinuously = async () => {
-    if (!isRecording || !mediaStreamRef.current || !apiKey) {
-      console.log("Cannot process: recording state:", isRecording, "stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
+    if (!mediaStreamRef.current || !apiKey) {
+      console.log("Cannot process: stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
       return;
     }
     
@@ -167,18 +183,14 @@ const useGoogleSpeechToText = ({
       
       processingRef.current = false;
       
-      // If we have no results but are still recording, try again
-      if (results.length === 0 && isRecording) {
-        console.log("No results from Google Speech API, but still recording");
-        // Try again in 2 seconds
+      // Continue processing if still recording
+      if (isRecording) {
+        // Schedule next processing after a short delay
         setTimeout(() => {
           if (isRecording) {
             processContinuously();
           }
         }, 2000);
-      } else if (isRecording) {
-        // Continue processing immediately if we got results
-        processContinuously();
       }
     } catch (error) {
       console.error('Error during speech processing:', error);
@@ -213,6 +225,11 @@ const useGoogleSpeechToText = ({
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    
+    if (recordingTimeoutRef.current) {
+      clearInterval(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
     
     setIsRecording(false);

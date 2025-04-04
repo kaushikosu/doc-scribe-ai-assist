@@ -54,9 +54,9 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
       return [];
     }
     
-    // Create a media recorder to capture audio
+    // Create a media recorder to capture audio with improved settings
     const mediaRecorder = new MediaRecorder(stream, { 
-      mimeType: 'audio/webm',
+      mimeType: 'audio/webm;codecs=opus',
       audioBitsPerSecond: 16000 
     });
     
@@ -81,17 +81,17 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             return;
           }
           
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
           console.log(`Collected audio: ${audioBlob.size} bytes`);
           
-          if (audioBlob.size < 100) {
+          if (audioBlob.size < 50) {
             console.log("Audio too small, skipping");
             resolve([]);
             return;
           }
           
           const base64Audio = await blobToBase64(audioBlob);
-          console.log("Audio converted to base64");
+          console.log("Audio converted to base64, length:", base64Audio.length);
           
           const recognitionConfig: RecognitionConfig = {
             encoding: "WEBM_OPUS",
@@ -101,7 +101,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             enableAutomaticPunctuation: true,
             enableSpeakerDiarization: true,
             diarizationSpeakerCount: 2,
-            model: "command_and_search",
+            model: "latest_long",
             useEnhanced: true
           };
           
@@ -126,7 +126,8 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             console.error("Google Speech API error response:", errorData);
             const errorMessage = errorData.error?.message || 'Unknown error';
             toast.error(`Speech API error: ${errorMessage}`);
-            throw new Error(`Google Speech API error: ${errorMessage}`);
+            reject(new Error(`Google Speech API error: ${errorMessage}`));
+            return;
           }
           
           const data = await response.json();
@@ -196,12 +197,12 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
       // Start recording audio
       mediaRecorder.start();
       
-      // Record for 5 seconds to capture enough speech
+      // Record for 8 seconds to capture more speech
       setTimeout(() => {
         if (mediaRecorder.state !== 'inactive') {
           mediaRecorder.stop();
         }
-      }, 5000);
+      }, 8000); // Increased from 5s to 8s for more comprehensive speech capture
     });
   } catch (error) {
     console.error('Error setting up media recorder:', error);
