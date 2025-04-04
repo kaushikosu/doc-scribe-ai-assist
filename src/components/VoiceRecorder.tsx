@@ -4,12 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useAzureSpeechToText from '@/hooks/useAzureSpeechToText';
+import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 import { 
   detectPatientInfo,
   PatientInfo
 } from '@/utils/speaker';
-import ApiKeyInput from './ApiKeyInput';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
@@ -26,8 +25,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [apiKey, setApiKey] = useState<string>('');
-  const [region, setRegion] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>("auto");
   
   // Refs
@@ -41,23 +38,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   useEffect(() => {
     console.log("VoiceRecorder raw transcript:", rawTranscript);
   }, [rawTranscript]);
-
-  // Handle API key update
-  const handleApiKeySet = (newApiKey: string, newRegion?: string) => {
-    console.log("API key updated");
-    setApiKey(newApiKey);
-    
-    if (newRegion) {
-      setRegion(newRegion);
-      console.log("Region updated:", newRegion);
-    }
-    
-    // Show a success toast when API key is set
-    if (newApiKey) {
-      const provider = newRegion ? "Azure Speech" : "Google Cloud Speech";
-      toast.success(`${provider} API key configured`);
-    }
-  };
 
   // Simple no-op silence handler to keep the interface consistent
   const handleSilence = () => {
@@ -106,30 +86,26 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Azure Speech-to-Text
+  // Initialize Speech Recognition
   const { 
     isRecording, 
     detectedLanguage, 
     toggleRecording, 
     startRecording, 
     stopRecording,
-    setLanguage,
     getAccumulatedTranscript,
     resetTranscript
-  } = useAzureSpeechToText({
+  } = useSpeechRecognition({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold, 
-    apiKey,
-    region
+    pauseThreshold
   });
 
   // Simplified speech result handler - no speaker detection during recording
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
-    resultIndex: number,
-    speakerTag?: number 
+    resultIndex: number
   }) {
     // For diagnostic purposes
     console.log("Received speech result:", { result, isFinal, resultIndex });
@@ -340,57 +316,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     });
   };
 
-  // Handle language selection - improved for Telugu
-  const handleLanguageChange = (language: string) => {
-    setSelectedLanguage(language);
-    
-    if (language === "auto") {
-      // In auto mode, let Azure detect the language
-      console.log("Using automatic language detection");
-      return;
-    }
-    
-    // Map UI language selections to language codes
-    const languageMap: Record<string, string> = {
-      "english": "en-IN",
-      "hindi": "hi-IN",
-      "telugu": "te-IN"
-    };
-    
-    if (languageMap[language]) {
-      setLanguage(languageMap[language]);
-      toast.success(`Language set to ${language.charAt(0).toUpperCase() + language.slice(1)}`);
-    }
-  };
-
   // Handle toggling recording
   const handleToggleRecording = () => {
     if (isRecording) {
       handleStopRecording();
     } else {
-      if (!apiKey) {
-        toast.error("Please configure your Speech API key first");
-        return;
-      }
-      
-      if (localStorage.getItem('speechProvider') === 'azure' && !region) {
-        toast.error("Please configure your Azure region");
-        return;
-      }
-      
-      // If a specific language is selected, set it before starting
-      if (selectedLanguage !== "auto") {
-        const languageMap: Record<string, string> = {
-          "english": "en-IN",
-          "hindi": "hi-IN",
-          "telugu": "te-IN"
-        };
-        
-        if (languageMap[selectedLanguage]) {
-          setLanguage(languageMap[selectedLanguage]);
-        }
-      }
-      
       // Reset raw transcript for new session
       setRawTranscript('');
       currentTranscriptRef.current = '';
@@ -399,11 +329,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Component UI with added language selector
+  // Component UI with simplified interface (no API key input)
   return (
     <div className="space-y-4">
-      <ApiKeyInput onApiKeySet={handleApiKeySet} />
-      
       <Card className="border-2 border-doctor-primary/30 shadow-md">
         <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
           <div className="flex flex-col items-center gap-4">
@@ -416,7 +344,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     ? "bg-destructive hover:bg-destructive/90" 
                     : "bg-doctor-primary hover:bg-doctor-primary/90"
                 )}
-                disabled={!apiKey || (localStorage.getItem('speechProvider') === 'azure' && !region)}
               >
                 {isRecording ? (
                   <MicOff className="h-8 w-8" />
@@ -434,40 +361,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               </Button>
             </div>
             
-            {/* Language selector */}
-            {!isRecording && (
-              <div className="flex space-x-2 mt-2">
-                <Button 
-                  size="sm"
-                  variant={selectedLanguage === "auto" ? "default" : "outline"} 
-                  onClick={() => handleLanguageChange("auto")}
-                >
-                  Auto
-                </Button>
-                <Button 
-                  size="sm"
-                  variant={selectedLanguage === "english" ? "default" : "outline"} 
-                  onClick={() => handleLanguageChange("english")}
-                >
-                  English
-                </Button>
-                <Button 
-                  size="sm"
-                  variant={selectedLanguage === "telugu" ? "default" : "outline"} 
-                  onClick={() => handleLanguageChange("telugu")}
-                >
-                  Telugu
-                </Button>
-                <Button 
-                  size="sm"
-                  variant={selectedLanguage === "hindi" ? "default" : "outline"} 
-                  onClick={() => handleLanguageChange("hindi")}
-                >
-                  Hindi
-                </Button>
-              </div>
-            )}
-            
             <div className="text-center">
               {isRecording ? (
                 <div className="flex flex-col items-center gap-2">
@@ -476,17 +369,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Recording (real-time transcription)</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using Azure Speech-to-Text with enhanced medical vocabulary
+                    Using Web Speech API with automatic language detection
                   </div>
                 </div>
               ) : (
                 <span className="text-muted-foreground">
-                  {!apiKey ? 
-                    "Configure Speech API key above to start" :
-                    (isNewSession ? 
-                      "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
-                      "Press to resume recording"
-                    )
+                  {isNewSession ? 
+                    "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
+                    "Press to resume recording"
                   }
                 </span>
               )}
@@ -499,7 +389,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               </div>
             )}
             
-            {/* Language indicator with clear Telugu support */}
+            {/* Language indicator */}
             <div className="flex items-center gap-2 mt-2">
               <Globe className="h-4 w-4 text-doctor-primary" />
               <div className="text-sm font-medium">
@@ -510,9 +400,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     detectedLanguage === 'te-IN' ? 'Telugu' : 
                     'Unknown'
                   }` : 
-                  selectedLanguage === "auto" ? 
-                    'Multi-language recognition enabled' : 
-                    `Language set to ${selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}`
+                  'Automatic language detection enabled'
                 }
               </div>
             </div>

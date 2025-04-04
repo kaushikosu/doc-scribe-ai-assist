@@ -25,10 +25,6 @@ const DashboardPage = () => {
     console.log("handleTranscriptUpdate called with:", newTranscript);
     if (newTranscript) {
       setTranscript(newTranscript);
-      // Show toast for debugging
-      if (newTranscript.length > 0 && transcript.length === 0) {
-        toast.success("Transcript started recording");
-      }
     }
   };
 
@@ -50,11 +46,11 @@ const DashboardPage = () => {
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
-              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe with Google Speech</h2>
+              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
               <ol className="space-y-3 text-sm">
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                  <span>Add your Google Cloud Speech API key to enable enhanced transcription</span>
+                  <span>Click the microphone button to start recording</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
@@ -62,11 +58,11 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                  <span>Speak naturally about the patient's condition - the system automatically identifies speakers</span>
+                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>Support for English, Hindi, and Telugu with automatic language detection</span>
+                  <span>The transcript will appear in real-time and can be edited if needed</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
@@ -95,7 +91,6 @@ const DashboardPage = () => {
         </div>
       </div>
       
-      {/* Make sure Toaster is properly rendered */}
       <Toaster />
     </div>
   );

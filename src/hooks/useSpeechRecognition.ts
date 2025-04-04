@@ -39,19 +39,6 @@ const useSpeechRecognition = ({
   // Keep reference to the current recording session
   const sessionIdRef = useRef<string>(Date.now().toString());
   
-  // Enhanced patient name detection
-  const nameDetectionAttemptsRef = useRef<number>(0);
-  const continuousTextBufferRef = useRef<string>('');
-  const nameRecognitionPatterns = [
-    /(?:namaste|hello|hi|hey)\s+([A-Z][a-z]{2,})/i,          // Common greetings
-    /(?:patient|patient's) name is\s+([A-Z][a-z]{2,})/i,     // Explicit statement
-    /(?:this is|i am|i'm)\s+([A-Z][a-z]{2,})/i,              // Self introduction
-    /(?:meet|meeting)\s+([A-Z][a-z]{2,})/i,                  // Meeting introduction
-    /(?:for|about|regarding)\s+([A-Z][a-z]{2,})/i,           // Reference introduction
-    /(?:Mr\.|Mrs\.|Ms\.|Dr\.)\s+([A-Z][a-z]{2,})/i,          // Title with name
-    /\b([A-Z][a-z]{2,})\s+(?:is here|has arrived|is waiting)/i // Person with context
-  ];
-  
   // Setup silence detection
   const setupSilenceDetection = () => {
     if (silenceTimerRef.current) {
@@ -70,46 +57,11 @@ const useSpeechRecognition = ({
     }, 200);
   };
 
-  // Enhanced name detection function with multiple methods
-  const detectPatientName = (text: string): string | null => {
-    // Method 1: Try regex patterns
-    for (const pattern of nameRecognitionPatterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-    
-    // Method 2: Look for capitalized words after greeting words
-    const greetingFollowedByName = /(?:namaste|hello|hi|hey)\s+(\w+)/i;
-    const greetingMatch = text.match(greetingFollowedByName);
-    if (greetingMatch && greetingMatch[1]) {
-      // Check if first letter is capital (likely a name)
-      const possibleName = greetingMatch[1];
-      if (possibleName.charAt(0) === possibleName.charAt(0).toUpperCase()) {
-        return possibleName;
-      }
-    }
-    
-    // Method 3: Try to find any capitalized words in the text (less reliable)
-    if (nameDetectionAttemptsRef.current > 3) {
-      const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
-      if (capitalizedWords && capitalizedWords.length > 0) {
-        // Take the first capitalized word as a potential name
-        return capitalizedWords[0];
-      }
-    }
-    
-    return null;
-  };
-
   const startRecording = async () => {
     try {
       // Generate new session ID when starting recording
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
-      nameDetectionAttemptsRef.current = 0;
-      continuousTextBufferRef.current = '';
       accumulatedTranscriptRef.current = '';
       
       // Request microphone permission
@@ -142,9 +94,6 @@ const useSpeechRecognition = ({
             }
             
             const transcript = event.results[i][0].transcript;
-            
-            // Add to continuous buffer for better name detection
-            continuousTextBufferRef.current += ' ' + transcript;
             
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
@@ -181,17 +130,6 @@ const useSpeechRecognition = ({
           
           // For diagnostic purposes
           console.log("Accumulated transcript:", accumulatedTranscriptRef.current);
-          console.log("Continuous buffer:", continuousTextBufferRef.current);
-          
-          // Try to detect patient name more aggressively
-          nameDetectionAttemptsRef.current++;
-          const detectedName = detectPatientName(continuousTextBufferRef.current);
-          
-          if (detectedName) {
-            console.log("Detected patient name:", detectedName);
-            // We would trigger a callback here to set the patient name
-            // This needs to be implemented in the onResult handler in VoiceRecorder
-          }
         };
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -214,7 +152,7 @@ const useSpeechRecognition = ({
         recognitionRef.current.start();
         setupSilenceDetection();
         setIsRecording(true);
-        toast.success(`Recording started with auto-language detection`);
+        toast.success('Recording started');
       } else {
         toast.error('Speech recognition is not supported in this browser');
       }
@@ -229,8 +167,13 @@ const useSpeechRecognition = ({
       recognitionRef.current.stop();
     }
     
-    if (mediaRecorderRef.current) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
+    }
+    
+    // Stop all tracks in the stream to release the microphone
+    if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
     
     if (silenceTimerRef.current) {
@@ -265,8 +208,6 @@ const useSpeechRecognition = ({
     getAccumulatedTranscript: () => accumulatedTranscriptRef.current,
     resetTranscript: () => {
       accumulatedTranscriptRef.current = '';
-      continuousTextBufferRef.current = '';
-      nameDetectionAttemptsRef.current = 0;
     }
   };
 };
