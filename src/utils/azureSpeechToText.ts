@@ -85,7 +85,8 @@ export const startAzureSpeechRecognition = (
   try {
     // Enable speaker diarization
     speechConfig.setProperty("SpeechServiceResponse_OptimizeForConversation", "true");
-    speechConfig.setProperty("SpeechServiceResponse_RequestVoiceSignatureDetection", "true");
+    // Fix: Changed to the proper property name available in the SDK
+    speechConfig.setProperty("SpeechServiceConnection_EnableVoiceProfileIdentification", "true");
     speechConfig.setProperty("Conversation_SpeakerDiarizationEnabled", "true");
     speechConfig.setProperty("DifferentiateGenders", "true");
     
@@ -175,16 +176,14 @@ export const startAzureSpeechRecognition = (
         
         // Try alternative speaker ID properties
         if (speakerTag === undefined) {
-          const speakerIdProp = e.result.properties.getProperty(SpeechSDK.PropertyId.SpeechServiceResponse_RequestSpeakerIdentification);
-          if (speakerIdProp) {
+          // Fix: Use the correct property ID from the SDK
+          // Remove the line causing the error and use different approach to get speaker info
+          if (resultJson.Speaker !== undefined) {
             try {
-              const speakerInfo = JSON.parse(speakerIdProp);
-              if (speakerInfo && speakerInfo.SpeakerId) {
-                speakerTag = parseInt(speakerInfo.SpeakerId);
-                console.log("Azure speaker from properties:", speakerTag);
-              }
+              speakerTag = parseInt(resultJson.Speaker);
+              console.log("Azure speaker from properties:", speakerTag);
             } catch (error) {
-              console.log("Error parsing speaker ID property:", error);
+              console.log("Error parsing speaker ID:", error);
             }
           }
         }
