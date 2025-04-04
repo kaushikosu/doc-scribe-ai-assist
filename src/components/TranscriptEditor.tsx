@@ -81,7 +81,13 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       return transcript
         .split('\n')
         .filter(line => line.trim() !== '')
-        .map(line => `<div class="message realtime-message"><div class="message-content">${line}</div></div>`)
+        .map(line => {
+          // Handle "Processing..." and "Listening..." indicators specially
+          if (line === "Processing..." || line === "Listening...") {
+            return `<div class="message realtime-message"><div class="message-content"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-doctor-primary animate-pulse"></span>${line}</div></div></div>`;
+          }
+          return `<div class="message realtime-message"><div class="message-content">${line}</div></div>`;
+        })
         .join('');
     }
   }, [transcript]);
@@ -130,7 +136,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md h-full w-full space-y-2"
+              className="bg-muted p-4 rounded-md min-h-full w-full space-y-2"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 

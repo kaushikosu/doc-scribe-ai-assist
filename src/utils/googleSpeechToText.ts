@@ -9,7 +9,6 @@ interface RecognitionConfig {
   encoding: string;
   sampleRateHertz: number; 
   languageCode: string;
-  alternativeLanguageCodes?: string[];
   enableAutomaticPunctuation?: boolean;
   enableSpeakerDiarization?: boolean;
   diarizationSpeakerCount?: number;
@@ -59,16 +58,15 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     const base64Audio = await blobToBase64(audioData);
     console.log("Audio converted to base64, length:", base64Audio.length);
     
-    // Configure with explicit diarization settings
+    // Configure with diarization settings, but remove the problematic alternativeLanguageCodes
     const recognitionConfig: RecognitionConfig = {
       encoding: "WEBM_OPUS",
       sampleRateHertz: 48000,
       languageCode: "en-US",
-      alternativeLanguageCodes: ["hi-IN", "te-IN"],
       enableAutomaticPunctuation: true,
       enableSpeakerDiarization: true, // Enable speaker diarization
       diarizationSpeakerCount: 2,     // Expecting 2 speakers (doctor & patient)
-      model: "medical_conversation", // Use medical model if available, fallback to default
+      model: "default", // Changed from "medical_conversation" which might not be available
       useEnhanced: true
     };
     
@@ -167,7 +165,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     }
     
     return results;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error processing audio:', error);
     toast.error('Failed to process audio. Please try again.');
     return [{
@@ -203,15 +201,13 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
       processingChunk = true;
       
       try {
-        // Only send "Processing..." for the first chunk or if we're getting several empty responses
-        if (chunkIndex === 0 || noResultsCounter > 3) {
-          callback({
-            transcript: "Processing...",
-            confidence: 0.5,
-            isFinal: false,
-            resultIndex: chunkIndex
-          });
-        }
+        // Always send a "Processing..." message for better real-time feedback
+        callback({
+          transcript: "Processing...",
+          confidence: 0.5,
+          isFinal: false,
+          resultIndex: chunkIndex
+        });
         
         const results = await processMediaStream(event.data, apiKey);
         
@@ -229,6 +225,16 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
         } else {
           // Count consecutive empty responses
           noResultsCounter++;
+          
+          // If we're getting repeated empty responses, send a feedback message
+          if (noResultsCounter > 2) {
+            callback({
+              transcript: "Listening...",
+              confidence: 0.5,
+              isFinal: false,
+              resultIndex: chunkIndex
+            });
+          }
         }
         
         chunkIndex++;
@@ -247,8 +253,8 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
     }
   };
   
-  // Start recording with short time slices for more responsive feel
-  mediaRecorder.start(2000); // Process every 2 seconds for better diarization
+  // Start recording with shorter time slices for more responsive feel
+  mediaRecorder.start(1000); // Process every 1 second for better real-time experience
   
   // Return a cleanup function
   return () => {
