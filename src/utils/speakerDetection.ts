@@ -1,4 +1,3 @@
-
 // Pre-trained patterns based on doctor-patient corpus analysis
 // These patterns are derived from medical conversation datasets
 
@@ -95,7 +94,7 @@ interface ConversationContext {
   isGreeting: boolean;
   lastSpeaker: 'Doctor' | 'Patient' | 'Identifying';
   isFirstInteraction: boolean;
-  turnCount: number; // NEW: Track conversation turns
+  turnCount: number;
 }
 
 // Advanced speaker detection using statistical patterns and context
