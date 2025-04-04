@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,15 +21,31 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ transcrip
   const [editablePrescription, setEditablePrescription] = useState('');
   const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
+  const [shouldGeneratePrescription, setShouldGeneratePrescription] = useState(false);
 
   useEffect(() => {
+    // Only generate prescription when transcript has been processed with speaker labels
     if (transcript.length > 0) {
-      generatePrescription(transcript);
+      const hasLabels = transcript.includes('[Doctor]:') || transcript.includes('[Patient]:');
+      if (hasLabels) {
+        console.log("Transcript has speaker labels, generating prescription");
+        setShouldGeneratePrescription(true);
+      } else {
+        console.log("Transcript doesn't have speaker labels yet, waiting for processing");
+        setShouldGeneratePrescription(false);
+      }
     } else {
       setPrescription('');
       setEditablePrescription('');
+      setShouldGeneratePrescription(false);
     }
-  }, [transcript, patientInfo]);
+  }, [transcript]);
+
+  useEffect(() => {
+    if (shouldGeneratePrescription) {
+      generatePrescription(transcript);
+    }
+  }, [shouldGeneratePrescription, transcript, patientInfo]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
@@ -149,6 +166,9 @@ Department of General Medicine
     }
   };
 
+  // If we don't have speaker labels yet and recording is happening, show notice
+  const isPending = transcript.length > 0 && !shouldGeneratePrescription;
+
   return (
     <Card className="border-2 border-doctor-accent/30">
       <CardHeader className="pb-3">
@@ -159,7 +179,7 @@ Department of General Medicine
               variant="outline" 
               size="sm"
               onClick={handleGenerateAI}
-              disabled={!transcript.length}
+              disabled={!transcript.length || !shouldGeneratePrescription}
               className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
             >
               <MessageSquare className="h-4 w-4 mr-2" />
@@ -200,7 +220,9 @@ Department of General Medicine
           />
         ) : (
           <div className="bg-muted p-3 rounded-md min-h-[300px] font-mono text-sm whitespace-pre-wrap">
-            {prescription || "Prescription will be generated here..."}
+            {isPending ? 
+              "Waiting for full transcript processing to generate prescription..." :
+              (prescription || "Prescription will be generated here...")}
           </div>
         )}
       </CardContent>

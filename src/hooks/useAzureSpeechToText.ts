@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -6,7 +7,6 @@ import {
   detectLanguageFromTranscript,
   languageCodeMap
 } from '@/utils/azureSpeechToText';
-import { detectSpeaker } from '@/utils/speaker';
 
 interface UseAzureSpeechToTextProps {
   onResult: (result: { 
@@ -31,7 +31,7 @@ const useAzureSpeechToText = ({
   const [isRecording, setIsRecording] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
   const supportedLanguages = useRef<string[]>(["en-IN", "hi-IN", "te-IN"]);
-  const prevSpeakerTagRef = useRef<number | undefined>(undefined);
+  
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -63,7 +63,6 @@ const useAzureSpeechToText = ({
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
       processingRef.current = false;
-      prevSpeakerTagRef.current = undefined;
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -92,30 +91,10 @@ const useAzureSpeechToText = ({
           lastSpeechTimeRef.current = Date.now();
           
           console.log('Azure transcript received:', result.transcript);
-          console.log('Current detected language:', detectedLanguage);
           
-          if (result.speakerTag === undefined && prevSpeakerTagRef.current !== undefined) {
-            result.speakerTag = prevSpeakerTagRef.current;
-            console.log("Using previous speaker tag:", result.speakerTag);
-          } else if (result.speakerTag !== undefined) {
-            prevSpeakerTagRef.current = result.speakerTag;
-            console.log("New speaker tag detected:", result.speakerTag);
-          }
-          
-          onResult({
-            transcript: result.transcript,
-            isFinal: result.isFinal,
-            resultIndex: result.resultIndex || 0,
-            speakerTag: typeof result.speakerTag === 'number' ? result.speakerTag : undefined
-          });
-          
+          // Detect language if needed
           if (result.transcript.length > 3) {
             const detectedLang = detectLanguageFromTranscript(result.transcript);
-            
-            console.log('Language detection attempt:', {
-              originalText: result.transcript,
-              detectedLanguage: detectedLang
-            });
             
             if (detectedLang !== detectedLanguage && supportedLanguages.current.includes(detectedLang)) {
               console.log('Changing language detection from', detectedLanguage, 'to', detectedLang);
@@ -126,6 +105,16 @@ const useAzureSpeechToText = ({
               }
             }
           }
+
+          // For faster real-time experience, we'll prioritize displaying 
+          // the text immediately without waiting for speaker detection
+          onResult({
+            transcript: result.transcript,
+            isFinal: result.isFinal,
+            resultIndex: result.resultIndex || 0,
+            // Include speaker tag but don't rely on it for real-time display
+            speakerTag: typeof result.speakerTag === 'number' ? result.speakerTag : undefined
+          });
         },
         onSilence,
         pauseThreshold,

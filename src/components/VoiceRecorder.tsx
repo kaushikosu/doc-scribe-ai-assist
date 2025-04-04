@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useAzureSpeechToText from '@/hooks/useAzureSpeechToText';
 import { 
-  detectSpeaker, 
   detectPatientInfo,
   PatientInfo
 } from '@/utils/speaker';
@@ -24,50 +22,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
+  const [rawTranscript, setRawTranscript] = useState(''); // For storing raw transcript without speaker labels
   const [isNewSession, setIsNewSession] = useState(true);
-  const [lastProcessedIndex, setLastProcessedIndex] = useState(0);
-  const [lastSpeaker, setLastSpeaker] = useState<'Doctor' | 'Patient' | 'Identifying'>('Doctor');
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
-  const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
-  const [speakerChanged, setSpeakerChanged] = useState(false);
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [apiKey, setApiKey] = useState<string>('');
   const [region, setRegion] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>("auto");
   
-  // Track complete formatted transcript with speaker labels
-  const [formattedTranscript, setFormattedTranscript] = useState('');
-
   // Refs
-  const interimTranscriptRef = useRef<string>('');
+  const currentTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
-  const turnCountRef = useRef<number>(0); // Track conversation turns
-  const processedSpeakerTagsRef = useRef<Set<number>>(new Set()); // Track processed speaker tags
-  const pendingTranscriptsRef = useRef<Map<string, string>>(new Map()); // Track pending transcript updates
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const conversationContextRef = useRef<{
-    isPatientDescribingSymptoms: boolean;
-    doctorAskedQuestion: boolean;
-    patientResponded: boolean;
-    isPrescribing: boolean;
-    isGreeting: boolean;
-  }>({
-    isPatientDescribingSymptoms: false,
-    doctorAskedQuestion: false,
-    patientResponded: false,
-    isPrescribing: false,
-    isGreeting: true
-  });
-
-  // Add tracking for speaker consistency
-  const speakerMappingRef = useRef<Map<number, 'Doctor' | 'Patient'>>(new Map());
 
   // Log when transcript changes - useful for debugging
   useEffect(() => {
-    console.log("VoiceRecorder formatted transcript:", formattedTranscript);
-  }, [formattedTranscript]);
+    console.log("VoiceRecorder raw transcript:", rawTranscript);
+  }, [rawTranscript]);
 
   // Handle API key update
   const handleApiKeySet = (newApiKey: string, newRegion?: string) => {
@@ -86,19 +59,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Handle silence detection - switch speaker on silence - improved
+  // Simple no-op silence handler to keep the interface consistent
   const handleSilence = () => {
-    if (lastSpeaker !== 'Identifying') {
-      const newSpeaker = lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor';
-      setLastSpeaker(newSpeaker);
-      setSpeakerChanged(true);
-      turnCountRef.current += 1; // Increment turn counter on speaker change
-      
-      // Only flash animation on actual speaker change
-      setTimeout(() => {
-        setSpeakerChanged(false);
-      }, 2000);
-    }
+    // Only used to mark paragraph breaks in the transcript
+    setRawTranscript(prev => prev + "\n");
   };
 
   // Debounced transcript update function to prevent UI flicker
@@ -160,15 +124,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     region
   });
 
-  // Process speech recognition results - improved for real-time updates with better speaker detection
-  function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
+  // Simplified speech result handler - no speaker detection during recording
+  function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number,
     speakerTag?: number 
   }) {
     // For diagnostic purposes
-    console.log("Received speech result:", { result, isFinal, resultIndex, speakerTag });
+    console.log("Received speech result:", { result, isFinal, resultIndex });
     
     if (!result) {
       console.log("Empty result received, ignoring");
@@ -178,8 +142,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // Check for specific error messages
     if (result.startsWith('Error:')) {
       console.error("Error in speech recognition:", result);
-      interimTranscriptRef.current = `[Error]: ${result}`;
-      updateTranscriptDebounced(formattedTranscript + interimTranscriptRef.current);
       return;
     }
     
@@ -189,122 +151,26 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Enhanced speaker detection with consistency
-    let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
-    
-    // Use Azure's speaker diarization if available
-    if (typeof speakerTag === 'number' && speakerTag > 0) {
-      // If we've seen this speaker before, use the same role
-      if (speakerMappingRef.current.has(speakerTag)) {
-        detectedSpeaker = speakerMappingRef.current.get(speakerTag)!;
-        console.log(`Using existing speaker mapping: ${speakerTag} -> ${detectedSpeaker}`);
-      } else {
-        // Otherwise, assign a role based on the tag (usually 1 = first speaker, 2 = second speaker)
-        // Note: We're assuming Azure assigns lower numbers to the speaker who speaks first,
-        // which is typically the doctor in a clinical setting
-        detectedSpeaker = speakerTag === 1 ? 'Doctor' : 'Patient';
-        
-        // Store this mapping for future use
-        speakerMappingRef.current.set(speakerTag, detectedSpeaker);
-        console.log(`Created new speaker mapping: ${speakerTag} -> ${detectedSpeaker}`);
-      }
-    } else if (isFinal) {
-      // For final results without speaker tag, use our custom detection
-      detectedSpeaker = detectSpeaker(result, {
-        ...conversationContextRef.current,
-        lastSpeaker,
-        isFirstInteraction: isFirstInteractionRef.current,
-        turnCount: turnCountRef.current
+    // For real-time display, we don't classify speakers yet
+    if (isFinal) {
+      // Add the new text to the raw transcript
+      setRawTranscript(prev => {
+        const newRawTranscript = prev + (prev.endsWith('\n') || prev === '' ? '' : ' ') + result;
+        currentTranscriptRef.current = newRawTranscript;
+        return newRawTranscript;
       });
+
+      // Update the parent component with the raw transcript
+      updateTranscriptDebounced(currentTranscriptRef.current);
       
-      console.log(`Used content-based speaker detection: "${result.substring(0, 20)}..." -> ${detectedSpeaker}`);
-    } else {
-      // For interim results, mark as identifying but include in the UI
-      detectedSpeaker = 'Identifying';
-    }
-    
-    // For interim results, show with "Identifying" tag but update in real-time
-    if (!isFinal) {
-      interimTranscriptRef.current = `[${detectedSpeaker}]: ${result}`;
-      
-      // Combine formatted transcript with interim for real-time display
-      const combinedTranscript = formattedTranscript + interimTranscriptRef.current;
-      updateTranscriptDebounced(combinedTranscript);
-      
-      // Even for interim results, try to identify patient
+      // Check for patient identification in initial conversations
       if (isNewSession && !patientIdentifiedRef.current) {
         attemptPatientIdentification(result);
       }
-      
-      return;
-    }
-    
-    // For final results, use the detected speaker
-    setLastSpeaker(detectedSpeaker);
-    turnCountRef.current += 1;
-    
-    // Check if we've seen this specific result before to avoid duplicates
-    const resultKey = `${resultIndex}-${result}`;
-    if (pendingTranscriptsRef.current.has(resultKey)) {
-      console.log(`Duplicate result detected, skipping: ${resultKey}`);
-      return;
-    }
-    
-    // Store this result to avoid processing duplicates
-    pendingTranscriptsRef.current.set(resultKey, result);
-    
-    // Format with speaker tag
-    const formattedResult = `[${detectedSpeaker}]: ${result}\n`;
-    
-    // Update our complete formatted transcript
-    setFormattedTranscript(prev => {
-      const newTranscript = prev + formattedResult;
-      console.log("Updated formatted transcript:", newTranscript);
-      return newTranscript;
-    });
-    
-    // Clear interim as we now have a final result
-    interimTranscriptRef.current = '';
-    
-    // Update processed index and context for this speaker/content
-    setLastProcessedIndex(resultIndex + 1);
-    updateConversationContext(detectedSpeaker, result);
-    
-    // Check for patient identification in initial conversations
-    if (isNewSession && !patientIdentifiedRef.current) {
-      attemptPatientIdentification(result);
-    }
-    
-    // Update the parent component with the formatted transcript
-    const updatedTranscript = formattedTranscript + formattedResult;
-    console.log("Sending transcript to parent:", updatedTranscript);
-    updateTranscriptDebounced(updatedTranscript);
-  }
-  
-  // Update conversation context based on speaker and content
-  function updateConversationContext(speaker: 'Doctor' | 'Patient' | 'Identifying', content: string) {
-    if (speaker === 'Doctor') {
-      // Check if doctor is asking a question
-      if (content.match(/\?$/) || content.toLowerCase().startsWith('how') || 
-          content.toLowerCase().startsWith('what') || content.toLowerCase().startsWith('when')) {
-        conversationContextRef.current.doctorAskedQuestion = true;
-      } else {
-        conversationContextRef.current.doctorAskedQuestion = false;
-        // If doctor is talking about medication, mark as prescribing
-        if (content.toLowerCase().includes('prescribe') || 
-            content.toLowerCase().includes('medication') || 
-            content.toLowerCase().includes('medicine') || 
-            content.toLowerCase().includes('tablet')) {
-          conversationContextRef.current.isPrescribing = true;
-        }
-      }
-    } else if (speaker === 'Patient') {
-      conversationContextRef.current.patientResponded = true;
-      if (content.toLowerCase().includes('pain') || 
-          content.toLowerCase().includes('hurt') || 
-          content.toLowerCase().includes('feel')) {
-        conversationContextRef.current.isPatientDescribingSymptoms = true;
-      }
+    } else {
+      // For non-final results, show them as temporary text in real-time
+      const updatedTranscript = currentTranscriptRef.current + " " + result;
+      updateTranscriptDebounced(updatedTranscript);
     }
   }
   
@@ -393,84 +259,26 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         isFirstInteractionRef.current = false;
       }
     }
-    
-    // Method 4: Last resort - check for any word after greeting
-    if (patientNameScanAttempts.current > 5) {
-      const wordsAfterGreeting = text.match(/(?:hello|hi|hey|namaste)\s+(\w+)/i);
-      if (wordsAfterGreeting && wordsAfterGreeting[1]) {
-        const guessedName = wordsAfterGreeting[1].charAt(0).toUpperCase() + wordsAfterGreeting[1].slice(1);
-        const currentTime = new Date().toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-        
-        const fallbackPatient = {
-          name: guessedName,
-          time: currentTime
-        };
-        
-        console.log("Fallback patient identification:", fallbackPatient);
-        onPatientInfoUpdate(fallbackPatient);
-        setIsNewSession(false);
-        patientIdentifiedRef.current = true;
-        setShowPatientIdentified(true);
-        setTimeout(() => {
-          setShowPatientIdentified(false);
-        }, 3000);
-        
-        toast.success(`Patient identified: ${guessedName}`);
-        isFirstInteractionRef.current = false;
-      }
-    }
   }
 
   // Start a new session
   const startNewSession = () => {
     resetTranscript();
     setTranscript('');
-    setFormattedTranscript(''); // Clear formatted transcript
+    setRawTranscript('');
     onTranscriptUpdate('');
     setIsNewSession(true);
-    setLastSpeaker('Doctor');
-    setLastProcessedIndex(0);
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
     patientNameScanAttempts.current = 0;
-    turnCountRef.current = 0; // Reset turn counter
-    processedSpeakerTagsRef.current.clear(); // Reset processed speaker tags
-    pendingTranscriptsRef.current.clear(); // Clear pending transcripts
+    currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
-    
-    // Reset conversation context
-    conversationContextRef.current = {
-      isPatientDescribingSymptoms: false,
-      doctorAskedQuestion: false,
-      patientResponded: false,
-      isPrescribing: false,
-      isGreeting: true
-    };
     
     toast.success('Ready for new patient');
   };
 
   // Handle stopping recording
   const handleStopRecording = () => {
-    // If there's an interim transcript, finalize it
-    if (interimTranscriptRef.current) {
-      const finalizedInterim = interimTranscriptRef.current.replace('[Identifying]:', `[${lastSpeaker}]:`);
-      interimTranscriptRef.current = '';
-      
-      // Update the formatted transcript with the finalized interim
-      setFormattedTranscript(prev => {
-        const newTranscript = prev + finalizedInterim + '\n';
-        console.log("Final transcript after stop:", newTranscript);
-        return newTranscript;
-      });
-      
-      // Update the parent with the complete transcript
-      updateTranscriptDebounced(formattedTranscript + finalizedInterim + '\n');
-    }
-    
     // Clear any pending transcript timeouts
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
@@ -478,6 +286,57 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
     
     stopRecording();
+    
+    // After stopping, process the transcript to classify speakers
+    processTranscriptForSpeakers();
+  };
+
+  // Process the transcript to add speaker labels after recording stops
+  const processTranscriptForSpeakers = () => {
+    console.log("Processing transcript to add speaker labels");
+    
+    import('@/utils/speaker').then(({ detectSpeaker }) => {
+      const lines = rawTranscript.split('\n').filter(line => line.trim().length > 0);
+      let formattedLines: string[] = [];
+      let lastSpeaker: 'Doctor' | 'Patient' = 'Doctor';
+      let turnCount = 0;
+      
+      // Process each paragraph/utterance
+      lines.forEach((line, index) => {
+        const isFirstInteraction = index === 0;
+        
+        // Detect speaker for this line
+        const speaker = detectSpeaker(line, {
+          lastSpeaker,
+          isFirstInteraction,
+          turnCount,
+          isPatientDescribingSymptoms: line.toLowerCase().includes('pain') || line.toLowerCase().includes('symptom'),
+          doctorAskedQuestion: line.includes('?'),
+          isPrescribing: line.toLowerCase().includes('prescribe') || line.toLowerCase().includes('medicine'),
+          isGreeting: line.toLowerCase().includes('hello') || line.toLowerCase().includes('namaste')
+        });
+        
+        // Add speaker label
+        formattedLines.push(`[${speaker}]: ${line}`);
+        
+        // Update for next iteration
+        lastSpeaker = speaker;
+        turnCount++;
+      });
+      
+      // Update with the speaker-labeled transcript
+      const speakerLabeledTranscript = formattedLines.join('\n');
+      console.log("Speaker-labeled transcript:", speakerLabeledTranscript);
+      
+      // Update the transcript and notify parent
+      setTranscript(speakerLabeledTranscript);
+      updateTranscriptDebounced(speakerLabeledTranscript);
+      
+      toast.success('Transcript processing completed');
+    }).catch(err => {
+      console.error("Error processing transcript:", err);
+      toast.error("Failed to process transcript");
+    });
   };
 
   // Handle language selection - improved for Telugu
@@ -518,10 +377,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         return;
       }
       
-      // Reset for new recording session
-      processedSpeakerTagsRef.current.clear();
-      pendingTranscriptsRef.current.clear();
-      
       // If a specific language is selected, set it before starting
       if (selectedLanguage !== "auto") {
         const languageMap: Record<string, string> = {
@@ -535,10 +390,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         }
       }
       
-      // Add an initial transcript entry to test the flow
-      const initialMessage = "[Doctor]: Starting new recording session.\n";
-      setFormattedTranscript(initialMessage);
-      updateTranscriptDebounced(initialMessage);
+      // Reset raw transcript for new session
+      setRawTranscript('');
+      currentTranscriptRef.current = '';
       
       startRecording();
     }
@@ -617,11 +471,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               {isRecording ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "h-3 w-3 rounded-full bg-destructive",
-                      speakerChanged ? "animate-pulse-recording" : ""
-                    )}></span>
-                    <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
+                    <span className="h-3 w-3 rounded-full bg-destructive animate-pulse"></span>
+                    <span className="font-medium">Recording (real-time transcription)</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Using Azure Speech-to-Text with enhanced medical vocabulary
