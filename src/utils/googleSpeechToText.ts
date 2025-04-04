@@ -8,7 +8,7 @@ const GOOGLE_SPEECH_STREAMING_URL = "https://speech.googleapis.com/v1p1beta1/spe
 // Configuration for speech recognition
 interface RecognitionConfig {
   encoding: string;
-  sampleRateHertz: number; // Make this required
+  sampleRateHertz: number; 
   languageCode: string;
   alternativeLanguageCodes?: string[];
   enableAutomaticPunctuation?: boolean;
@@ -109,6 +109,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     
     if (!data.results || data.results.length === 0) {
       console.log("No results from Google Speech API");
+      // Return empty array instead of placeholder text
       return [];
     }
     
@@ -118,13 +119,15 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
         const transcript = result.alternatives[0].transcript || '';
         const confidence = result.alternatives[0].confidence || 0;
         
-        results.push({
-          transcript,
-          confidence,
-          isFinal: true,
-          resultIndex,
-          speakerTag: 0 // Default/unassigned speaker tag
-        });
+        if (transcript.trim() !== '') {
+          results.push({
+            transcript,
+            confidence,
+            isFinal: true,
+            resultIndex,
+            speakerTag: 0 // Default/unassigned speaker tag
+          });
+        }
       }
     });
     
@@ -208,7 +211,7 @@ const createAudioChunksFromStream = (stream: MediaStream): Promise<Blob> => {
 export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, callback: (result: GoogleSpeechResult) => void) => {
   if (!stream || !apiKey) {
     console.error("Invalid stream or API key for streaming");
-    return;
+    return () => {};
   }
   
   console.log("Setting up real-time streaming to Google Speech API");
@@ -221,23 +224,29 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
   
   let processingChunk = false;
   let chunkIndex = 0;
+  let noResultsCounter = 0;
   
   mediaRecorder.ondataavailable = async (event) => {
     if (event.data.size > 0 && !processingChunk) {
       processingChunk = true;
       
       try {
-        // Send a minimal interim result while processing
-        callback({
-          transcript: "Processing...",
-          confidence: 0.5,
-          isFinal: false,
-          resultIndex: chunkIndex
-        });
+        // Only send "Processing..." for the first chunk or if we're getting several empty responses
+        if (chunkIndex === 0 || noResultsCounter > 3) {
+          callback({
+            transcript: "Processing...",
+            confidence: 0.5,
+            isFinal: false,
+            resultIndex: chunkIndex
+          });
+        }
         
         const results = await processMediaStream(event.data, apiKey);
         
         if (results.length > 0) {
+          // We have actual transcription results
+          noResultsCounter = 0;
+          
           // Send each result through callback
           results.forEach((result) => {
             callback({
@@ -246,13 +255,18 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
             });
           });
         } else {
-          // If no results but not an error, send empty result to show we're still listening
-          callback({
-            transcript: "",
-            confidence: 0,
-            isFinal: false,
-            resultIndex: chunkIndex
-          });
+          // Count consecutive empty responses
+          noResultsCounter++;
+          
+          // Only send empty result after multiple empty responses
+          if (noResultsCounter > 5) {
+            callback({
+              transcript: "",
+              confidence: 0,
+              isFinal: false,
+              resultIndex: chunkIndex
+            });
+          }
         }
         
         chunkIndex++;

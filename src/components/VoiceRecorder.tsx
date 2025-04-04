@@ -146,7 +146,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   } = useGoogleSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold: pauseThreshold, 
+    pauseThreshold, 
     apiKey: googleApiKey
   });
 
@@ -170,6 +170,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       console.error("Error in speech recognition:", result);
       interimTranscriptRef.current = `[Error]: ${result}`;
       updateTranscriptDebounced(formattedTranscript + interimTranscriptRef.current);
+      return;
+    }
+    
+    // Skip the "Processing..." placeholder messages
+    if (result === "Processing...") {
+      console.log("Skipping processing placeholder");
       return;
     }
     

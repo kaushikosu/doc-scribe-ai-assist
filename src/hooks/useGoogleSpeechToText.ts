@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -105,6 +104,12 @@ const useGoogleSpeechToText = ({
           return;
         }
         
+        // Skip empty results
+        if (!result.transcript && !result.error) {
+          console.log('Empty transcript received, skipping');
+          return;
+        }
+        
         // Update last speech time when we get results
         lastSpeechTimeRef.current = Date.now();
         
@@ -126,13 +131,6 @@ const useGoogleSpeechToText = ({
       // Signal successful start
       console.log("Recording started with Google Speech-to-Text (Real-time mode)");
       toast.success("Started recording with Google Speech-to-Text");
-      
-      // Add a simple initial result to verify the onResult callback is working
-      onResult({
-        transcript: "Initializing Google Speech API...",
-        isFinal: false,
-        resultIndex: -1
-      });
       
     } catch (error) {
       console.error('Error starting recording:', error);
