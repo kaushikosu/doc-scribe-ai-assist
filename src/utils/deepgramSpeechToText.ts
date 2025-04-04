@@ -35,8 +35,8 @@ export const streamAudioToDeepgram = (
     "utterances=true&" + // Enable utterances
     "topics=medicine,symptoms,doctor,patient"; // Enable topic detection with custom topics
     
-  // Create WebSocket connection
-  let socket: WebSocket | null = new WebSocket(deepgramUrl);
+  // Create WebSocket connection with Authorization header
+  let socket: WebSocket | null = null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 5;
   let reconnectTimeout: NodeJS.Timeout | null = null;
@@ -56,6 +56,30 @@ export const streamAudioToDeepgram = (
   // Connect audio nodes
   source.connect(processor);
   processor.connect(audioContext.destination);
+
+  // Function to create socket with proper authentication
+  const createSocket = () => {
+    try {
+      // Create a new WebSocket with Authorization header
+      const ws = new WebSocket(deepgramUrl);
+      
+      // Set up authorization headers when the connection opens
+      ws.onopen = () => {
+        console.log("WebSocket connection opened, sending authorization header");
+        // Send authorization header
+        ws.send(JSON.stringify({
+          type: "Authorization",
+          token: apiKey
+        }));
+      };
+      
+      return ws;
+    } catch (error) {
+      console.error("Error creating WebSocket:", error);
+      onStatusChange?.('failed');
+      return null;
+    }
+  };
 
   // Function to handle reconnection
   const reconnect = () => {
@@ -78,9 +102,11 @@ export const streamAudioToDeepgram = (
         socket.close();
       }
       
-      socket = new WebSocket(deepgramUrl);
-      setupSocketHandlers();
-      onStatusChange?.('connecting');
+      socket = createSocket();
+      if (socket) {
+        setupSocketHandlers();
+        onStatusChange?.('connecting');
+      }
     }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
   };
   
@@ -88,18 +114,14 @@ export const streamAudioToDeepgram = (
   const setupSocketHandlers = () => {
     if (!socket) return;
     
-    // Set authorization header once the socket is open
+    // Handle socket connection being established
     socket.onopen = () => {
-      if (!socket) return;
-      
-      // Send the API key as a token message
+      console.log("Deepgram WebSocket connection opened");
+      // Important: Send authorization as the first message
       socket.send(JSON.stringify({
-        "token": apiKey
+        type: "Authorization",
+        token: apiKey
       }));
-      
-      console.log("Deepgram WebSocket connected");
-      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-      onStatusChange?.('open');
     };
     
     // Handle socket messages (transcription results)
@@ -107,6 +129,14 @@ export const streamAudioToDeepgram = (
       try {
         // Parse result from Deepgram
         const result = JSON.parse(event.data);
+        
+        // Check for connection established confirmation
+        if (result.type === "ConnectionEstablished") {
+          console.log("Deepgram connection successfully established");
+          reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+          onStatusChange?.('open');
+          return;
+        }
         
         // Check for valid transcription
         if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
@@ -168,9 +198,14 @@ export const streamAudioToDeepgram = (
     };
   };
   
+  // Create initial socket connection
+  socket = createSocket();
+  
   // Set up socket handlers initially
-  setupSocketHandlers();
-  onStatusChange?.('connecting');
+  if (socket) {
+    setupSocketHandlers();
+    onStatusChange?.('connecting');
+  }
   
   // Audio processing function for sending data to Deepgram
   processor.onaudioprocess = (e) => {
