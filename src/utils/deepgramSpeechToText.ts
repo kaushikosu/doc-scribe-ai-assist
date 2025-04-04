@@ -6,6 +6,7 @@ export interface DeepgramResult {
   resultIndex: number;
   speakerTag?: number;
   error?: string;
+  topics?: string[];
 }
 
 // WebSocket connection status
@@ -28,7 +29,11 @@ export const streamAudioToDeepgram = (
     "model=nova-2&" +
     "smart_format=true&" +
     "filler_words=false&" +
-    "diarize=true"; // Enable diarization
+    "diarize=true&" + // Enable diarization
+    "punctuate=true&" + // Enable punctuation
+    "paragraphs=true&" + // Enable paragraphs
+    "utterances=true&" + // Enable utterances
+    "topics=medicine,symptoms,doctor,patient"; // Enable topic detection with custom topics
     
   // Create WebSocket connection
   let socket: WebSocket | null = new WebSocket(deepgramUrl);
@@ -85,7 +90,10 @@ export const streamAudioToDeepgram = (
     
     // Set authorization header once the socket is open
     socket.onopen = () => {
-      socket?.send(JSON.stringify({
+      if (!socket) return;
+      
+      // Send the API key as a token message
+      socket.send(JSON.stringify({
         "token": apiKey
       }));
       
@@ -103,6 +111,12 @@ export const streamAudioToDeepgram = (
         // Check for valid transcription
         if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
           const transcript = result.channel.alternatives[0].transcript;
+          
+          // Extract topics if available
+          let topics: string[] | undefined;
+          if (result.channel.topics && result.channel.topics.topics) {
+            topics = result.channel.topics.topics.map((t: any) => t.topic);
+          }
           
           if (transcript.trim() === '') {
             return; // Skip empty results
@@ -122,7 +136,8 @@ export const streamAudioToDeepgram = (
             transcript,
             isFinal: result.is_final || false,
             resultIndex: Date.now(), // Use timestamp as unique ID
-            speakerTag
+            speakerTag,
+            topics
           });
         }
       } catch (error) {
@@ -133,8 +148,12 @@ export const streamAudioToDeepgram = (
     // Handle errors
     socket.onerror = (error) => {
       console.error("Deepgram WebSocket error:", error);
-      // Don't immediately fail - try to reconnect
-      reconnect();
+      onStatusChange?.('failed');
+      
+      // Force close the socket to trigger onclose for reconnection
+      if (socket && socket.readyState !== WebSocket.CLOSED) {
+        socket.close();
+      }
     };
     
     // Handle socket closure
@@ -142,7 +161,7 @@ export const streamAudioToDeepgram = (
       console.log("Deepgram WebSocket closed", event.code, event.reason);
       onStatusChange?.('closed');
       
-      // Don't reconnect if it was a normal closure
+      // Don't reconnect if it was a normal closure (code 1000)
       if (event.code !== 1000) {
         reconnect();
       }
@@ -191,7 +210,7 @@ export const streamAudioToDeepgram = (
       
       // Close WebSocket
       if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-        socket.close();
+        socket.close(1000, "User ended session"); // Use code 1000 for normal closure
       }
       
       socket = null;

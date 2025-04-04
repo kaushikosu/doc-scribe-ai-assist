@@ -12,7 +12,8 @@ interface UseDeepgramSpeechToTextProps {
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number,
-    speakerTag?: number 
+    speakerTag?: number,
+    topics?: string[] 
   }) => void;
   onSilence: () => void;
   pauseThreshold: number;
@@ -28,6 +29,7 @@ const useDeepgramSpeechToText = ({
   // State management
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('closed');
+  const [connectionErrors, setConnectionErrors] = useState(0);
   
   // References to maintain state between renders
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -70,9 +72,25 @@ const useDeepgramSpeechToText = ({
     // Show appropriate toast message, but only if we aren't stopping manually
     if (!isStoppingManuallyRef.current) {
       if (status === 'open') {
+        setConnectionErrors(0); // Reset error count on successful connection
         toast.success("Connected to Deepgram");
       } else if (status === 'failed') {
-        toast.error("Connection issues with Deepgram - trying to reconnect");
+        setConnectionErrors(prevErrors => prevErrors + 1);
+        
+        // If we have multiple failures, try to restart the connection
+        if (connectionErrors > 2) {
+          toast.error("Connection issues with Deepgram - attempting to restart");
+          
+          // Force restart recording after 2 seconds
+          setTimeout(() => {
+            if (isRecording) {
+              stopRecording();
+              setTimeout(() => {
+                startRecording();
+              }, 1000);
+            }
+          }, 2000);
+        }
       }
     }
   };
@@ -90,7 +108,6 @@ const useDeepgramSpeechToText = ({
       
       // Generate new session ID
       currentSessionIdRef.current = Date.now().toString();
-      accumulatedTranscriptRef.current = '';
       
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -110,6 +127,7 @@ const useDeepgramSpeechToText = ({
         isFinal: boolean,
         resultIndex: number,
         speakerTag?: number,
+        topics?: string[],
         error?: string
       }) => {
         if (result.error) {
@@ -133,12 +151,18 @@ const useDeepgramSpeechToText = ({
           }
         }
         
+        // Add topics if available
+        if (result.topics && result.topics.length > 0) {
+          console.log("Detected topics:", result.topics.join(", "));
+        }
+        
         // Send result to callback
         onResult({
           transcript: formattedTranscript,
           isFinal: result.isFinal,
           resultIndex: result.resultIndex,
-          speakerTag: result.speakerTag
+          speakerTag: result.speakerTag,
+          topics: result.topics
         });
       };
       
@@ -198,6 +222,7 @@ const useDeepgramSpeechToText = ({
   return {
     isRecording,
     connectionStatus,
+    connectionErrors,
     startRecording,
     stopRecording,
     toggleRecording: () => {
