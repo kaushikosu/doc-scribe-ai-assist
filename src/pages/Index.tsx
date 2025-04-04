@@ -41,27 +41,23 @@ const Index = () => {
               <ol className="space-y-3 text-sm">
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                  <span>Say "Namaste [patient name]" to begin a new session</span>
+                  <span>Configure Azure Speech API key and region</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
+                  <span>Say "Namaste [patient name]" to begin a new session</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                  <span>The transcript will appear in real-time and can be edited if needed</span>
+                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>A prescription will be automatically generated based on the conversation</span>
+                  <span>The transcript will appear in real-time and can be edited if needed</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>Review, edit if necessary, print or save the prescription</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
-                  <span>Press the "New Patient" button for the next consultation</span>
+                  <span>A prescription will be automatically generated based on the conversation</span>
                 </li>
               </ol>
             </Card>

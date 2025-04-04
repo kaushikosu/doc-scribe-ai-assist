@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useGoogleSpeechToText from '@/hooks/useGoogleSpeechToText';
+import useAzureSpeechToText from '@/hooks/useAzureSpeechToText';
 import { 
   detectSpeaker, 
   detectPatientInfo,
@@ -30,7 +31,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [googleApiKey, setGoogleApiKey] = useState<string>('');
+  const [apiKey, setApiKey] = useState<string>('');
+  const [region, setRegion] = useState<string>('');
   
   // Track complete formatted transcript with speaker labels
   const [formattedTranscript, setFormattedTranscript] = useState('');
@@ -70,12 +72,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   }, [formattedTranscript]);
 
   // Handle API key update
-  const handleApiKeySet = (apiKey: string) => {
+  const handleApiKeySet = (newApiKey: string, newRegion?: string) => {
     console.log("API key updated");
-    setGoogleApiKey(apiKey);
+    setApiKey(newApiKey);
+    
+    if (newRegion) {
+      setRegion(newRegion);
+      console.log("Region updated:", newRegion);
+    }
+    
     // Show a success toast when API key is set
-    if (apiKey) {
-      toast.success("Google Cloud Speech API key configured");
+    if (newApiKey) {
+      const provider = newRegion ? "Azure Speech" : "Google Cloud Speech";
+      toast.success(`${provider} API key configured`);
     }
   };
 
@@ -135,7 +144,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Google Speech-to-Text with enhanced settings
+  // Initialize Azure Speech-to-Text
   const { 
     isRecording, 
     detectedLanguage, 
@@ -144,11 +153,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     stopRecording,
     getAccumulatedTranscript,
     resetTranscript
-  } = useGoogleSpeechToText({
+  } = useAzureSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
     pauseThreshold, 
-    apiKey: googleApiKey
+    apiKey,
+    region
   });
 
   // Process speech recognition results - improved for real-time updates
@@ -185,7 +195,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     
     // Use speaker tags more intelligently
     if (speakerTag !== undefined && speakerTag > 0) {
-      // Use Google's speaker diarization (1 is typically the first speaker, 2 the second)
+      // Use Azure's speaker diarization (1 is typically the first speaker, 2 the second)
       detectedSpeaker = speakerTag === 1 ? 'Patient' : 'Doctor';
     } else if (isFinal) {
       // For final results without speaker tag, use our custom detection
@@ -462,8 +472,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     if (isRecording) {
       handleStopRecording();
     } else {
-      if (!googleApiKey) {
-        toast.error("Please configure your Google Cloud Speech API key first");
+      if (!apiKey) {
+        toast.error("Please configure your Speech API key first");
+        return;
+      }
+      
+      if (localStorage.getItem('speechProvider') === 'azure' && !region) {
+        toast.error("Please configure your Azure region");
         return;
       }
       
@@ -497,7 +512,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     ? "bg-destructive hover:bg-destructive/90" 
                     : "bg-doctor-primary hover:bg-doctor-primary/90"
                 )}
-                disabled={!googleApiKey}
+                disabled={!apiKey || (localStorage.getItem('speechProvider') === 'azure' && !region)}
               >
                 {isRecording ? (
                   <MicOff className="h-8 w-8" />
@@ -526,13 +541,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using Google Cloud Speech-to-Text with enhanced medical vocabulary
+                    Using {localStorage.getItem('speechProvider') === 'azure' ? 'Azure' : 'Google Cloud'} Speech-to-Text with enhanced medical vocabulary
                   </div>
                 </div>
               ) : (
                 <span className="text-muted-foreground">
-                  {!googleApiKey ? 
-                    "Configure Google Cloud Speech API key above to start" :
+                  {!apiKey ? 
+                    "Configure Speech API key above to start" :
                     (isNewSession ? 
                       "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
                       "Press to resume recording"
