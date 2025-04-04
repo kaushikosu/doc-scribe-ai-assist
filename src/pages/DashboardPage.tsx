@@ -62,7 +62,7 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>The transcript will appear in real-time and can be edited if needed</span>
+                  <span>The transcript with speaker labels will appear in real-time</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>

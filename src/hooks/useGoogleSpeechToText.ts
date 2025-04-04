@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -7,7 +8,6 @@ import {
   languageCodeMap,
   streamMediaToGoogleSpeech
 } from '@/utils/googleSpeechToText';
-import { detectSpeaker } from '@/utils/speaker';
 
 interface UseGoogleSpeechToTextProps {
   onResult: (result: { 
@@ -39,9 +39,7 @@ const useGoogleSpeechToText = ({
   const streamCleanupRef = useRef<(() => void) | null>(null);
   
   const accumulatedTranscriptRef = useRef<string>('');
-  
   const processedResultsMapRef = useRef<Map<number, boolean>>(new Map());
-  
   const sessionIdRef = useRef<string>(Date.now().toString());
   
   useEffect(() => {
@@ -89,6 +87,7 @@ const useGoogleSpeechToText = ({
       
       mediaStreamRef.current = stream;
       
+      // Enable diarization in the Google Speech API call
       const cleanupFn = streamMediaToGoogleSpeech(stream, apiKey, (result) => {
         if (result.error) {
           console.error('Stream processing error:', result.error);
@@ -102,21 +101,21 @@ const useGoogleSpeechToText = ({
         
         lastSpeechTimeRef.current = Date.now();
         
+        // Process the result with speaker tag if available
         onResult({
           transcript: result.transcript,
           isFinal: result.isFinal,
           resultIndex: result.resultIndex || 0,
-          speakerTag: typeof result.speakerTag === 'number' ? result.speakerTag : undefined
+          speakerTag: result.speakerTag
         });
       });
       
       streamCleanupRef.current = cleanupFn;
-      
       setupSilenceDetection();
       setIsRecording(true);
       
-      console.log("Recording started with Google Speech-to-Text (Real-time mode)");
-      toast.success("Started recording with Google Speech-to-Text");
+      console.log("Recording started with Google Speech-to-Text (Diarization enabled)");
+      toast.success("Started recording with Google diarization");
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');

@@ -5,11 +5,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { 
-  detectPatientInfo,
-  PatientInfo
-} from '@/utils/speaker';
+import useGoogleSpeechToText from '@/hooks/useGoogleSpeechToText';
+import { PatientInfo } from '@/utils/speaker';
+
+// Default Google API key - in production this should be secured properly
+const GOOGLE_SPEECH_API_KEY = process.env.GOOGLE_SPEECH_API_KEY || "";
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
@@ -22,11 +22,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
-  const [rawTranscript, setRawTranscript] = useState(''); // For storing raw transcript without speaker labels
+  const [rawTranscript, setRawTranscript] = useState(''); 
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("auto");
+  const [apiKey, setApiKey] = useState<string>(GOOGLE_SPEECH_API_KEY);
+  const [speakerMap, setSpeakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
@@ -34,6 +35,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const speakersDetectedRef = useRef<Set<number>>(new Set());
 
   // Log when transcript changes - useful for debugging
   useEffect(() => {
@@ -90,7 +92,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Speech Recognition
+  // Initialize Google Speech Recognition with diarization
   const { 
     isRecording, 
     detectedLanguage, 
@@ -99,20 +101,22 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     stopRecording,
     getAccumulatedTranscript,
     resetTranscript
-  } = useSpeechRecognition({
+  } = useGoogleSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold
+    pauseThreshold,
+    apiKey
   });
 
-  // Improved speech result handler - focus on displaying lines as they come in
-  function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
+  // Improved speech result handler that uses speaker diarization info
+  function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
     transcript: string, 
     isFinal: boolean, 
-    resultIndex: number
+    resultIndex: number,
+    speakerTag?: number 
   }) {
     // For diagnostic purposes
-    console.log("Received speech result:", { result, isFinal, resultIndex });
+    console.log("Received speech result:", { result, isFinal, resultIndex, speakerTag });
     
     if (!result) {
       console.log("Empty result received, ignoring");
@@ -131,18 +135,30 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // For real-time display, we don't classify speakers yet
+    // Track speakers we've seen
+    if (typeof speakerTag === 'number' && speakerTag > 0) {
+      speakersDetectedRef.current.add(speakerTag);
+      console.log(`Speaker ${speakerTag} detected. Total speakers: ${speakersDetectedRef.current.size}`);
+    }
+    
+    // Add speaker label if available
+    let formattedResult = result;
+    if (typeof speakerTag === 'number' && speakerTag > 0) {
+      const speakerLabel = speakerMap.get(speakerTag) || `Speaker ${speakerTag}`;
+      formattedResult = `[${speakerLabel}]: ${result}`;
+    }
+    
     if (isFinal) {
       // Add the new text to the raw transcript - ensure it's on a new line if needed
       setRawTranscript(prev => {
         // If we're starting a new utterance and the previous doesn't end with a newline, add one
         let newRawTranscript;
         if (prev === '') {
-          newRawTranscript = result;
+          newRawTranscript = formattedResult;
         } else if (prev.endsWith('\n')) {
-          newRawTranscript = prev + result;
+          newRawTranscript = prev + formattedResult;
         } else {
-          newRawTranscript = prev + '\n' + result;
+          newRawTranscript = prev + '\n' + formattedResult;
         }
         
         currentTranscriptRef.current = newRawTranscript;
@@ -161,7 +177,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       // Don't add extra line breaks here to avoid jumpiness
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
-        result;
+        formattedResult;
       
       updateTranscriptDebounced(updatedTranscript);
     }
@@ -171,27 +187,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   function attemptPatientIdentification(text: string) {
     console.log("Checking for patient name in:", text);
     
-    // Method 1: Try utility function
-    const patientInfo = detectPatientInfo(text);
-    
-    if (patientInfo) {
-      console.log("Patient identified:", patientInfo);
-      onPatientInfoUpdate(patientInfo);
-      setIsNewSession(false);
-      patientIdentifiedRef.current = true;
-      
-      // Show success notification
-      setShowPatientIdentified(true);
-      setTimeout(() => {
-        setShowPatientIdentified(false);
-      }, 3000);
-      
-      toast.success(`Patient identified: ${patientInfo.name}`);
-      isFirstInteractionRef.current = false;
-      return;
-    }
-    
-    // Method 2: Try our local extractor
+    // Try to extract patient name
     patientNameScanAttempts.current += 1;
     const extractedName = extractPatientName(text);
     
@@ -222,7 +218,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Method 3: After several attempts, try capitalized words
+    // After several attempts, try capitalized words
     if (patientNameScanAttempts.current > 3) {
       const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
       if (capitalizedWords && capitalizedWords.length > 0) {
@@ -266,6 +262,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     patientNameScanAttempts.current = 0;
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
+    speakersDetectedRef.current.clear();
     
     toast.success('Ready for new patient');
   };
@@ -279,58 +276,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
     
     stopRecording();
-    
-    // After stopping, process the transcript to classify speakers
-    processTranscriptForSpeakers();
-  };
-
-  // Process the transcript to add speaker labels after recording stops
-  const processTranscriptForSpeakers = () => {
-    console.log("Processing transcript to add speaker labels");
-    
-    import('@/utils/speaker').then(({ detectSpeaker }) => {
-      const lines = rawTranscript.split('\n').filter(line => line.trim().length > 0);
-      let formattedLines: string[] = [];
-      let lastSpeaker: 'Doctor' | 'Patient' = 'Doctor';
-      let turnCount = 0;
-      
-      // Process each paragraph/utterance
-      lines.forEach((line, index) => {
-        const isFirstInteraction = index === 0;
-        
-        // Detect speaker for this line
-        const speaker = detectSpeaker(line, {
-          lastSpeaker,
-          isFirstInteraction,
-          turnCount,
-          isPatientDescribingSymptoms: line.toLowerCase().includes('pain') || line.toLowerCase().includes('symptom'),
-          doctorAskedQuestion: line.includes('?'),
-          patientResponded: lastSpeaker === 'Doctor' && turnCount > 0,
-          isPrescribing: line.toLowerCase().includes('prescribe') || line.toLowerCase().includes('medicine'),
-          isGreeting: line.toLowerCase().includes('hello') || line.toLowerCase().includes('namaste')
-        });
-        
-        // Add speaker label
-        formattedLines.push(`[${speaker}]: ${line}`);
-        
-        // Update for next iteration
-        lastSpeaker = speaker;
-        turnCount++;
-      });
-      
-      // Update with the speaker-labeled transcript
-      const speakerLabeledTranscript = formattedLines.join('\n');
-      console.log("Speaker-labeled transcript:", speakerLabeledTranscript);
-      
-      // Update the transcript and notify parent
-      setTranscript(speakerLabeledTranscript);
-      updateTranscriptDebounced(speakerLabeledTranscript);
-      
-      toast.success('Transcript processing completed');
-    }).catch(err => {
-      console.error("Error processing transcript:", err);
-      toast.error("Failed to process transcript");
-    });
   };
 
   // Handle toggling recording
@@ -339,12 +284,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       handleStopRecording();
     } else {
       // Reset raw transcript for new session
-      setRawTranscript('');
-      currentTranscriptRef.current = '';
+      if (isNewSession) {
+        setRawTranscript('');
+        currentTranscriptRef.current = '';
+      }
       
       startRecording();
     }
   };
+
+  // For demonstration purposes - in a production app, this would be securely handled
+  useEffect(() => {
+    const key = prompt("Enter your Google Cloud Speech API key (or cancel to use demo mode)");
+    if (key) {
+      setApiKey(key);
+      toast.success("Google Speech API key configured");
+    } else {
+      toast.info("Using demo mode - some features may be limited");
+    }
+  }, []);
 
   // Component UI with simplified interface
   return (
@@ -383,10 +341,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-destructive animate-pulse"></span>
-                    <span className="font-medium">Recording (real-time transcription)</span>
+                    <span className="font-medium">Recording with speaker diarization</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using Web Speech API with automatic language detection
+                    Using Google Speech API with automatic language detection
                   </div>
                 </div>
               ) : (

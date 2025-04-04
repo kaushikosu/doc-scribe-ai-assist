@@ -3,7 +3,6 @@ import { toast } from "@/lib/toast";
 
 // Google Cloud Speech API base URL
 const GOOGLE_SPEECH_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
-const GOOGLE_SPEECH_STREAMING_URL = "https://speech.googleapis.com/v1p1beta1/speech:streamingrecognize"; // For WebSocket streaming - not used directly
 
 // Configuration for speech recognition
 interface RecognitionConfig {
@@ -60,15 +59,16 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     const base64Audio = await blobToBase64(audioData);
     console.log("Audio converted to base64, length:", base64Audio.length);
     
+    // Configure with explicit diarization settings
     const recognitionConfig: RecognitionConfig = {
       encoding: "WEBM_OPUS",
-      sampleRateHertz: 48000, // Set a fixed sample rate that works with OPUS
+      sampleRateHertz: 48000,
       languageCode: "en-US",
       alternativeLanguageCodes: ["hi-IN", "te-IN"],
       enableAutomaticPunctuation: true,
-      enableSpeakerDiarization: true,
-      diarizationSpeakerCount: 2,
-      model: "latest_long",
+      enableSpeakerDiarization: true, // Enable speaker diarization
+      diarizationSpeakerCount: 2,     // Expecting 2 speakers (doctor & patient)
+      model: "medical_conversation", // Use medical model if available, fallback to default
       useEnhanced: true
     };
     
@@ -77,7 +77,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
       audio: { content: base64Audio }
     };
     
-    console.log("Sending request to Google Speech API for chunk processing");
+    console.log("Sending request to Google Speech API with diarization enabled");
     
     // Send request to Google Cloud Speech-to-Text API
     const response = await fetch(`${GOOGLE_SPEECH_API_URL}?key=${apiKey}`, {
@@ -104,62 +104,64 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     const data = await response.json();
     console.log("Google Speech API response:", data);
     
-    // Process and format results
+    // Process and format results with speaker diarization
     const results: GoogleSpeechResult[] = [];
     
     if (!data.results || data.results.length === 0) {
       console.log("No results from Google Speech API");
-      // Return empty array instead of placeholder text
       return [];
     }
     
-    // First, extract basic transcript results
-    data.results.forEach((result: any, resultIndex: number) => {
-      if (result.alternatives && result.alternatives.length > 0) {
-        const transcript = result.alternatives[0].transcript || '';
-        const confidence = result.alternatives[0].confidence || 0;
-        
-        if (transcript.trim() !== '') {
-          results.push({
-            transcript,
-            confidence,
-            isFinal: true,
-            resultIndex,
-            speakerTag: 0 // Default/unassigned speaker tag
-          });
-        }
+    // Process diarization results
+    let speakerResults = new Map<number, string[]>();
+    
+    // First extract all words with speaker tags
+    data.results.forEach((result: any) => {
+      if (result.alternatives && 
+          result.alternatives[0] && 
+          result.alternatives[0].words) {
+            
+        result.alternatives[0].words.forEach((word: any) => {
+          const speakerTag = word.speakerTag || 0;
+          if (!speakerResults.has(speakerTag)) {
+            speakerResults.set(speakerTag, []);
+          }
+          speakerResults.get(speakerTag)!.push(word.word);
+        });
       }
     });
     
-    // Then process speaker diarization if available
-    // Look for the diarization results which are usually in the last result
-    const lastResult = data.results[data.results.length - 1];
-    if (lastResult && 
-        lastResult.alternatives && 
-        lastResult.alternatives[0] && 
-        lastResult.alternatives[0].words) {
+    // If we got speaker-tagged words, create results for each speaker
+    if (speakerResults.size > 0) {
+      console.log("Speaker diarization results:", Array.from(speakerResults.entries()));
       
-      // Group words by speaker tag
-      const speakerSegments: Map<number, string[]> = new Map();
-      
-      lastResult.alternatives[0].words.forEach((word: any) => {
-        const speakerTag = word.speakerTag || 0;
-        if (!speakerSegments.has(speakerTag)) {
-          speakerSegments.set(speakerTag, []);
-        }
-        speakerSegments.get(speakerTag)!.push(word.word);
-      });
-      
-      // Create a result for each speaker (if enough words)
-      speakerSegments.forEach((words, speakerTag) => {
-        if (words.length > 1) { // Only include if enough words to be meaningful
+      // For each speaker, create a result with their transcript
+      speakerResults.forEach((words, speakerTag) => {
+        if (words.length > 0) {
+          const speakerTranscript = words.join(' ');
           results.push({
-            transcript: words.join(' '),
-            confidence: 0.9,
+            transcript: speakerTranscript,
+            confidence: 0.9, // Approximate confidence
             isFinal: true,
-            resultIndex: data.results.length + speakerTag,
             speakerTag: speakerTag
           });
+        }
+      });
+    } else {
+      // Fallback to normal transcript processing if no speaker tags
+      data.results.forEach((result: any, resultIndex: number) => {
+        if (result.alternatives && result.alternatives.length > 0) {
+          const transcript = result.alternatives[0].transcript || '';
+          const confidence = result.alternatives[0].confidence || 0;
+          
+          if (transcript.trim() !== '') {
+            results.push({
+              transcript,
+              confidence,
+              isFinal: true,
+              resultIndex
+            });
+          }
         }
       });
     }
@@ -177,49 +179,19 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
   }
 };
 
-// Create a function to capture audio chunks from a MediaStream
-const createAudioChunksFromStream = (stream: MediaStream): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const chunks: BlobPart[] = [];
-    // Use a short-lived media recorder to capture a chunk
-    const recorder = new MediaRecorder(stream, {
-      mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 48000 // Match our specified sample rate
-    });
-    
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        chunks.push(e.data);
-      }
-    };
-    
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
-      resolve(blob);
-    };
-    
-    recorder.onerror = reject;
-    
-    // Start recording for a short duration
-    recorder.start();
-    setTimeout(() => recorder.stop(), 1000); // 1 second chunk
-  });
-};
-
-// New function for streaming audio to Google Speech API
-// This simulates streaming using frequent small chunks
+// New function for streaming audio to Google Speech API with diarization
 export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, callback: (result: GoogleSpeechResult) => void) => {
   if (!stream || !apiKey) {
     console.error("Invalid stream or API key for streaming");
     return () => {};
   }
   
-  console.log("Setting up real-time streaming to Google Speech API");
+  console.log("Setting up streaming to Google Speech API with diarization");
   
-  // Create a media recorder with shorter time slices for more real-time feel
+  // Create a media recorder for capturing audio chunks
   const mediaRecorder = new MediaRecorder(stream, {
     mimeType: 'audio/webm;codecs=opus',
-    audioBitsPerSecond: 48000 // Match our specified sample rate
+    audioBitsPerSecond: 48000
   });
   
   let processingChunk = false;
@@ -257,20 +229,10 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
         } else {
           // Count consecutive empty responses
           noResultsCounter++;
-          
-          // Only send empty result after multiple empty responses
-          if (noResultsCounter > 5) {
-            callback({
-              transcript: "",
-              confidence: 0,
-              isFinal: false,
-              resultIndex: chunkIndex
-            });
-          }
         }
         
         chunkIndex++;
-      } catch (error: any) { // Add type annotation here
+      } catch (error: any) {
         console.error("Error in stream processing:", error);
         callback({
           transcript: "Error processing speech",
@@ -285,8 +247,8 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
     }
   };
   
-  // Start recording with very short time slices for more real-time experience
-  mediaRecorder.start(500); // Process every 500ms for more responsive feel
+  // Start recording with short time slices for more responsive feel
+  mediaRecorder.start(2000); // Process every 2 seconds for better diarization
   
   // Return a cleanup function
   return () => {
