@@ -33,6 +33,7 @@ const useGoogleSpeechToText = ({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const processingRef = useRef<boolean>(false);
   
   // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
@@ -78,9 +79,17 @@ const useGoogleSpeechToText = ({
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
+      processingRef.current = false;
       
       // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
       mediaStreamRef.current = stream;
       
       // Setup silence detection
@@ -89,7 +98,7 @@ const useGoogleSpeechToText = ({
       
       // Signal successful start
       console.log("Recording started with Google Speech-to-Text");
-      toast.success(`Started recording with Google Speech-to-Text`);
+      toast.success("Started recording with Google Speech-to-Text");
       
       // Add a simple initial result to verify the onResult callback is working
       onResult({
@@ -111,6 +120,13 @@ const useGoogleSpeechToText = ({
       console.log("Cannot process: recording state:", isRecording, "stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
       return;
     }
+    
+    if (processingRef.current) {
+      console.log("Already processing, skipping this cycle");
+      return;
+    }
+    
+    processingRef.current = true;
     
     try {
       console.log("Processing audio with Google Speech API");
@@ -149,8 +165,9 @@ const useGoogleSpeechToText = ({
         });
       });
       
-      // If we have no results but are still recording, simulate getting a result
-      // This helps detect if the API is working but not returning expected results
+      processingRef.current = false;
+      
+      // If we have no results but are still recording, try again
       if (results.length === 0 && isRecording) {
         console.log("No results from Google Speech API, but still recording");
         // Try again in 2 seconds
@@ -165,6 +182,8 @@ const useGoogleSpeechToText = ({
       }
     } catch (error) {
       console.error('Error during speech processing:', error);
+      processingRef.current = false;
+      
       // Send the error to the callback for debugging
       onResult({
         transcript: `Error: ${error.message || 'Unknown error processing speech'}`,
@@ -197,6 +216,7 @@ const useGoogleSpeechToText = ({
     }
     
     setIsRecording(false);
+    processingRef.current = false;
     console.log("Recording stopped");
     toast.success('Recording stopped');
   };

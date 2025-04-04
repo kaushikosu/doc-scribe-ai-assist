@@ -49,11 +49,17 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
   try {
     console.log("Processing media stream with Google Speech API");
     
+    if (!stream || !apiKey) {
+      console.error("Invalid stream or API key");
+      return [];
+    }
+    
     // Create a media recorder to capture audio
     const mediaRecorder = new MediaRecorder(stream, { 
-      // Use lower bitrate for better transmission
+      mimeType: 'audio/webm',
       audioBitsPerSecond: 16000 
     });
+    
     const audioChunks: Blob[] = [];
     
     return new Promise((resolve, reject) => {
@@ -61,7 +67,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunks.push(event.data);
-          console.log(`Received audio chunk: ${event.data.size} bytes`); // Debug log
+          console.log(`Received audio chunk: ${event.data.size} bytes`);
         }
       };
       
@@ -75,7 +81,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             return;
           }
           
-          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
           console.log(`Collected audio: ${audioBlob.size} bytes`);
           
           if (audioBlob.size < 100) {
@@ -85,17 +91,17 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
           }
           
           const base64Audio = await blobToBase64(audioBlob);
-          console.log("Audio converted to base64"); // Debug log
+          console.log("Audio converted to base64");
           
           const recognitionConfig: RecognitionConfig = {
-            encoding: "LINEAR16",
+            encoding: "WEBM_OPUS",
             sampleRateHertz: 16000,
             languageCode: "en-US",
             alternativeLanguageCodes: ["hi-IN", "te-IN"],
             enableAutomaticPunctuation: true,
             enableSpeakerDiarization: true,
-            diarizationSpeakerCount: 2, // Assuming doctor and patient
-            model: "command_and_search", // Using a more general model since medical might not be available
+            diarizationSpeakerCount: 2,
+            model: "command_and_search",
             useEnhanced: true
           };
           
@@ -115,7 +121,6 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             body: JSON.stringify(request)
           });
           
-          // Check for non-OK response
           if (!response.ok) {
             const errorData = await response.json();
             console.error("Google Speech API error response:", errorData);
@@ -130,10 +135,8 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
           // Process and format results
           const results: GoogleSpeechResult[] = [];
           
-          // If no results or empty results, return empty array
           if (!data.results || data.results.length === 0) {
             console.log("No results from Google Speech API");
-            // Return a default result for debugging
             results.push({
               transcript: "Listening...",
               confidence: 1.0,
@@ -151,7 +154,6 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
               const transcript = alternative.transcript || '';
               const confidence = alternative.confidence || 0;
               
-              // If speaker diarization is enabled and we have word-level info
               if (result.alternatives[0].words && result.alternatives[0].words.length > 0) {
                 // Group by speaker tag
                 const speakerSegments: { [key: number]: string[] } = {};
@@ -194,12 +196,12 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
       // Start recording audio
       mediaRecorder.start();
       
-      // Record for 3 seconds (shorter for quicker feedback)
+      // Record for 5 seconds to capture enough speech
       setTimeout(() => {
         if (mediaRecorder.state !== 'inactive') {
           mediaRecorder.stop();
         }
-      }, 3000);
+      }, 5000);
     });
   } catch (error) {
     console.error('Error setting up media recorder:', error);

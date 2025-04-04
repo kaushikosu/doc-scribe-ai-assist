@@ -420,7 +420,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setFormattedTranscript(initialMessage);
       onTranscriptUpdate(initialMessage);
       
-      toggleRecording();
+      startRecording();
     }
   };
 
