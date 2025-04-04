@@ -23,7 +23,7 @@ const DashboardPage = () => {
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript);
-    if (newTranscript) {
+    if (newTranscript !== undefined) { // Changed from checking if truthy to checking if undefined
       setTranscript(newTranscript);
     }
   };

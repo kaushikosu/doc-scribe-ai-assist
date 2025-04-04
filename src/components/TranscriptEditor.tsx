@@ -93,7 +93,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   }, [transcript]);
 
   return (
-    <Card className="border-2 border-doctor-secondary/30 shadow-lg">
+    <Card className="border-2 border-doctor-secondary/30 shadow-lg h-full">
       <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/20 to-doctor-primary/10">
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl text-doctor-secondary font-semibold">Transcript</CardTitle>
@@ -121,17 +121,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow">
         {isEditing ? (
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className="min-h-[300px] max-h-[500px] resize-none focus-visible:ring-doctor-secondary"
+            className="min-h-[400px] max-h-[600px] resize-none focus-visible:ring-doctor-secondary"
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className="h-[300px] rounded-md overflow-auto pr-2" 
+            className="h-[400px] rounded-md overflow-auto pr-2" 
             ref={scrollAreaRef}
           >
             <div 

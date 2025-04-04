@@ -25,7 +25,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [apiKey, setApiKey] = useState<string>(GOOGLE_SPEECH_API_KEY);
+  const [apiKey] = useState<string>(GOOGLE_SPEECH_API_KEY); // No longer prompt for API key
   const [speakerMap, setSpeakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
   
   // Refs
@@ -39,6 +39,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Log when transcript changes - useful for debugging
   useEffect(() => {
     console.log("VoiceRecorder raw transcript:", rawTranscript);
+    
+    // Ensure full transcript is passed to parent component
+    if (rawTranscript) {
+      updateTranscriptDebounced(rawTranscript);
+    }
   }, [rawTranscript]);
 
   // Handle silence - add a line break to separate utterances
@@ -50,7 +55,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     });
   };
 
-  // Debounced transcript update function to prevent UI flicker
+  // Improved transcript update function with better real-time performance
   const updateTranscriptDebounced = (newTranscript: string) => {
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
@@ -62,7 +67,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // Also schedule a debounced update to catch any pending changes
     transcriptUpdateTimeoutRef.current = setTimeout(() => {
       onTranscriptUpdate(newTranscript);
-    }, 100);
+    }, 50); // Reduced from 100ms to 50ms for better responsiveness
   };
 
   // Try to extract patient name from greeting patterns
@@ -107,7 +112,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     apiKey
   });
 
-  // Improved speech result handler that uses speaker diarization info
+  // Improved speech result handler with better real-time updates
   function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
     transcript: string, 
     isFinal: boolean, 
@@ -128,9 +133,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Skip the "Processing..." placeholder messages
+    // Show interim results for better real-time experience
     if (result === "Processing...") {
-      console.log("Skipping processing placeholder");
+      // Don't skip processing placeholder anymore - show it for better feedback
+      const updatedTranscript = (currentTranscriptRef.current || '') + 
+        (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
+        result;
+        
+      updateTranscriptDebounced(updatedTranscript);
       return;
     }
     
@@ -163,9 +173,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         currentTranscriptRef.current = newRawTranscript;
         return newRawTranscript;
       });
-
-      // Update the parent component with the raw transcript
-      updateTranscriptDebounced(currentTranscriptRef.current);
       
       // Check for patient identification in initial conversations
       if (isNewSession && !patientIdentifiedRef.current) {
@@ -173,11 +180,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       }
     } else {
       // For non-final results, show them as temporary text in real-time
-      // Don't add extra line breaks here to avoid jumpiness
+      // Add the non-final result to the current transcript for real-time feedback
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
         formattedResult;
       
+      // Update both the reference and the parent component
+      currentTranscriptRef.current = updatedTranscript;
       updateTranscriptDebounced(updatedTranscript);
     }
   }
@@ -291,17 +300,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       startRecording();
     }
   };
-
-  // For demonstration purposes - in a production app, this would be securely handled
-  useEffect(() => {
-    const key = prompt("Enter your Google Cloud Speech API key (or cancel to use demo mode)");
-    if (key) {
-      setApiKey(key);
-      toast.success("Google Speech API key configured");
-    } else {
-      toast.info("Using demo mode - some features may be limited");
-    }
-  }, []);
 
   // Component UI with simplified interface
   return (

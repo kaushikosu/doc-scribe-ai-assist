@@ -58,7 +58,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     const base64Audio = await blobToBase64(audioData);
     console.log("Audio converted to base64, length:", base64Audio.length);
     
-    // Configure with diarization settings, but remove the problematic alternativeLanguageCodes
+    // Configure with diarization settings
     const recognitionConfig: RecognitionConfig = {
       encoding: "WEBM_OPUS",
       sampleRateHertz: 48000,
@@ -66,7 +66,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
       enableAutomaticPunctuation: true,
       enableSpeakerDiarization: true, // Enable speaker diarization
       diarizationSpeakerCount: 2,     // Expecting 2 speakers (doctor & patient)
-      model: "default", // Changed from "medical_conversation" which might not be available
+      model: "default", // Using default model for better compatibility
       useEnhanced: true
     };
     
@@ -177,7 +177,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
   }
 };
 
-// New function for streaming audio to Google Speech API with diarization
+// Streaming audio to Google Speech API with diarization
 export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, callback: (result: GoogleSpeechResult) => void) => {
   if (!stream || !apiKey) {
     console.error("Invalid stream or API key for streaming");
@@ -254,7 +254,7 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
   };
   
   // Start recording with shorter time slices for more responsive feel
-  mediaRecorder.start(1000); // Process every 1 second for better real-time experience
+  mediaRecorder.start(800); // Process every 800ms for better balance of responsiveness and API calls
   
   // Return a cleanup function
   return () => {
