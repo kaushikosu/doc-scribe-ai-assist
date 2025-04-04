@@ -42,6 +42,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
   const turnCountRef = useRef<number>(0); // Track conversation turns
+  const processedSpeakerTagsRef = useRef<Set<number>>(new Set()); // Track processed speaker tags
   
   // Conversation context tracking
   const conversationContextRef = useRef<{
@@ -145,14 +146,34 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
+    // Check for specific error messages
+    if (result.startsWith('Error:')) {
+      console.error("Error in speech recognition:", result);
+      interimTranscriptRef.current = `[Error]: ${result}`;
+      onTranscriptUpdate(formattedTranscript + interimTranscriptRef.current);
+      return;
+    }
+    
     if (isFinal) {
       // When we have final result, use the speaker tag from Google if available
       // or analyze context to determine speaker
       let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
       
       if (speakerTag !== undefined) {
-        // Use Google's speaker diarization (speaker 1 is typically the first speaker - the doctor)
-        detectedSpeaker = speakerTag === 1 ? 'Doctor' : 'Patient';
+        // Use Google's speaker diarization (1 is typically the first speaker, 2 the second)
+        // Speaker tag 0 often represents general/undetermined speech
+        detectedSpeaker = speakerTag === 0 ? lastSpeaker : 
+                          speakerTag === 1 ? 'Patient' : 'Doctor';
+                          
+        // Check if we've already processed this speaker tag in this session
+        // to avoid duplication
+        if (processedSpeakerTagsRef.current.has(speakerTag) && speakerTag !== 0) {
+          console.log(`Speaker tag ${speakerTag} already processed, skipping`);
+          return;
+        }
+        
+        // Mark this speaker tag as processed
+        processedSpeakerTagsRef.current.add(speakerTag);
       } else {
         // Fallback to our custom detection
         detectedSpeaker = detectSpeaker(result, {
@@ -371,6 +392,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     patientIdentifiedRef.current = false;
     patientNameScanAttempts.current = 0;
     turnCountRef.current = 0; // Reset turn counter
+    processedSpeakerTagsRef.current.clear(); // Reset processed speaker tags
     setShowPatientIdentified(false);
     
     // Reset conversation context
@@ -414,6 +436,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         toast.error("Please configure your Google Cloud Speech API key first");
         return;
       }
+      
+      // Reset processed speaker tags for new recording session
+      processedSpeakerTagsRef.current.clear();
       
       // Add an initial transcript entry to test the flow
       const initialMessage = "[Doctor]: Starting new recording session.\n";

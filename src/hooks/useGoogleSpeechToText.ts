@@ -110,7 +110,7 @@ const useGoogleSpeechToText = ({
         resultIndex: -1
       });
       
-      // Start continuous processing
+      // Start continuous processing immediately
       processContinuously();
       
       // Setup automatic processing every few seconds
@@ -123,7 +123,7 @@ const useGoogleSpeechToText = ({
           console.log("Triggering periodic processing of audio");
           processContinuously();
         }
-      }, 10000); // Process every 10 seconds
+      }, 5000); // Process every 5 seconds instead of 10 to be more responsive
       
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -133,7 +133,7 @@ const useGoogleSpeechToText = ({
 
   const processContinuously = async () => {
     if (!mediaStreamRef.current || !apiKey) {
-      console.log("Cannot process: stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
+      console.log("Cannot process: recording state:", isRecording, "stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
       return;
     }
     
@@ -156,7 +156,7 @@ const useGoogleSpeechToText = ({
         lastSpeechTimeRef.current = Date.now();
       }
       
-      // Handle results
+      // Process all results in order
       results.forEach((result, index) => {
         // Detect language from transcript
         const newLanguage = detectLanguageFromTranscript(result.transcript);
@@ -172,7 +172,7 @@ const useGoogleSpeechToText = ({
           accumulatedTranscriptRef.current += result.transcript;
         }
         
-        // Send result to callback with full details
+        // Send each result to callback with full details
         onResult({
           transcript: result.transcript,
           isFinal: result.isFinal,
@@ -190,7 +190,7 @@ const useGoogleSpeechToText = ({
           if (isRecording) {
             processContinuously();
           }
-        }, 2000);
+        }, 1000); // Reduced from 2s to 1s for more responsive transcription
       }
     } catch (error) {
       console.error('Error during speech processing:', error);

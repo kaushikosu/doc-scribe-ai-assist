@@ -148,45 +148,52 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
             return;
           }
           
-          // Process results from the API
-          data.results.forEach((result: any) => {
-            const alternatives = result.alternatives || [];
-            
-            alternatives.forEach((alternative: any) => {
-              const transcript = alternative.transcript || '';
-              const confidence = alternative.confidence || 0;
+          // First, extract basic transcript results
+          data.results.forEach((result: any, resultIndex: number) => {
+            if (result.alternatives && result.alternatives.length > 0) {
+              const transcript = result.alternatives[0].transcript || '';
+              const confidence = result.alternatives[0].confidence || 0;
               
-              if (result.alternatives[0].words && result.alternatives[0].words.length > 0) {
-                // Group by speaker tag
-                const speakerSegments: { [key: number]: string[] } = {};
-                
-                result.alternatives[0].words.forEach((word: any) => {
-                  const speakerTag = word.speakerTag || 0;
-                  if (!speakerSegments[speakerTag]) {
-                    speakerSegments[speakerTag] = [];
-                  }
-                  speakerSegments[speakerTag].push(word.word);
-                });
-                
-                // Create a result for each speaker
-                Object.entries(speakerSegments).forEach(([speakerTag, words]) => {
-                  results.push({
-                    transcript: words.join(' '),
-                    confidence,
-                    isFinal: true,
-                    speakerTag: parseInt(speakerTag, 10)
-                  });
-                });
-              } else {
-                // No speaker diarization, just use the transcript
+              results.push({
+                transcript,
+                confidence,
+                isFinal: true,
+                speakerTag: 0 // Default/unassigned speaker tag
+              });
+            }
+          });
+          
+          // Then process speaker diarization if available
+          // Look for the diarization results which are usually in the last result
+          const lastResult = data.results[data.results.length - 1];
+          if (lastResult && 
+              lastResult.alternatives && 
+              lastResult.alternatives[0] && 
+              lastResult.alternatives[0].words) {
+            
+            // Group words by speaker tag
+            const speakerSegments: Map<number, string[]> = new Map();
+            
+            lastResult.alternatives[0].words.forEach((word: any) => {
+              const speakerTag = word.speakerTag || 0;
+              if (!speakerSegments.has(speakerTag)) {
+                speakerSegments.set(speakerTag, []);
+              }
+              speakerSegments.get(speakerTag)!.push(word.word);
+            });
+            
+            // Create a result for each speaker (if enough words)
+            speakerSegments.forEach((words, speakerTag) => {
+              if (words.length > 3) { // Only include if enough words to be meaningful
                 results.push({
-                  transcript,
-                  confidence,
-                  isFinal: true
+                  transcript: words.join(' '),
+                  confidence: 0.9,
+                  isFinal: true,
+                  speakerTag: speakerTag
                 });
               }
             });
-          });
+          }
           
           resolve(results);
         } catch (error) {
@@ -203,7 +210,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
         if (mediaRecorder.state !== 'inactive') {
           mediaRecorder.stop();
         }
-      }, 8000); // Increased from 5s to 8s for more comprehensive speech capture
+      }, 8000); // 8 seconds for comprehensive speech capture
     });
   } catch (error) {
     console.error('Error setting up media recorder:', error);
