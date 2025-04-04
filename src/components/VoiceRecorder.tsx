@@ -146,7 +146,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   } = useGoogleSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold: pauseThreshold, // Fixed: pauseThreshold is now a number
+    pauseThreshold: pauseThreshold, 
     apiKey: googleApiKey
   });
 

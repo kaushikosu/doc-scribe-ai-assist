@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -112,7 +113,7 @@ const useGoogleSpeechToText = ({
           transcript: result.transcript,
           isFinal: result.isFinal,
           resultIndex: result.resultIndex || 0,
-          speakerTag: result.speakerTag
+          speakerTag: typeof result.speakerTag === 'number' ? result.speakerTag : undefined
         });
       });
       
