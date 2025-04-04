@@ -61,6 +61,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunks.push(event.data);
+          console.log(`Received audio chunk: ${event.data.size} bytes`); // Debug log
         }
       };
       
@@ -84,6 +85,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
           }
           
           const base64Audio = await blobToBase64(audioBlob);
+          console.log("Audio converted to base64"); // Debug log
           
           const recognitionConfig: RecognitionConfig = {
             encoding: "LINEAR16",

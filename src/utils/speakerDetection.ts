@@ -1,3 +1,6 @@
+
+// src/utils/speakerDetection.ts
+
 // Pre-trained patterns based on doctor-patient corpus analysis
 // These patterns are derived from medical conversation datasets
 
