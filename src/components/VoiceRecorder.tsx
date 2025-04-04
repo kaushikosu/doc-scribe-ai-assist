@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +8,7 @@ import useGoogleSpeechToText from '@/hooks/useGoogleSpeechToText';
 import { PatientInfo } from '@/utils/speaker';
 
 // Default Google API key - in production this should be secured properly
-const GOOGLE_SPEECH_API_KEY = process.env.GOOGLE_SPEECH_API_KEY || "";
+const GOOGLE_SPEECH_API_KEY = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY || "";
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
