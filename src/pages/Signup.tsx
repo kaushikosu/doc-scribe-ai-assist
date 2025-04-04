@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Stethoscope, ArrowLeft, CheckCircle2, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { signInWithGoogle } from '@/lib/firebase';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -29,14 +30,24 @@ const Signup = () => {
     navigate('/app');
   };
 
-  const handleGoogleSignUp = () => {
-    // In a real app, we would authenticate with Google here
-    // For now, we'll just show a toast and navigate
-    toast({
-      title: "Account created with Google!",
-      description: "Welcome to DocScribe. Your free trial has been activated.",
-    });
-    navigate('/app');
+  const handleGoogleSignUp = async () => {
+    try {
+      const user = await signInWithGoogle();
+      
+      toast({
+        title: "Account created with Google!",
+        description: `Welcome to DocScribe, ${user.displayName || 'user'}! Your free trial has been activated.`,
+      });
+      
+      navigate('/app');
+    } catch (error) {
+      toast({
+        title: "Sign up failed",
+        description: "Could not sign up with Google. Please try again.",
+        variant: "destructive",
+      });
+      console.error(error);
+    }
   };
 
   return (

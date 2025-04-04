@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Stethoscope, ArrowLeft, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { signInWithGoogle } from '@/lib/firebase';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,14 +25,24 @@ const Login = () => {
     navigate('/app');
   };
 
-  const handleGoogleSignIn = () => {
-    // In a real app, we would authenticate with Google here
-    // For now, we'll just show a toast and navigate
-    toast({
-      title: "Google login successful",
-      description: "Welcome to DocScribe!",
-    });
-    navigate('/app');
+  const handleGoogleSignIn = async () => {
+    try {
+      const user = await signInWithGoogle();
+      
+      toast({
+        title: "Google login successful",
+        description: `Welcome to DocScribe, ${user.displayName || 'user'}!`,
+      });
+      
+      navigate('/app');
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: "Could not sign in with Google. Please try again.",
+        variant: "destructive",
+      });
+      console.error(error);
+    }
   };
 
   return (
