@@ -7,7 +7,7 @@ import {
   languageCodeMap,
   streamMediaToGoogleSpeech
 } from '@/utils/googleSpeechToText';
-import { detectSpeaker } from '@/utils/speakerDetection';
+import { detectSpeaker } from '@/utils/speaker';
 
 interface UseGoogleSpeechToTextProps {
   onResult: (result: { 
@@ -38,21 +38,16 @@ const useGoogleSpeechToText = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamCleanupRef = useRef<(() => void) | null>(null);
   
-  // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
   
-  // Track all results to avoid processing duplicates
   const processedResultsMapRef = useRef<Map<number, boolean>>(new Map());
   
-  // Keep reference to the current recording session
   const sessionIdRef = useRef<string>(Date.now().toString());
   
-  // For debugging purposes
   useEffect(() => {
     console.log("useGoogleSpeechToText initialized with apiKey:", apiKey ? "API key provided" : "No API key");
   }, [apiKey]);
   
-  // Setup silence detection
   const setupSilenceDetection = () => {
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
@@ -62,11 +57,10 @@ const useGoogleSpeechToText = ({
       const now = Date.now();
       const timeSinceLastSpeech = now - lastSpeechTimeRef.current;
       
-      // If silence longer than threshold, trigger callback
       if (timeSinceLastSpeech > pauseThreshold && isRecording) {
         console.log("Silence detected, triggering speaker change");
         onSilence();
-        lastSpeechTimeRef.current = now; // Reset the timer
+        lastSpeechTimeRef.current = now;
       }
     }, 200);
   };
@@ -78,42 +72,36 @@ const useGoogleSpeechToText = ({
     }
     
     try {
-      // Generate new session ID when starting recording
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
       processingRef.current = false;
       
-      // Request microphone permission with enhanced settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
-          sampleRate: 48000 // Request 48kHz sample rate for OPUS codec
+          sampleRate: 48000
         } 
       });
       
       mediaStreamRef.current = stream;
       
-      // Setup streaming to Google Speech API
       const cleanupFn = streamMediaToGoogleSpeech(stream, apiKey, (result) => {
         if (result.error) {
           console.error('Stream processing error:', result.error);
           return;
         }
         
-        // Skip empty results
         if (!result.transcript && !result.error) {
           console.log('Empty transcript received, skipping');
           return;
         }
         
-        // Update last speech time when we get results
         lastSpeechTimeRef.current = Date.now();
         
-        // Send the streaming result directly to the callback
         onResult({
           transcript: result.transcript,
           isFinal: result.isFinal,
@@ -124,14 +112,11 @@ const useGoogleSpeechToText = ({
       
       streamCleanupRef.current = cleanupFn;
       
-      // Setup silence detection
       setupSilenceDetection();
       setIsRecording(true);
       
-      // Signal successful start
       console.log("Recording started with Google Speech-to-Text (Real-time mode)");
       toast.success("Started recording with Google Speech-to-Text");
-      
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
@@ -150,7 +135,6 @@ const useGoogleSpeechToText = ({
     }
     
     if (mediaStreamRef.current) {
-      // Stop all audio tracks
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
@@ -171,7 +155,6 @@ const useGoogleSpeechToText = ({
     toast.success('Recording stopped');
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopRecording();
@@ -190,7 +173,6 @@ const useGoogleSpeechToText = ({
         startRecording();
       }
     },
-    // Expose the accumulated transcript
     getAccumulatedTranscript: () => accumulatedTranscriptRef.current,
     resetTranscript: () => {
       accumulatedTranscriptRef.current = '';

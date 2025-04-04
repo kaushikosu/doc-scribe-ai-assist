@@ -1,7 +1,6 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
-import { detectLanguage } from '@/utils/speakerDetection';
+import { detectLanguage } from '@/utils/speaker';
 
 // Define a custom error event interface for SpeechRecognition
 interface SpeechRecognitionErrorEvent extends Event {
