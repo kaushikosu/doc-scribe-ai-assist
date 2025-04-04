@@ -1,14 +1,15 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useGoogleSpeechToText from '@/hooks/useGoogleSpeechToText';
+import useDeepgramSpeechToText from '@/hooks/useDeepgramSpeechToText';
 import { PatientInfo } from '@/utils/speaker';
 
-// Default Google API key - in production this should be secured properly
-const GOOGLE_SPEECH_API_KEY = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY || "";
+// Default Deepgram API key from environment
+const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY || "";
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
@@ -25,7 +26,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [apiKey] = useState<string>(GOOGLE_SPEECH_API_KEY); // No longer prompt for API key
+  const [apiKey] = useState<string>(DEEPGRAM_API_KEY);
   const [speakerMap, setSpeakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
   
   // Refs
@@ -67,7 +68,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // Also schedule a debounced update to catch any pending changes
     transcriptUpdateTimeoutRef.current = setTimeout(() => {
       onTranscriptUpdate(newTranscript);
-    }, 50); // Reduced from 100ms to 50ms for better responsiveness
+    }, 50); // Small delay for better responsiveness
   };
 
   // Try to extract patient name from greeting patterns
@@ -96,16 +97,16 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Google Speech Recognition with diarization
+  // Initialize Deepgram Speech Recognition
   const { 
     isRecording, 
-    detectedLanguage, 
+    connectionStatus,
     toggleRecording, 
     startRecording, 
     stopRecording,
     getAccumulatedTranscript,
     resetTranscript
-  } = useGoogleSpeechToText({
+  } = useDeepgramSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
     pauseThreshold,
@@ -133,28 +134,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Show interim results for better real-time experience
-    if (result === "Processing...") {
-      // Don't skip processing placeholder anymore - show it for better feedback
-      const updatedTranscript = (currentTranscriptRef.current || '') + 
-        (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
-        result;
-        
-      updateTranscriptDebounced(updatedTranscript);
-      return;
-    }
-    
     // Track speakers we've seen
     if (typeof speakerTag === 'number' && speakerTag > 0) {
       speakersDetectedRef.current.add(speakerTag);
       console.log(`Speaker ${speakerTag} detected. Total speakers: ${speakersDetectedRef.current.size}`);
-    }
-    
-    // Add speaker label if available
-    let formattedResult = result;
-    if (typeof speakerTag === 'number' && speakerTag > 0) {
-      const speakerLabel = speakerMap.get(speakerTag) || `Speaker ${speakerTag}`;
-      formattedResult = `[${speakerLabel}]: ${result}`;
     }
     
     if (isFinal) {
@@ -163,11 +146,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         // If we're starting a new utterance and the previous doesn't end with a newline, add one
         let newRawTranscript;
         if (prev === '') {
-          newRawTranscript = formattedResult;
+          newRawTranscript = result;
         } else if (prev.endsWith('\n')) {
-          newRawTranscript = prev + formattedResult;
+          newRawTranscript = prev + result;
         } else {
-          newRawTranscript = prev + '\n' + formattedResult;
+          newRawTranscript = prev + '\n' + result;
         }
         
         currentTranscriptRef.current = newRawTranscript;
@@ -183,11 +166,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       // Add the non-final result to the current transcript for real-time feedback
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
-        formattedResult;
+        result + '...'; // Show ellipsis for non-final results
       
       // Update both the reference and the parent component
-      currentTranscriptRef.current = updatedTranscript;
-      updateTranscriptDebounced(updatedTranscript);
+      onTranscriptUpdate(updatedTranscript);
     }
   }
   
@@ -301,7 +283,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Component UI with simplified interface
+  // Component UI with improved feedback on connection status
   return (
     <div className="space-y-4">
       <Card className="border-2 border-doctor-primary/30 shadow-md">
@@ -338,10 +320,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-destructive animate-pulse"></span>
-                    <span className="font-medium">Recording with speaker diarization</span>
+                    <span className="font-medium">Recording with Deepgram</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using Google Speech API with automatic language detection
+                    {connectionStatus === 'open' ? 
+                      'Connected and streaming audio...' : 
+                      connectionStatus === 'connecting' ? 
+                      'Connecting to Deepgram...' :
+                      'Waiting for connection...'}
                   </div>
                 </div>
               ) : (
@@ -361,18 +347,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               </div>
             )}
             
-            {/* Language indicator */}
+            {/* Connection status indicator */}
             <div className="flex items-center gap-2 mt-2">
               <Globe className="h-4 w-4 text-doctor-primary" />
               <div className="text-sm font-medium">
                 {isRecording ? 
-                  `Detecting: ${
-                    detectedLanguage === 'en-IN' ? 'English' : 
-                    detectedLanguage === 'hi-IN' ? 'Hindi' : 
-                    detectedLanguage === 'te-IN' ? 'Telugu' : 
-                    'Unknown'
-                  }` : 
-                  'Automatic language detection enabled'
+                  `Using Deepgram real-time transcription with diarization` : 
+                  'Automatic speaker detection enabled'
                 }
               </div>
             </div>
