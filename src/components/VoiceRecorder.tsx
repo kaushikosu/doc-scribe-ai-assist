@@ -39,7 +39,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const interimTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
-  const patientNameScanAttempts = useRef<number>(0);\
+  const patientNameScanAttempts = useRef<number>(0);
   const turnCountRef = useRef<number>(0); // Track conversation turns
   
   // Conversation context tracking
