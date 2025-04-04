@@ -37,27 +37,27 @@ const DashboardPage = () => {
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
-              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
+              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe with Google Speech</h2>
               <ol className="space-y-3 text-sm">
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                  <span>Say "Namaste [patient name]" to begin a new session</span>
+                  <span>Add your Google Cloud Speech API key to enable enhanced transcription</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
+                  <span>Say "Namaste [patient name]" to begin a new session</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                  <span>The transcript will appear in real-time and can be edited if needed</span>
+                  <span>Speak naturally about the patient's condition - the system automatically identifies speakers</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>A prescription will be automatically generated based on the conversation</span>
+                  <span>Support for English, Hindi, and Telugu with automatic language detection</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>Review, edit if necessary, print or save the prescription</span>
+                  <span>A prescription will be automatically generated based on the conversation</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>

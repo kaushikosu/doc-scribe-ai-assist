@@ -5,12 +5,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useSpeechRecognition from '@/hooks/useSpeechRecognition';
+import useGoogleSpeechToText from '@/hooks/useGoogleSpeechToText';
 import { 
   detectSpeaker, 
   detectPatientInfo,
   PatientInfo
 } from '@/utils/speakerDetection';
+import ApiKeyInput from './ApiKeyInput';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
@@ -30,6 +31,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [currentSilenceTime, setCurrentSilenceTime] = useState(0);
   const [speakerChanged, setSpeakerChanged] = useState(false);
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
+  const [googleApiKey, setGoogleApiKey] = useState<string>('');
   
   // Track complete formatted transcript with speaker labels
   const [formattedTranscript, setFormattedTranscript] = useState('');
@@ -39,7 +41,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
-  const turnCountRef = useRef<number>(0); // NEW: Track conversation turns
+  const turnCountRef = useRef<number>(0); // Track conversation turns
   
   // Conversation context tracking
   const conversationContextRef = useRef<{
@@ -55,6 +57,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     isPrescribing: false,
     isGreeting: true
   });
+
+  // Handle API key update
+  const handleApiKeySet = (apiKey: string) => {
+    setGoogleApiKey(apiKey);
+  };
 
   // Handle silence detection - switch speaker on silence
   const handleSilence = () => {
@@ -97,7 +104,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize speech recognition with enhanced settings
+  // Initialize Google Speech-to-Text with enhanced settings
   const { 
     isRecording, 
     detectedLanguage, 
@@ -106,29 +113,40 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     stopRecording,
     getAccumulatedTranscript,
     resetTranscript
-  } = useSpeechRecognition({
+  } = useGoogleSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold
+    pauseThreshold,
+    apiKey: googleApiKey
   });
 
   // Process speech recognition results
-  function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
+  function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
     transcript: string, 
     isFinal: boolean, 
-    resultIndex: number 
+    resultIndex: number,
+    speakerTag?: number 
   }) {
     // For diagnostic purposes
-    console.log("Received speech result:", { result, isFinal, resultIndex });
+    console.log("Received speech result:", { result, isFinal, resultIndex, speakerTag });
     
     if (isFinal) {
-      // When we have final result, analyze context to determine speaker
-      const detectedSpeaker = detectSpeaker(result, {
-        ...conversationContextRef.current,
-        lastSpeaker,
-        isFirstInteraction: isFirstInteractionRef.current,
-        turnCount: turnCountRef.current
-      });
+      // When we have final result, use the speaker tag from Google if available
+      // or analyze context to determine speaker
+      let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
+      
+      if (speakerTag !== undefined) {
+        // Use Google's speaker diarization (speaker 1 is typically the first speaker - the doctor)
+        detectedSpeaker = speakerTag === 1 ? 'Doctor' : 'Patient';
+      } else {
+        // Fallback to our custom detection
+        detectedSpeaker = detectSpeaker(result, {
+          ...conversationContextRef.current,
+          lastSpeaker,
+          isFirstInteraction: isFirstInteractionRef.current,
+          turnCount: turnCountRef.current
+        });
+      }
       
       // Update speaker and increment turn counter
       setLastSpeaker(detectedSpeaker);
@@ -369,85 +387,97 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     if (isRecording) {
       handleStopRecording();
     } else {
+      if (!googleApiKey) {
+        toast.error("Please configure your Google Cloud Speech API key first");
+        return;
+      }
       toggleRecording();
     }
   };
 
   // Component UI
   return (
-    <Card className="border-2 border-doctor-primary/30 shadow-md">
-      <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex space-x-4">
-            <Button 
-              onClick={handleToggleRecording}
-              className={cn(
-                "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all",
-                isRecording 
-                  ? "bg-destructive hover:bg-destructive/90" 
-                  : "bg-doctor-primary hover:bg-doctor-primary/90"
-              )}
-            >
-              {isRecording ? (
-                <MicOff className="h-8 w-8" />
-              ) : (
-                <Mic className="h-8 w-8" />
-              )}
-            </Button>
+    <div className="space-y-4">
+      <ApiKeyInput onApiKeySet={handleApiKeySet} />
+      
+      <Card className="border-2 border-doctor-primary/30 shadow-md">
+        <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex space-x-4">
+              <Button 
+                onClick={handleToggleRecording}
+                className={cn(
+                  "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all",
+                  isRecording 
+                    ? "bg-destructive hover:bg-destructive/90" 
+                    : "bg-doctor-primary hover:bg-doctor-primary/90"
+                )}
+                disabled={!googleApiKey}
+              >
+                {isRecording ? (
+                  <MicOff className="h-8 w-8" />
+                ) : (
+                  <Mic className="h-8 w-8" />
+                )}
+              </Button>
+              
+              <Button
+                onClick={startNewSession}
+                className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
+                disabled={isRecording}
+              >
+                <UserPlus className="h-8 w-8" />
+              </Button>
+            </div>
             
-            <Button
-              onClick={startNewSession}
-              className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
-              disabled={isRecording}
-            >
-              <UserPlus className="h-8 w-8" />
-            </Button>
-          </div>
-          
-          <div className="text-center">
-            {isRecording ? (
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "h-3 w-3 rounded-full bg-destructive",
-                    speakerChanged ? "animate-pulse-recording" : ""
-                  )}></span>
-                  <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
+            <div className="text-center">
+              {isRecording ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "h-3 w-3 rounded-full bg-destructive",
+                      speakerChanged ? "animate-pulse-recording" : ""
+                    )}></span>
+                    <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Using Google Cloud Speech-to-Text with enhanced medical vocabulary
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Auto-detecting language and speakers in conversation
-                </div>
+              ) : (
+                <span className="text-muted-foreground">
+                  {!googleApiKey ? 
+                    "Configure Google Cloud Speech API key above to start" :
+                    (isNewSession ? 
+                      "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
+                      "Press to resume recording"
+                    )
+                  }
+                </span>
+              )}
+            </div>
+            
+            {/* Patient identified animation - only shows temporarily */}
+            {showPatientIdentified && (
+              <div className="animate-fade-in text-sm font-medium text-doctor-accent">
+                Patient identified!
               </div>
-            ) : (
-              <span className="text-muted-foreground">
-                {isNewSession ? 
-                  "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
-                  "Press to resume recording"
-                }
-              </span>
             )}
-          </div>
-          
-          {/* Patient identified animation - only shows temporarily */}
-          {showPatientIdentified && (
-            <div className="animate-fade-in text-sm font-medium text-doctor-accent">
-              Patient identified!
-            </div>
-          )}
-          
-          {/* Language indicator */}
-          <div className="flex items-center gap-2 mt-2">
-            <Globe className="h-4 w-4 text-doctor-primary" />
-            <div className="text-sm font-medium">
-              {isRecording ? 
-                `Auto-detecting: ${detectedLanguage === 'en-IN' ? 'English' : detectedLanguage === 'hi-IN' ? 'Hindi' : 'Telugu'}` : 
-                'Auto language detection enabled'
-              }
+            
+            {/* Language indicator */}
+            <div className="flex items-center gap-2 mt-2">
+              <Globe className="h-4 w-4 text-doctor-primary" />
+              <div className="text-sm font-medium">
+                {isRecording ? 
+                  `Detecting: ${detectedLanguage === 'en-IN' ? 'English' : detectedLanguage === 'hi-IN' ? 'Hindi' : 'Telugu'}` : 
+                  'Multi-language recognition enabled'
+                }
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
