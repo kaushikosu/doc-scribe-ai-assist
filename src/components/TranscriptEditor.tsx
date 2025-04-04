@@ -52,14 +52,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     const hasLabels = transcript.includes('[Doctor]:') || transcript.includes('[Patient]:');
     
     if (hasLabels) {
-      // Format with speaker labels
+      // Format with speaker labels - each utterance gets its own message element
       return transcript
         .split('\n')
         .filter(line => line.trim() !== '')  // Filter out empty lines
         .map((line, index) => {
           // Extract speaker and content using regex
           const match = line.match(/\[(Doctor|Patient|Identifying)\]:\s*(.*)/);
-          if (!match) return line; // If no match, return the original line
+          
+          if (!match) {
+            // If no speaker label, show as a plain line
+            return `<div class="message plain-message"><div class="message-content">${line}</div></div>`;
+          }
           
           const [_, speaker, content] = match;
           
@@ -73,7 +77,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         })
         .join(''); // Join all formatted lines together
     } else {
-      // Format raw transcript (during recording)
+      // Format raw transcript (during recording) - each line gets treated as a separate utterance
       return transcript
         .split('\n')
         .filter(line => line.trim() !== '')
@@ -126,7 +130,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md h-full w-full"
+              className="bg-muted p-4 rounded-md h-full w-full space-y-2"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 
@@ -139,6 +143,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           {`
           .message {
             margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #f0f0f0;
             display: grid;
             grid-template-columns: auto 1fr;
             grid-template-rows: auto 1fr;
@@ -151,6 +157,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           .realtime-message {
             grid-template-columns: 1fr;
             grid-template-areas: "content";
+            padding: 0.5rem;
+            background-color: #f9f9f9;
+            border-radius: 0.25rem;
+            border-left: 3px solid #d1d5db;
           }
           
           .speaker-icon {
@@ -179,6 +189,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           
           .realtime-message .message-content {
             margin-top: 0;
+            padding-left: 0;
+            border-left: none;
+          }
+          
+          .plain-message .message-content {
+            grid-column: 1 / -1;
             padding-left: 0;
             border-left: none;
           }

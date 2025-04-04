@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,10 +40,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     console.log("VoiceRecorder raw transcript:", rawTranscript);
   }, [rawTranscript]);
 
-  // Simple no-op silence handler to keep the interface consistent
+  // Handle silence - add a line break to separate utterances
   const handleSilence = () => {
-    // Only used to mark paragraph breaks in the transcript
-    setRawTranscript(prev => prev + "\n");
+    // Add line break to help separate different speech segments
+    setRawTranscript(prev => {
+      if (prev.endsWith('\n')) return prev;
+      return prev + "\n";
+    });
   };
 
   // Debounced transcript update function to prevent UI flicker
@@ -101,7 +105,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     pauseThreshold
   });
 
-  // Simplified speech result handler - no speaker detection during recording
+  // Improved speech result handler - focus on displaying lines as they come in
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
@@ -129,9 +133,18 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     
     // For real-time display, we don't classify speakers yet
     if (isFinal) {
-      // Add the new text to the raw transcript
+      // Add the new text to the raw transcript - ensure it's on a new line if needed
       setRawTranscript(prev => {
-        const newRawTranscript = prev + (prev.endsWith('\n') || prev === '' ? '' : ' ') + result;
+        // If we're starting a new utterance and the previous doesn't end with a newline, add one
+        let newRawTranscript;
+        if (prev === '') {
+          newRawTranscript = result;
+        } else if (prev.endsWith('\n')) {
+          newRawTranscript = prev + result;
+        } else {
+          newRawTranscript = prev + '\n' + result;
+        }
+        
         currentTranscriptRef.current = newRawTranscript;
         return newRawTranscript;
       });
@@ -145,7 +158,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       }
     } else {
       // For non-final results, show them as temporary text in real-time
-      const updatedTranscript = currentTranscriptRef.current + " " + result;
+      // Don't add extra line breaks here to avoid jumpiness
+      const updatedTranscript = currentTranscriptRef.current + 
+        (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
+        result;
+      
       updateTranscriptDebounced(updatedTranscript);
     }
   }
@@ -329,7 +346,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Component UI with simplified interface (no API key input)
+  // Component UI with simplified interface
   return (
     <div className="space-y-4">
       <Card className="border-2 border-doctor-primary/30 shadow-md">
