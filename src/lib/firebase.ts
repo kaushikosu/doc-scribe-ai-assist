@@ -5,12 +5,13 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 // Your web app's Firebase configuration
 // Replace these with your actual Firebase config values
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // Replace this with your actual Firebase API key
-  authDomain: "your-app-domain.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-app.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+  apiKey: "AIzaSyAqEuh9RAb_4GQBLCKIKNzplzLgzy1fYrg",
+  authDomain: "hospital-firebase-project.firebaseapp.com",
+  projectId: "hospital-firebase-project",
+  storageBucket: "hospital-firebase-project.firebasestorage.app",
+  messagingSenderId: "17639743079",
+  appId: "1:17639743079:web:950eb09d612cc43c92bec2",
+  measurementId: "G-8RSJ0NNE9K"
 };
 
 // Initialize Firebase
