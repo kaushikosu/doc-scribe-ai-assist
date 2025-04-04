@@ -31,7 +31,10 @@ export const streamAudioToDeepgram = (
     "diarize=true"; // Enable diarization
     
   // Create WebSocket connection
-  const socket = new WebSocket(deepgramUrl);
+  let socket: WebSocket | null = new WebSocket(deepgramUrl);
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  let reconnectTimeout: NodeJS.Timeout | null = null;
   
   // Set up audio processing
   const audioContext = new AudioContext({
@@ -48,80 +51,111 @@ export const streamAudioToDeepgram = (
   // Connect audio nodes
   source.connect(processor);
   processor.connect(audioContext.destination);
-  
-  // Set authorization header once the socket is open
-  socket.onopen = () => {
-    socket.send(JSON.stringify({
-      "token": apiKey
-    }));
-    
-    console.log("Deepgram WebSocket connected");
-    onStatusChange?.('open');
-  };
-  
-  // Handle socket messages (transcription results)
-  socket.onmessage = (event) => {
-    try {
-      // Parse result from Deepgram
-      const result = JSON.parse(event.data);
-      
-      // Check for valid transcription
-      if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
-        const transcript = result.channel.alternatives[0].transcript;
-        
-        if (transcript.trim() === '') {
-          return; // Skip empty results
-        }
-        
-        // Determine speaker if diarization is available
-        let speakerTag: number | undefined;
-        if (result.channel.alternatives[0].words && result.channel.alternatives[0].words.length > 0) {
-          const firstWord = result.channel.alternatives[0].words[0];
-          if (firstWord.speaker !== undefined) {
-            speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
-          }
-        }
-        
-        // Send result to callback
-        onResult({
-          transcript,
-          isFinal: result.is_final || false,
-          resultIndex: Date.now(), // Use timestamp as unique ID
-          speakerTag
-        });
-      }
-    } catch (error) {
-      console.error("Error parsing Deepgram response:", error);
-      onResult({
-        transcript: "",
-        isFinal: true,
-        resultIndex: Date.now(),
-        error: "Failed to parse transcription result"
-      });
+
+  // Function to handle reconnection
+  const reconnect = () => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      console.error("Maximum reconnection attempts reached");
+      onStatusChange?.('failed');
+      return;
     }
+    
+    reconnectAttempts++;
+    console.log(`Attempting to reconnect to Deepgram (attempt ${reconnectAttempts})`);
+    
+    // Clear any existing timeout
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+    }
+    
+    reconnectTimeout = setTimeout(() => {
+      if (socket) {
+        socket.close();
+      }
+      
+      socket = new WebSocket(deepgramUrl);
+      setupSocketHandlers();
+      onStatusChange?.('connecting');
+    }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
   };
   
-  // Handle errors
-  socket.onerror = (error) => {
-    console.error("Deepgram WebSocket error:", error);
-    onStatusChange?.('failed');
-    onResult({
-      transcript: "",
-      isFinal: true,
-      resultIndex: Date.now(),
-      error: "Deepgram connection error"
-    });
+  // Setup socket event handlers
+  const setupSocketHandlers = () => {
+    if (!socket) return;
+    
+    // Set authorization header once the socket is open
+    socket.onopen = () => {
+      socket?.send(JSON.stringify({
+        "token": apiKey
+      }));
+      
+      console.log("Deepgram WebSocket connected");
+      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      onStatusChange?.('open');
+    };
+    
+    // Handle socket messages (transcription results)
+    socket.onmessage = (event) => {
+      try {
+        // Parse result from Deepgram
+        const result = JSON.parse(event.data);
+        
+        // Check for valid transcription
+        if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
+          const transcript = result.channel.alternatives[0].transcript;
+          
+          if (transcript.trim() === '') {
+            return; // Skip empty results
+          }
+          
+          // Determine speaker if diarization is available
+          let speakerTag: number | undefined;
+          if (result.channel.alternatives[0].words && result.channel.alternatives[0].words.length > 0) {
+            const firstWord = result.channel.alternatives[0].words[0];
+            if (firstWord.speaker !== undefined) {
+              speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
+            }
+          }
+          
+          // Send result to callback
+          onResult({
+            transcript,
+            isFinal: result.is_final || false,
+            resultIndex: Date.now(), // Use timestamp as unique ID
+            speakerTag
+          });
+        }
+      } catch (error) {
+        console.error("Error parsing Deepgram response:", error);
+      }
+    };
+    
+    // Handle errors
+    socket.onerror = (error) => {
+      console.error("Deepgram WebSocket error:", error);
+      // Don't immediately fail - try to reconnect
+      reconnect();
+    };
+    
+    // Handle socket closure
+    socket.onclose = (event) => {
+      console.log("Deepgram WebSocket closed", event.code, event.reason);
+      onStatusChange?.('closed');
+      
+      // Don't reconnect if it was a normal closure
+      if (event.code !== 1000) {
+        reconnect();
+      }
+    };
   };
   
-  // Handle socket closure
-  socket.onclose = (event) => {
-    console.log("Deepgram WebSocket closed", event.code, event.reason);
-    onStatusChange?.('closed');
-  };
+  // Set up socket handlers initially
+  setupSocketHandlers();
+  onStatusChange?.('connecting');
   
   // Audio processing function for sending data to Deepgram
   processor.onaudioprocess = (e) => {
-    if (socket.readyState === WebSocket.OPEN) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
       // Get audio data
       const inputData = e.inputBuffer.getChannelData(0);
       
@@ -139,6 +173,11 @@ export const streamAudioToDeepgram = (
   // Return cleanup function
   return () => {
     try {
+      // Clear reconnect timeout
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      
       // Disconnect audio processing
       if (source && processor) {
         source.disconnect(processor);
@@ -151,10 +190,11 @@ export const streamAudioToDeepgram = (
       }
       
       // Close WebSocket
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
         socket.close();
       }
       
+      socket = null;
       console.log("Deepgram connection cleaned up");
     } catch (error) {
       console.error("Error cleaning up Deepgram resources:", error);

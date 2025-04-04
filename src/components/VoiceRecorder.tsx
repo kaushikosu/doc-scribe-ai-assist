@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useDeepgramSpeechToText from '@/hooks/useDeepgramSpeechToText';
@@ -28,6 +28,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [apiKey] = useState<string>(DEEPGRAM_API_KEY);
   const [speakerMap, setSpeakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
+  const [connectionErrorCount, setConnectionErrorCount] = useState(0);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
@@ -112,6 +113,23 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     pauseThreshold,
     apiKey
   });
+  
+  // Monitor connection status
+  useEffect(() => {
+    if (connectionStatus === 'failed') {
+      setConnectionErrorCount(prev => prev + 1);
+      
+      // If we've had multiple failures, show a more persistent error
+      if (connectionErrorCount > 2) {
+        toast.error("Experiencing connection issues. Please check your internet connection.", {
+          duration: 5000
+        });
+      }
+    } else if (connectionStatus === 'open') {
+      // Reset error count on successful connection
+      setConnectionErrorCount(0);
+    }
+  }, [connectionStatus]);
 
   // Improved speech result handler with better real-time updates
   function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
@@ -319,14 +337,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               {isRecording ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-destructive animate-pulse"></span>
-                    <span className="font-medium">Recording with Deepgram</span>
+                    <span className={cn(
+                      "h-3 w-3 rounded-full", 
+                      connectionStatus === 'open' 
+                        ? "bg-destructive animate-pulse"
+                        : "bg-amber-500 animate-pulse"
+                    )}></span>
+                    <span className="font-medium">
+                      {connectionStatus === 'open' 
+                        ? "Recording with Deepgram" 
+                        : "Connecting to Deepgram..."}
+                    </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {connectionStatus === 'open' ? 
                       'Connected and streaming audio...' : 
                       connectionStatus === 'connecting' ? 
                       'Connecting to Deepgram...' :
+                      connectionStatus === 'failed' ?
+                      'Connection issues - trying to reconnect...' :
                       'Waiting for connection...'}
                   </div>
                 </div>
@@ -349,13 +378,22 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             
             {/* Connection status indicator */}
             <div className="flex items-center gap-2 mt-2">
-              <Globe className="h-4 w-4 text-doctor-primary" />
-              <div className="text-sm font-medium">
-                {isRecording ? 
-                  `Using Deepgram real-time transcription with diarization` : 
-                  'Automatic speaker detection enabled'
-                }
-              </div>
+              {connectionStatus === 'failed' && connectionErrorCount > 1 ? (
+                <div className="flex items-center gap-1 text-amber-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">Connection issues</span>
+                </div>
+              ) : (
+                <>
+                  <Globe className="h-4 w-4 text-doctor-primary" />
+                  <div className="text-sm font-medium">
+                    {isRecording ? 
+                      `Using Deepgram real-time transcription with diarization` : 
+                      'Automatic speaker detection enabled'
+                    }
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </CardContent>

@@ -36,6 +36,7 @@ const useDeepgramSpeechToText = ({
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const accumulatedTranscriptRef = useRef<string>('');
   const currentSessionIdRef = useRef<string>(Date.now().toString());
+  const isStoppingManuallyRef = useRef<boolean>(false);
   
   // Effect to log API key availability
   useEffect(() => {
@@ -63,17 +64,15 @@ const useDeepgramSpeechToText = ({
 
   // Handle Deepgram connection status changes
   const handleConnectionStatusChange = (status: ConnectionStatus) => {
+    console.log("Deepgram connection status changed to:", status);
     setConnectionStatus(status);
     
-    // Show appropriate toast message
-    if (status === 'open') {
-      toast.success("Connected to Deepgram");
-    } else if (status === 'failed') {
-      toast.error("Failed to connect to Deepgram");
-      stopRecording();
-    } else if (status === 'closed') {
-      if (isRecording) {
-        toast.info("Deepgram connection closed");
+    // Show appropriate toast message, but only if we aren't stopping manually
+    if (!isStoppingManuallyRef.current) {
+      if (status === 'open') {
+        toast.success("Connected to Deepgram");
+      } else if (status === 'failed') {
+        toast.error("Connection issues with Deepgram - trying to reconnect");
       }
     }
   };
@@ -86,6 +85,9 @@ const useDeepgramSpeechToText = ({
     }
     
     try {
+      // Reset manual stopping flag
+      isStoppingManuallyRef.current = false;
+      
       // Generate new session ID
       currentSessionIdRef.current = Date.now().toString();
       accumulatedTranscriptRef.current = '';
@@ -164,6 +166,9 @@ const useDeepgramSpeechToText = ({
 
   // Stop recording and clean up resources
   const stopRecording = () => {
+    // Mark that we're stopping manually to avoid reconnection messages
+    isStoppingManuallyRef.current = true;
+    
     // Clean up Deepgram connection
     if (cleanupFunctionRef.current) {
       cleanupFunctionRef.current();
