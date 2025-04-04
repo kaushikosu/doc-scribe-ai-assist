@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,6 +42,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientNameScanAttempts = useRef<number>(0);
   const turnCountRef = useRef<number>(0); // Track conversation turns
   const processedSpeakerTagsRef = useRef<Set<number>>(new Set()); // Track processed speaker tags
+  const pendingTranscriptsRef = useRef<Map<number, string>>(new Map()); // Track pending transcript updates
+  
+  // Add a debounce timeout for transcript updates
+  const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Conversation context tracking
   const conversationContextRef = useRef<{
@@ -89,6 +92,21 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
+  // Debounced transcript update function to prevent UI flicker
+  const updateTranscriptDebounced = (newTranscript: string) => {
+    if (transcriptUpdateTimeoutRef.current) {
+      clearTimeout(transcriptUpdateTimeoutRef.current);
+    }
+    
+    // Update immediately for better real-time feel
+    onTranscriptUpdate(newTranscript);
+    
+    // Also schedule a debounced update to catch any pending changes
+    transcriptUpdateTimeoutRef.current = setTimeout(() => {
+      onTranscriptUpdate(newTranscript);
+    }, 100);
+  };
+
   // Try to extract patient name from greeting patterns
   const extractPatientName = (text: string): string | null => {
     // Common greeting patterns
@@ -131,7 +149,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     apiKey: googleApiKey
   });
 
-  // Process speech recognition results
+  // Process speech recognition results - improved for real-time updates
   function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
     transcript: string, 
     isFinal: boolean, 
@@ -150,90 +168,86 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     if (result.startsWith('Error:')) {
       console.error("Error in speech recognition:", result);
       interimTranscriptRef.current = `[Error]: ${result}`;
-      onTranscriptUpdate(formattedTranscript + interimTranscriptRef.current);
+      updateTranscriptDebounced(formattedTranscript + interimTranscriptRef.current);
       return;
     }
     
-    if (isFinal) {
-      // When we have final result, use the speaker tag from Google if available
-      // or analyze context to determine speaker
-      let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
-      
-      if (speakerTag !== undefined) {
-        // Use Google's speaker diarization (1 is typically the first speaker, 2 the second)
-        // Speaker tag 0 often represents general/undetermined speech
-        detectedSpeaker = speakerTag === 0 ? lastSpeaker : 
-                          speakerTag === 1 ? 'Patient' : 'Doctor';
-                          
-        // Check if we've already processed this speaker tag in this session
-        // to avoid duplication
-        if (processedSpeakerTagsRef.current.has(speakerTag) && speakerTag !== 0) {
-          console.log(`Speaker tag ${speakerTag} already processed, skipping`);
-          return;
-        }
-        
-        // Mark this speaker tag as processed
-        processedSpeakerTagsRef.current.add(speakerTag);
-      } else {
-        // Fallback to our custom detection
-        detectedSpeaker = detectSpeaker(result, {
-          ...conversationContextRef.current,
-          lastSpeaker,
-          isFirstInteraction: isFirstInteractionRef.current,
-          turnCount: turnCountRef.current
-        });
-      }
-      
-      // Update speaker and increment turn counter
-      setLastSpeaker(detectedSpeaker);
-      turnCountRef.current += 1;
-      
-      // Format with speaker tag for final results
-      const formattedResult = `[${detectedSpeaker}]: ${result}\n`;
-      
-      // Update our complete formatted transcript
-      setFormattedTranscript(prev => {
-        const newTranscript = prev + formattedResult;
-        console.log("Updated formatted transcript:", newTranscript);
-        return newTranscript;
+    // Detect speaker info
+    let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
+    
+    // Use speaker tags more intelligently
+    if (speakerTag !== undefined && speakerTag > 0) {
+      // Use Google's speaker diarization (1 is typically the first speaker, 2 the second)
+      detectedSpeaker = speakerTag === 1 ? 'Patient' : 'Doctor';
+    } else if (isFinal) {
+      // For final results without speaker tag, use our custom detection
+      detectedSpeaker = detectSpeaker(result, {
+        ...conversationContextRef.current,
+        lastSpeaker,
+        isFirstInteraction: isFirstInteractionRef.current,
+        turnCount: turnCountRef.current
       });
-      
-      interimTranscriptRef.current = '';
-      setLastProcessedIndex(resultIndex + 1);
-      
-      // Update context based on detected speaker
-      updateConversationContext(detectedSpeaker, result);
-      
-      // Check for patient identification in initial conversations
-      if (isNewSession && !patientIdentifiedRef.current) {
-        attemptPatientIdentification(result);
-      }
-      
-      // Update the parent component with the formatted transcript (with speaker labels)
-      console.log("Sending transcript to parent:", formattedTranscript + formattedResult);
-      onTranscriptUpdate(formattedTranscript + formattedResult);
-      
     } else {
-      // For interim results, show with "Identifying" tag
-      interimTranscriptRef.current = `[Identifying]: ${result}`;
+      // For interim results, mark as identifying but include in the UI
+      detectedSpeaker = 'Identifying';
+    }
+    
+    // For interim results, show with "Identifying" tag but update in real-time
+    if (!isFinal) {
+      interimTranscriptRef.current = `[${detectedSpeaker}]: ${result}`;
       
       // Combine formatted transcript with interim for real-time display
       const combinedTranscript = formattedTranscript + interimTranscriptRef.current;
-      console.log("Sending interim combined transcript:", combinedTranscript);
-      onTranscriptUpdate(combinedTranscript);
+      updateTranscriptDebounced(combinedTranscript);
       
       // Even for interim results, try to identify patient
       if (isNewSession && !patientIdentifiedRef.current) {
         attemptPatientIdentification(result);
       }
+      
+      return;
     }
     
-    // Check for "save prescription" command
-    if ((result.toLowerCase().includes("save prescription") || 
-         result.toLowerCase().includes("print prescription")) && 
-        (lastSpeaker === 'Doctor' || lastSpeaker === 'Identifying')) {
-      toast.success("Saving prescription...");
+    // For final results, use the detected speaker
+    setLastSpeaker(detectedSpeaker);
+    turnCountRef.current += 1;
+    
+    // Check if we've seen this specific result before to avoid duplicates
+    const resultKey = `${resultIndex}-${result}`;
+    if (pendingTranscriptsRef.current.has(resultKey)) {
+      console.log(`Duplicate result detected, skipping: ${resultKey}`);
+      return;
     }
+    
+    // Store this result to avoid processing duplicates
+    pendingTranscriptsRef.current.set(resultKey, result);
+    
+    // Format with speaker tag
+    const formattedResult = `[${detectedSpeaker}]: ${result}\n`;
+    
+    // Update our complete formatted transcript
+    setFormattedTranscript(prev => {
+      const newTranscript = prev + formattedResult;
+      console.log("Updated formatted transcript:", newTranscript);
+      return newTranscript;
+    });
+    
+    // Clear interim as we now have a final result
+    interimTranscriptRef.current = '';
+    
+    // Update processed index and context for this speaker/content
+    setLastProcessedIndex(resultIndex + 1);
+    updateConversationContext(detectedSpeaker, result);
+    
+    // Check for patient identification in initial conversations
+    if (isNewSession && !patientIdentifiedRef.current) {
+      attemptPatientIdentification(result);
+    }
+    
+    // Update the parent component with the formatted transcript
+    const updatedTranscript = formattedTranscript + formattedResult;
+    console.log("Sending transcript to parent:", updatedTranscript);
+    updateTranscriptDebounced(updatedTranscript);
   }
   
   // Update conversation context based on speaker and content
@@ -393,6 +407,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     patientNameScanAttempts.current = 0;
     turnCountRef.current = 0; // Reset turn counter
     processedSpeakerTagsRef.current.clear(); // Reset processed speaker tags
+    pendingTranscriptsRef.current.clear(); // Clear pending transcripts
     setShowPatientIdentified(false);
     
     // Reset conversation context
@@ -422,8 +437,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       });
       
       // Update the parent with the complete transcript
-      onTranscriptUpdate(formattedTranscript + finalizedInterim + '\n');
+      updateTranscriptDebounced(formattedTranscript + finalizedInterim + '\n');
     }
+    
+    // Clear any pending transcript timeouts
+    if (transcriptUpdateTimeoutRef.current) {
+      clearTimeout(transcriptUpdateTimeoutRef.current);
+      transcriptUpdateTimeoutRef.current = null;
+    }
+    
     stopRecording();
   };
 
@@ -437,13 +459,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         return;
       }
       
-      // Reset processed speaker tags for new recording session
+      // Reset for new recording session
       processedSpeakerTagsRef.current.clear();
+      pendingTranscriptsRef.current.clear();
       
       // Add an initial transcript entry to test the flow
       const initialMessage = "[Doctor]: Starting new recording session.\n";
       setFormattedTranscript(initialMessage);
-      onTranscriptUpdate(initialMessage);
+      updateTranscriptDebounced(initialMessage);
       
       startRecording();
     }

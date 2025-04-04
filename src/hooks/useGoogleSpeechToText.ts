@@ -5,7 +5,8 @@ import {
   processMediaStream, 
   GoogleSpeechResult, 
   detectLanguageFromTranscript, 
-  languageCodeMap 
+  languageCodeMap,
+  streamMediaToGoogleSpeech
 } from '@/utils/googleSpeechToText';
 import { detectSpeaker } from '@/utils/speakerDetection';
 
@@ -35,6 +36,7 @@ const useGoogleSpeechToText = ({
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const processingRef = useRef<boolean>(false);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   
   // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
@@ -89,18 +91,81 @@ const useGoogleSpeechToText = ({
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1
-          // Remove the sampleRate constraint to let the browser handle it
         } 
       });
       
       mediaStreamRef.current = stream;
+      
+      // Create a real-time media recorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 48000
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      
+      // Setup audio processing for real-time transcription
+      mediaRecorder.ondataavailable = async (e) => {
+        if (e.data.size > 0 && isRecording) {
+          // Process each chunk as it comes in for more real-time results
+          try {
+            const results = await processMediaStream(e.data, apiKey);
+            
+            // Update last speech time
+            if (results.length > 0) {
+              lastSpeechTimeRef.current = Date.now();
+              
+              // Process all results immediately
+              results.forEach((result, index) => {
+                // Detect language from transcript
+                const newLanguage = detectLanguageFromTranscript(result.transcript);
+                if (newLanguage !== detectedLanguage) {
+                  setDetectedLanguage(newLanguage);
+                }
+                
+                // Send each result to callback with full details
+                onResult({
+                  transcript: result.transcript,
+                  isFinal: result.isFinal,
+                  resultIndex: index,
+                  speakerTag: result.speakerTag
+                });
+              });
+            }
+          } catch (error) {
+            console.error('Error processing audio chunk:', error);
+          }
+        }
+      };
+      
+      // Setup streaming to Google Speech API
+      streamMediaToGoogleSpeech(stream, apiKey, (result) => {
+        if (result.error) {
+          console.error('Stream processing error:', result.error);
+          return;
+        }
+        
+        // Update last speech time when we get results
+        lastSpeechTimeRef.current = Date.now();
+        
+        // Send the streaming result directly to the callback
+        onResult({
+          transcript: result.transcript,
+          isFinal: result.isFinal,
+          resultIndex: result.resultIndex || 0,
+          speakerTag: result.speakerTag
+        });
+      });
+      
+      // Start recording with shorter timeslices for more frequent chunks
+      mediaRecorder.start(1000); // Send data every second
       
       // Setup silence detection
       setupSilenceDetection();
       setIsRecording(true);
       
       // Signal successful start
-      console.log("Recording started with Google Speech-to-Text");
+      console.log("Recording started with Google Speech-to-Text (Real-time mode)");
       toast.success("Started recording with Google Speech-to-Text");
       
       // Add a simple initial result to verify the onResult callback is working
@@ -123,7 +188,7 @@ const useGoogleSpeechToText = ({
           console.log("Triggering periodic processing of audio");
           processContinuously();
         }
-      }, 5000); // Process every 5 seconds instead of 10 to be more responsive
+      }, 3000); // Process every 3 seconds instead of 5 to be more responsive
       
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -216,6 +281,11 @@ const useGoogleSpeechToText = ({
   };
 
   const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    
     if (mediaStreamRef.current) {
       // Stop all audio tracks
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
