@@ -35,7 +35,7 @@ export const streamAudioToDeepgram = (
     "utterances=true&" + // Enable utterances
     "topics=medicine,symptoms,doctor,patient"; // Enable topic detection with custom topics
     
-  // Create WebSocket connection with Authorization header
+  // Create WebSocket connection
   let socket: WebSocket | null = null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 5;
@@ -57,16 +57,11 @@ export const streamAudioToDeepgram = (
   source.connect(processor);
   processor.connect(audioContext.destination);
 
-  // Function to create socket with proper authentication
+  // Function to create socket
   const createSocket = () => {
     try {
-      // IMPORTANT: We must include the API key in the headers when creating the WebSocket
-      const ws = new WebSocket(deepgramUrl, {
-        headers: {
-          Authorization: `Token ${apiKey}`
-        }
-      });
-      
+      // Create a regular WebSocket - we'll send the API key as a message after connection
+      const ws = new WebSocket(deepgramUrl);
       return ws;
     } catch (error) {
       console.error("Error creating WebSocket:", error);
@@ -104,103 +99,24 @@ export const streamAudioToDeepgram = (
     }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
   };
   
-  // Setup socket event handlers
-  const setupSocketHandlers = () => {
-    if (!socket) return;
-    
-    // Handle socket connection being established
-    socket.onopen = () => {
-      console.log("Deepgram WebSocket connection opened");
-      onStatusChange?.('open');
-      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-    };
-    
-    // Handle socket messages (transcription results)
-    socket.onmessage = (event) => {
-      try {
-        // Parse result from Deepgram
-        const result = JSON.parse(event.data);
-        
-        // Check for valid transcription
-        if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
-          const transcript = result.channel.alternatives[0].transcript;
-          
-          // Extract topics if available
-          let topics: string[] | undefined;
-          if (result.channel.topics && result.channel.topics.topics) {
-            topics = result.channel.topics.topics.map((t: any) => t.topic);
-          }
-          
-          if (transcript.trim() === '') {
-            return; // Skip empty results
-          }
-          
-          // Determine speaker if diarization is available
-          let speakerTag: number | undefined;
-          if (result.channel.alternatives[0].words && result.channel.alternatives[0].words.length > 0) {
-            const firstWord = result.channel.alternatives[0].words[0];
-            if (firstWord.speaker !== undefined) {
-              speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
-            }
-          }
-          
-          // Send result to callback
-          onResult({
-            transcript,
-            isFinal: result.is_final || false,
-            resultIndex: Date.now(), // Use timestamp as unique ID
-            speakerTag,
-            topics
-          });
-        }
-      } catch (error) {
-        console.error("Error parsing Deepgram response:", error);
-      }
-    };
-    
-    // Handle errors
-    socket.onerror = (error) => {
-      console.error("Deepgram WebSocket error:", error);
-      onStatusChange?.('failed');
-      
-      // Force close the socket to trigger onclose for reconnection
-      if (socket && socket.readyState !== WebSocket.CLOSED) {
-        socket.close();
-      }
-    };
-    
-    // Handle socket closure
-    socket.onclose = (event) => {
-      console.log("Deepgram WebSocket closed", event.code, event.reason);
-      onStatusChange?.('closed');
-      
-      // Don't reconnect if it was a normal closure (code 1000)
-      if (event.code !== 1000) {
-        reconnect();
-      }
-    };
-  };
-  
   // Create initial socket connection
   try {
-    // The correct way to connect to Deepgram is by including the API key in the actual URL
-    // This is the key fix! We need to use the API key in the URL as a parameter
-    const authenticatedUrl = `wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&smart_format=true&filler_words=false&diarize=true&punctuate=true&paragraphs=true&utterances=true&topics=medicine,symptoms,doctor,patient`;
+    socket = new WebSocket(deepgramUrl);
     
-    socket = new WebSocket(authenticatedUrl);
-    
-    // Set up socket handlers initially
+    // Set up socket handlers
     if (socket) {
-      // Add an Authorization header to the WebSocket connection
       socket.onopen = () => {
         console.log("Deepgram WebSocket opened, sending API key");
-        // Key fix: Send API key in correct format as per Deepgram docs
-        socket.send(JSON.stringify({
-          type: "Authorization",
-          token: apiKey
-        }));
         
-        // Set up the rest of the handlers after we've sent the authorization
+        // Send authentication message after connection is established
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            type: "Authorization",
+            token: apiKey
+          }));
+        }
+        
+        // Set up the standard message handler after sending authorization
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
@@ -254,6 +170,11 @@ export const streamAudioToDeepgram = (
         socket.onerror = (error) => {
           console.error("Deepgram WebSocket error:", error);
           onStatusChange?.('failed');
+          
+          // Force close the socket to trigger onclose for reconnection
+          if (socket && socket.readyState !== WebSocket.CLOSED) {
+            socket.close();
+          }
         };
         
         // Handle socket closure
