@@ -60,18 +60,12 @@ export const streamAudioToDeepgram = (
   // Function to create socket with proper authentication
   const createSocket = () => {
     try {
-      // Create a new WebSocket with Authorization header
-      const ws = new WebSocket(deepgramUrl);
-      
-      // Set up authorization headers when the connection opens
-      ws.onopen = () => {
-        console.log("WebSocket connection opened, sending authorization header");
-        // Send authorization header
-        ws.send(JSON.stringify({
-          type: "Authorization",
-          token: apiKey
-        }));
-      };
+      // IMPORTANT: We must include the API key in the headers when creating the WebSocket
+      const ws = new WebSocket(deepgramUrl, {
+        headers: {
+          Authorization: `Token ${apiKey}`
+        }
+      });
       
       return ws;
     } catch (error) {
@@ -117,11 +111,8 @@ export const streamAudioToDeepgram = (
     // Handle socket connection being established
     socket.onopen = () => {
       console.log("Deepgram WebSocket connection opened");
-      // Important: Send authorization as the first message
-      socket.send(JSON.stringify({
-        type: "Authorization",
-        token: apiKey
-      }));
+      onStatusChange?.('open');
+      reconnectAttempts = 0; // Reset reconnect attempts on successful connection
     };
     
     // Handle socket messages (transcription results)
@@ -129,14 +120,6 @@ export const streamAudioToDeepgram = (
       try {
         // Parse result from Deepgram
         const result = JSON.parse(event.data);
-        
-        // Check for connection established confirmation
-        if (result.type === "ConnectionEstablished") {
-          console.log("Deepgram connection successfully established");
-          reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-          onStatusChange?.('open');
-          return;
-        }
         
         // Check for valid transcription
         if (result.channel && result.channel.alternatives && result.channel.alternatives.length > 0) {
@@ -199,12 +182,97 @@ export const streamAudioToDeepgram = (
   };
   
   // Create initial socket connection
-  socket = createSocket();
-  
-  // Set up socket handlers initially
-  if (socket) {
-    setupSocketHandlers();
-    onStatusChange?.('connecting');
+  try {
+    // The correct way to connect to Deepgram is by including the API key in the actual URL
+    // This is the key fix! We need to use the API key in the URL as a parameter
+    const authenticatedUrl = `wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&smart_format=true&filler_words=false&diarize=true&punctuate=true&paragraphs=true&utterances=true&topics=medicine,symptoms,doctor,patient`;
+    
+    socket = new WebSocket(authenticatedUrl);
+    
+    // Set up socket handlers initially
+    if (socket) {
+      // Add an Authorization header to the WebSocket connection
+      socket.onopen = () => {
+        console.log("Deepgram WebSocket opened, sending API key");
+        // Key fix: Send API key in correct format as per Deepgram docs
+        socket.send(JSON.stringify({
+          type: "Authorization",
+          token: apiKey
+        }));
+        
+        // Set up the rest of the handlers after we've sent the authorization
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Check if this is a connection confirmation
+            if (data.type === "ConnectionEstablished") {
+              console.log("Deepgram authenticated successfully");
+              onStatusChange?.('open');
+              reconnectAttempts = 0;
+              return;
+            }
+            
+            // Process transcriptions
+            if (data.channel && data.channel.alternatives && data.channel.alternatives.length > 0) {
+              const transcript = data.channel.alternatives[0].transcript;
+              
+              // Extract topics if available
+              let topics: string[] | undefined;
+              if (data.channel.topics && data.channel.topics.topics) {
+                topics = data.channel.topics.topics.map((t: any) => t.topic);
+              }
+              
+              if (transcript.trim() === '') {
+                return; // Skip empty results
+              }
+              
+              // Determine speaker if diarization is available
+              let speakerTag: number | undefined;
+              if (data.channel.alternatives[0].words && data.channel.alternatives[0].words.length > 0) {
+                const firstWord = data.channel.alternatives[0].words[0];
+                if (firstWord.speaker !== undefined) {
+                  speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
+                }
+              }
+              
+              // Send result to callback
+              onResult({
+                transcript,
+                isFinal: data.is_final || false,
+                resultIndex: Date.now(), // Use timestamp as unique ID
+                speakerTag,
+                topics
+              });
+            }
+          } catch (error) {
+            console.error("Error parsing Deepgram response:", error);
+          }
+        };
+        
+        // Handle errors
+        socket.onerror = (error) => {
+          console.error("Deepgram WebSocket error:", error);
+          onStatusChange?.('failed');
+        };
+        
+        // Handle socket closure
+        socket.onclose = (event) => {
+          console.log("Deepgram WebSocket closed", event.code, event.reason);
+          onStatusChange?.('closed');
+          
+          // Don't reconnect if it was a normal closure (code 1000)
+          if (event.code !== 1000) {
+            reconnect();
+          }
+        };
+      };
+      
+      onStatusChange?.('connecting');
+    }
+  } catch (error) {
+    console.error("Error initializing Deepgram connection:", error);
+    onStatusChange?.('failed');
   }
   
   // Audio processing function for sending data to Deepgram
