@@ -44,14 +44,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientNameScanAttempts = useRef<number>(0);
   const turnCountRef = useRef<number>(0); // Track conversation turns
   const processedSpeakerTagsRef = useRef<Set<number>>(new Set()); // Track processed speaker tags
-  
-  // Modified: Explicitly type the Map to accept string keys
   const pendingTranscriptsRef = useRef<Map<string, string>>(new Map()); // Track pending transcript updates
-  
-  // Add a debounce timeout for transcript updates
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Conversation context tracking
   const conversationContextRef = useRef<{
     isPatientDescribingSymptoms: boolean;
     doctorAskedQuestion: boolean;
@@ -65,6 +59,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     isPrescribing: false,
     isGreeting: true
   });
+
+  // Add tracking for speaker consistency
+  const speakerMappingRef = useRef<Map<number, 'Doctor' | 'Patient'>>(new Map());
 
   // Log when transcript changes - useful for debugging
   useEffect(() => {
@@ -88,7 +85,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Handle silence detection - switch speaker on silence
+  // Handle silence detection - switch speaker on silence - improved
   const handleSilence = () => {
     if (lastSpeaker !== 'Identifying') {
       const newSpeaker = lastSpeaker === 'Doctor' ? 'Patient' : 'Doctor';
@@ -162,7 +159,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     region
   });
 
-  // Process speech recognition results - improved for real-time updates
+  // Process speech recognition results - improved for real-time updates with better speaker detection
   function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
     transcript: string, 
     isFinal: boolean, 
@@ -191,13 +188,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Detect speaker info
+    // Enhanced speaker detection with consistency
     let detectedSpeaker: 'Doctor' | 'Patient' | 'Identifying';
     
-    // Use speaker tags more intelligently
-    if (speakerTag !== undefined && speakerTag > 0) {
-      // Use Azure's speaker diarization (1 is typically the first speaker, 2 the second)
-      detectedSpeaker = speakerTag === 1 ? 'Patient' : 'Doctor';
+    // Use Azure's speaker diarization if available
+    if (typeof speakerTag === 'number' && speakerTag > 0) {
+      // If we've seen this speaker before, use the same role
+      if (speakerMappingRef.current.has(speakerTag)) {
+        detectedSpeaker = speakerMappingRef.current.get(speakerTag)!;
+        console.log(`Using existing speaker mapping: ${speakerTag} -> ${detectedSpeaker}`);
+      } else {
+        // Otherwise, assign a role based on the tag (usually 1 = first speaker, 2 = second speaker)
+        // Note: We're assuming Azure assigns lower numbers to the speaker who speaks first,
+        // which is typically the doctor in a clinical setting
+        detectedSpeaker = speakerTag === 1 ? 'Doctor' : 'Patient';
+        
+        // Store this mapping for future use
+        speakerMappingRef.current.set(speakerTag, detectedSpeaker);
+        console.log(`Created new speaker mapping: ${speakerTag} -> ${detectedSpeaker}`);
+      }
     } else if (isFinal) {
       // For final results without speaker tag, use our custom detection
       detectedSpeaker = detectSpeaker(result, {
@@ -206,6 +215,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         isFirstInteraction: isFirstInteractionRef.current,
         turnCount: turnCountRef.current
       });
+      
+      console.log(`Used content-based speaker detection: "${result.substring(0, 20)}..." -> ${detectedSpeaker}`);
     } else {
       // For interim results, mark as identifying but include in the UI
       detectedSpeaker = 'Identifying';
@@ -468,7 +479,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     stopRecording();
   };
 
-  // Handle language selection
+  // Handle language selection - improved for Telugu
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
     

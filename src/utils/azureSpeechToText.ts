@@ -25,53 +25,83 @@ export const languageCodeMap: { [key: string]: string } = {
   'te-IN': 'te-IN'
 };
 
-// Simple language detection based on content
+// Enhanced language detection
 export const detectLanguageFromTranscript = (transcript: string): string => {
-  // Hindi detection
-  const hindiWords = ['नमस्ते', 'आप', 'कैसे', 'है', 'धन्यवाद', 'दर्द', 'दवा'];
-  const containsHindi = hindiWords.some(word => transcript.includes(word));
-  if (containsHindi) return 'hi-IN';
+  // Telugu detection - improved with more Telugu character detection
+  const teluguPattern = /[\u0C00-\u0C7F]/;
+  if (teluguPattern.test(transcript)) {
+    console.log("Telugu script detected in text");
+    return 'te-IN';
+  }
   
-  // Telugu detection 
-  const teluguWords = ['నమస్కారం', 'మీరు', 'ఎలా', 'ఉన్నారు', 'ధన్యవాదాలు'];
+  // Hindi detection - check for Devanagari script
+  const hindiPattern = /[\u0900-\u097F]/;
+  if (hindiPattern.test(transcript)) {
+    return 'hi-IN';
+  }
+  
+  // Alternative Telugu pattern matching for common words
+  const teluguWords = ['నమస్కారం', 'మీరు', 'ఎలా', 'ఉన్నారు', 'ధన్యవాదాలు', 'అవును', 'కాదు', 'సరే'];
   const containsTelugu = teluguWords.some(word => transcript.includes(word));
-  if (containsTelugu) return 'te-IN';
+  if (containsTelugu) {
+    console.log("Telugu words detected in text");
+    return 'te-IN';
+  }
   
   // Default to English
   return 'en-IN';
 };
 
-// Function to start Azure speech recognition
+// Function to start Azure speech recognition with improved speaker separation
 export const startAzureSpeechRecognition = (
   apiKey: string,
   region: string,
   callback: (result: AzureSpeechResult) => void,
   onSilenceDetected: () => void,
-  silenceThreshold: number = 1500
+  silenceThreshold: number = 1500,
+  languageCode: string = 'en-IN'
 ): (() => void) => {
   if (!apiKey || !region) {
     toast.error("Azure Speech key or region not configured");
     return () => {};
   }
 
-  console.log("Setting up Azure Speech Recognition");
+  console.log("Setting up Azure Speech Recognition with language:", languageCode);
   
   // Azure Speech SDK setup
   const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(apiKey, region);
   
-  // Set speech recognition language to English (can be dynamically changed)
-  speechConfig.speechRecognitionLanguage = "en-IN";
+  // Set recognition language explicitly
+  speechConfig.speechRecognitionLanguage = languageCode;
   
   // Enable detailed output format to get confidence and other data
   speechConfig.outputFormat = SpeechSDK.OutputFormat.Detailed;
   
-  // Enable continuous recognition
+  // Enable dictation mode for more natural speech recognition
   speechConfig.enableDictation();
+  
+  // IMPORTANT: Configure for speaker separation
+  // This enables speaker separation in the speech recognizer
+  try {
+    // Enable speaker diarization
+    speechConfig.setProperty("SpeechServiceResponse_OptimizeForConversation", "true");
+    speechConfig.setProperty("SpeechServiceResponse_RequestVoiceSignatureDetection", "true");
+    speechConfig.setProperty("Conversation_SpeakerDiarizationEnabled", "true");
+    speechConfig.setProperty("DifferentiateGenders", "true");
+    
+    // The following settings help with speaker diarization quality
+    speechConfig.setProperty("SpeakerDiarization_MinimumSpeakers", "2");  // We expect at least 2 speakers
+    speechConfig.setProperty("SpeakerDiarization_MaximumSpeakers", "2");  // And no more than 2 speakers
+    
+    console.log("Speaker diarization enabled with enhanced settings");
+  } catch (error) {
+    console.error("Error configuring speaker diarization:", error);
+  }
   
   // Set up audio configuration for microphone input
   const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
   
-  // Create recognizer with enhanced settings 
+  // Create recognizer
   const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
   
   // Track silence for speaker turn detection
@@ -123,18 +153,49 @@ export const startAzureSpeechRecognition = (
     try {
       // For final results, try to extract more detailed information
       let confidence = 0.8; // Default confidence if not available from Azure
+      let speakerTag = undefined; // Default speaker tag
       
-      // Try to get the detailed output with confidence scores
+      // Try to get the detailed output with confidence scores and speaker info
       const resultJson = JSON.parse(e.result.properties.getProperty(SpeechSDK.PropertyId.SpeechServiceResponse_JsonResult));
+      
+      console.log("Azure detailed result:", JSON.stringify(resultJson, null, 2));
       
       if (resultJson.NBest && resultJson.NBest.length > 0) {
         // Use the highest confidence alternative
         confidence = resultJson.NBest[0].Confidence || 0.8;
+        
+        // Check if speaker information is available
+        if (resultJson.NBest[0].SpeakerId !== undefined) {
+          speakerTag = parseInt(resultJson.NBest[0].SpeakerId);
+          console.log("Azure detected speaker:", speakerTag);
+        } else if (resultJson.SpeakerId !== undefined) {
+          speakerTag = parseInt(resultJson.SpeakerId);
+          console.log("Azure detected speaker from root:", speakerTag);
+        }
+        
+        // Try alternative speaker ID properties
+        if (speakerTag === undefined) {
+          const speakerIdProp = e.result.properties.getProperty(SpeechSDK.PropertyId.SpeechServiceResponse_RequestSpeakerIdentification);
+          if (speakerIdProp) {
+            try {
+              const speakerInfo = JSON.parse(speakerIdProp);
+              if (speakerInfo && speakerInfo.SpeakerId) {
+                speakerTag = parseInt(speakerInfo.SpeakerId);
+                console.log("Azure speaker from properties:", speakerTag);
+              }
+            } catch (error) {
+              console.log("Error parsing speaker ID property:", error);
+            }
+          }
+        }
       }
       
-      // Analyze the text to detect speaker change
-      // This is a simplified approach as Azure doesn't provide speaker diarization out-of-the-box
-      // In a real implementation, you might want to use additional logic here
+      // Auto-detect language if not explicitly set or language changed mid-stream
+      const detectedLang = detectLanguageFromTranscript(e.result.text);
+      if (detectedLang !== languageCode) {
+        // This will help update the UI but won't change current recognition session
+        console.log(`Language changed from ${languageCode} to ${detectedLang}`);
+      }
       
       // Send the final result to the callback
       callback({
@@ -142,8 +203,7 @@ export const startAzureSpeechRecognition = (
         confidence: confidence,
         isFinal: true,
         resultIndex: e.sessionId ? parseInt(e.sessionId.substring(0, 8), 16) % 1000 : 0,
-        // We can't get speaker tags directly from Azure without custom logic
-        speakerTag: undefined
+        speakerTag: speakerTag
       });
     } catch (error) {
       console.error("Error processing recognition result:", error);

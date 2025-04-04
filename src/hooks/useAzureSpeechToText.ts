@@ -36,6 +36,9 @@ const useAzureSpeechToText = ({
   // Track supported languages
   const supportedLanguages = useRef<string[]>(["en-IN", "hi-IN", "te-IN"]);
   
+  // Store the previous speaker to help with consistency
+  const prevSpeakerTagRef = useRef<number | undefined>(undefined);
+  
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -76,6 +79,7 @@ const useAzureSpeechToText = ({
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
       processingRef.current = false;
+      prevSpeakerTagRef.current = undefined; // Reset speaker tracking
       
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -111,6 +115,17 @@ const useAzureSpeechToText = ({
           console.log('Azure transcript received:', result.transcript);
           console.log('Current detected language:', detectedLanguage);
           
+          // Implement speaker consistency - if no speakerTag is provided by Azure,
+          // reuse the previous one if available
+          if (result.speakerTag === undefined && prevSpeakerTagRef.current !== undefined) {
+            result.speakerTag = prevSpeakerTagRef.current;
+            console.log("Using previous speaker tag:", result.speakerTag);
+          } else if (result.speakerTag !== undefined) {
+            // Store the new speaker tag for future use
+            prevSpeakerTagRef.current = result.speakerTag;
+            console.log("New speaker tag detected:", result.speakerTag);
+          }
+          
           // Send the streaming result directly to the callback
           onResult({
             transcript: result.transcript,
@@ -119,7 +134,7 @@ const useAzureSpeechToText = ({
             speakerTag: typeof result.speakerTag === 'number' ? result.speakerTag : undefined
           });
           
-          // Update language detection more aggressively with Telugu support
+          // Update language detection with better Telugu support
           if (result.transcript.length > 3) {
             const detectedLang = detectLanguageFromTranscript(result.transcript);
             
