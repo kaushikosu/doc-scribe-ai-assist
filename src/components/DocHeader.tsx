@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
+import { useAuth } from '@/hooks/useAuth';
+import { auth } from '@/lib/firebase';
 
 interface DocHeaderProps {
   patientInfo: {
@@ -19,13 +21,25 @@ interface DocHeaderProps {
 }
 
 const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
-  const doctorName = "Dr. Indra Reddy";
+  const { currentUser } = useAuth();
   const hospitalName = "Arogya General Hospital";
   
   const handleLogout = () => {
-    toast.success("Logged out successfully");
-    // In a real app, you would implement actual logout functionality here
+    auth.signOut()
+      .then(() => {
+        toast.success("Logged out successfully");
+      })
+      .catch((error) => {
+        console.error("Error signing out:", error);
+        toast.error("Failed to log out. Please try again.");
+      });
   };
+
+  // Get user display information with fallbacks
+  const userName = currentUser?.displayName || "Doctor";
+  const userEmail = currentUser?.email || "";
+  const userInitials = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase() : "DR";
+  const photoURL = currentUser?.photoURL || "";
 
   return (
     <div className="flex flex-col gap-2 mb-6">
@@ -62,12 +76,12 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity">
                   <div className="flex flex-col items-end">
-                    <p className="font-medium">{doctorName}</p>
-                    <p className="text-xs opacity-80">Senior Consultant</p>
+                    <p className="font-medium">{userName}</p>
+                    <p className="text-xs opacity-80">{userEmail}</p>
                   </div>
                   <Avatar className="h-12 w-12 border-2 border-white/50">
-                    <AvatarImage src="https://i.pravatar.cc/150?img=32" alt={doctorName} />
-                    <AvatarFallback className="bg-doctor-secondary text-white">IR</AvatarFallback>
+                    <AvatarImage src={photoURL} alt={userName} />
+                    <AvatarFallback className="bg-doctor-secondary text-white">{userInitials}</AvatarFallback>
                   </Avatar>
                 </div>
               </DropdownMenuTrigger>
