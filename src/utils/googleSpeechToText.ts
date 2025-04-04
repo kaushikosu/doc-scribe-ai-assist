@@ -270,7 +270,7 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
         }
         
         chunkIndex++;
-      } catch (error) {
+      } catch (error: any) { // Add type annotation here
         console.error("Error in stream processing:", error);
         callback({
           transcript: "Error processing speech",
