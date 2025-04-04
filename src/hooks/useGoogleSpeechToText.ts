@@ -88,8 +88,8 @@ const useGoogleSpeechToText = ({
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 16000
+          channelCount: 1
+          // Remove the sampleRate constraint to let the browser handle it
         } 
       });
       

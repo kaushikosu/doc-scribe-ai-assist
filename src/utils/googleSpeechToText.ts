@@ -7,7 +7,7 @@ const GOOGLE_SPEECH_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:re
 // Configuration for speech recognition
 interface RecognitionConfig {
   encoding: string;
-  sampleRateHertz: number;
+  sampleRateHertz?: number;
   languageCode: string;
   alternativeLanguageCodes?: string[];
   enableAutomaticPunctuation?: boolean;
@@ -57,7 +57,7 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
     // Create a media recorder to capture audio with improved settings
     const mediaRecorder = new MediaRecorder(stream, { 
       mimeType: 'audio/webm;codecs=opus',
-      audioBitsPerSecond: 16000 
+      audioBitsPerSecond: 48000 // Match the OPUS header sample rate
     });
     
     const audioChunks: Blob[] = [];
@@ -95,7 +95,8 @@ export const processMediaStream = async (stream: MediaStream, apiKey: string): P
           
           const recognitionConfig: RecognitionConfig = {
             encoding: "WEBM_OPUS",
-            sampleRateHertz: 16000,
+            // Let Google detect the sample rate from the WEBM header
+            // Do not specify sampleRateHertz to avoid mismatch with the header
             languageCode: "en-US",
             alternativeLanguageCodes: ["hi-IN", "te-IN"],
             enableAutomaticPunctuation: true,
