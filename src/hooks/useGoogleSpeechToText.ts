@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -42,6 +43,11 @@ const useGoogleSpeechToText = ({
   // Keep reference to the current recording session
   const sessionIdRef = useRef<string>(Date.now().toString());
   
+  // For debugging purposes
+  useEffect(() => {
+    console.log("useGoogleSpeechToText initialized with apiKey:", apiKey ? "API key provided" : "No API key");
+  }, [apiKey]);
+  
   // Setup silence detection
   const setupSilenceDetection = () => {
     if (silenceTimerRef.current) {
@@ -54,6 +60,7 @@ const useGoogleSpeechToText = ({
       
       // If silence longer than threshold, trigger callback
       if (timeSinceLastSpeech > pauseThreshold && isRecording) {
+        console.log("Silence detected, triggering speaker change");
         onSilence();
         lastSpeechTimeRef.current = now; // Reset the timer
       }
@@ -80,10 +87,19 @@ const useGoogleSpeechToText = ({
       setupSilenceDetection();
       setIsRecording(true);
       
+      // Signal successful start
+      console.log("Recording started with Google Speech-to-Text");
+      toast.success(`Started recording with Google Speech-to-Text`);
+      
+      // Add a simple initial result to verify the onResult callback is working
+      onResult({
+        transcript: "Initializing Google Speech API...",
+        isFinal: false,
+        resultIndex: -1
+      });
+      
       // Start continuous processing
       processContinuously();
-      
-      toast.success(`Started recording with Google Speech-to-Text`);
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
@@ -91,11 +107,17 @@ const useGoogleSpeechToText = ({
   };
 
   const processContinuously = async () => {
-    if (!isRecording || !mediaStreamRef.current || !apiKey) return;
+    if (!isRecording || !mediaStreamRef.current || !apiKey) {
+      console.log("Cannot process: recording state:", isRecording, "stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
+      return;
+    }
     
     try {
+      console.log("Processing audio with Google Speech API");
+      
       // Process audio stream and get results
       const results = await processMediaStream(mediaStreamRef.current, apiKey);
+      console.log("Google Speech API returned results:", results);
       
       // Update last speech time
       if (results.length > 0) {
@@ -118,7 +140,7 @@ const useGoogleSpeechToText = ({
           accumulatedTranscriptRef.current += result.transcript;
         }
         
-        // Send result to callback
+        // Send result to callback with full details
         onResult({
           transcript: result.transcript,
           isFinal: result.isFinal,
@@ -127,15 +149,37 @@ const useGoogleSpeechToText = ({
         });
       });
       
-      // Continue processing if still recording
-      if (isRecording) {
+      // If we have no results but are still recording, simulate getting a result
+      // This helps detect if the API is working but not returning expected results
+      if (results.length === 0 && isRecording) {
+        console.log("No results from Google Speech API, but still recording");
+        // Try again in 2 seconds
+        setTimeout(() => {
+          if (isRecording) {
+            processContinuously();
+          }
+        }, 2000);
+      } else if (isRecording) {
+        // Continue processing immediately if we got results
         processContinuously();
       }
     } catch (error) {
       console.error('Error during speech processing:', error);
+      // Send the error to the callback for debugging
+      onResult({
+        transcript: `Error: ${error.message || 'Unknown error processing speech'}`,
+        isFinal: false,
+        resultIndex: -2
+      });
+      
       if (isRecording) {
         toast.error('Error processing speech. Restarting...');
-        processContinuously();
+        // Wait a bit before trying again
+        setTimeout(() => {
+          if (isRecording) {
+            processContinuously();
+          }
+        }, 3000);
       }
     }
   };
@@ -153,6 +197,7 @@ const useGoogleSpeechToText = ({
     }
     
     setIsRecording(false);
+    console.log("Recording stopped");
     toast.success('Recording stopped');
   };
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -58,9 +57,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     isGreeting: true
   });
 
+  // Log when transcript changes - useful for debugging
+  useEffect(() => {
+    console.log("VoiceRecorder formatted transcript:", formattedTranscript);
+  }, [formattedTranscript]);
+
   // Handle API key update
   const handleApiKeySet = (apiKey: string) => {
+    console.log("API key updated");
     setGoogleApiKey(apiKey);
+    // Show a success toast when API key is set
+    if (apiKey) {
+      toast.success("Google Cloud Speech API key configured");
+    }
   };
 
   // Handle silence detection - switch speaker on silence
@@ -130,6 +139,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     // For diagnostic purposes
     console.log("Received speech result:", { result, isFinal, resultIndex, speakerTag });
     
+    if (!result) {
+      console.log("Empty result received, ignoring");
+      return;
+    }
+    
     if (isFinal) {
       // When we have final result, use the speaker tag from Google if available
       // or analyze context to determine speaker
@@ -143,7 +157,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         detectedSpeaker = detectSpeaker(result, {
           ...conversationContextRef.current,
           lastSpeaker,
-          isFirstInteraction: isFirstInteractionRef.current,
+          isFirstInteractionRef.current,
           turnCount: turnCountRef.current
         });
       }
@@ -156,7 +170,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       const formattedResult = `[${detectedSpeaker}]: ${result}\n`;
       
       // Update our complete formatted transcript
-      setFormattedTranscript(prev => prev + formattedResult);
+      setFormattedTranscript(prev => {
+        const newTranscript = prev + formattedResult;
+        console.log("Updated formatted transcript:", newTranscript);
+        return newTranscript;
+      });
       
       interimTranscriptRef.current = '';
       setLastProcessedIndex(resultIndex + 1);
@@ -169,10 +187,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         attemptPatientIdentification(result);
       }
       
-      // Get the accumulated transcript from our hook
-      const fullTranscript = getAccumulatedTranscript();
-      
       // Update the parent component with the formatted transcript (with speaker labels)
+      console.log("Sending transcript to parent:", formattedTranscript + formattedResult);
       onTranscriptUpdate(formattedTranscript + formattedResult);
       
     } else {
@@ -180,7 +196,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       interimTranscriptRef.current = `[Identifying]: ${result}`;
       
       // Combine formatted transcript with interim for real-time display
-      onTranscriptUpdate(formattedTranscript + interimTranscriptRef.current);
+      const combinedTranscript = formattedTranscript + interimTranscriptRef.current;
+      console.log("Sending interim combined transcript:", combinedTranscript);
+      onTranscriptUpdate(combinedTranscript);
       
       // Even for interim results, try to identify patient
       if (isNewSession && !patientIdentifiedRef.current) {
@@ -374,7 +392,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       interimTranscriptRef.current = '';
       
       // Update the formatted transcript with the finalized interim
-      setFormattedTranscript(prev => prev + finalizedInterim + '\n');
+      setFormattedTranscript(prev => {
+        const newTranscript = prev + finalizedInterim + '\n';
+        console.log("Final transcript after stop:", newTranscript);
+        return newTranscript;
+      });
       
       // Update the parent with the complete transcript
       onTranscriptUpdate(formattedTranscript + finalizedInterim + '\n');
@@ -391,6 +413,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         toast.error("Please configure your Google Cloud Speech API key first");
         return;
       }
+      
+      // Add an initial transcript entry to test the flow
+      const initialMessage = "[Doctor]: Starting new recording session.\n";
+      setFormattedTranscript(initialMessage);
+      onTranscriptUpdate(initialMessage);
+      
       toggleRecording();
     }
   };
