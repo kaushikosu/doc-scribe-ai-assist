@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -7,6 +7,7 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from '@/lib/toast';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -15,8 +16,20 @@ const DashboardPage = () => {
     time: ''
   });
 
+  // Debug the transcript updates
+  useEffect(() => {
+    console.log("Transcript updated in DashboardPage:", transcript);
+  }, [transcript]);
+
   const handleTranscriptUpdate = (newTranscript: string) => {
-    setTranscript(newTranscript);
+    console.log("handleTranscriptUpdate called with:", newTranscript);
+    if (newTranscript) {
+      setTranscript(newTranscript);
+      // Show toast for debugging
+      if (newTranscript.length > 0 && transcript.length === 0) {
+        toast.success("Transcript started recording");
+      }
+    }
   };
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
@@ -81,6 +94,9 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
+      
+      {/* Make sure Toaster is properly rendered */}
+      <Toaster />
     </div>
   );
 };
