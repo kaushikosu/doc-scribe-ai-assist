@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,7 +42,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientNameScanAttempts = useRef<number>(0);
   const turnCountRef = useRef<number>(0); // Track conversation turns
   const processedSpeakerTagsRef = useRef<Set<number>>(new Set()); // Track processed speaker tags
-  const pendingTranscriptsRef = useRef<Map<number, string>>(new Map()); // Track pending transcript updates
+  
+  // Modified: Explicitly type the Map to accept string keys
+  const pendingTranscriptsRef = useRef<Map<string, string>>(new Map()); // Track pending transcript updates
   
   // Add a debounce timeout for transcript updates
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
