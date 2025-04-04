@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe, AlertCircle } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe, AlertCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useDeepgramSpeechToText from '@/hooks/useDeepgramSpeechToText';
@@ -301,6 +301,42 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
+  // Get connection status display info
+  const getConnectionStatusInfo = () => {
+    switch(connectionStatus) {
+      case 'open':
+        return {
+          color: "bg-green-500",
+          text: "Connected to Deepgram",
+          subtext: isRecording ? "Recording in progress..." : "Ready to record",
+          icon: <Check className="h-4 w-4" />
+        };
+      case 'connecting':
+        return {
+          color: "bg-amber-500",
+          text: "Connecting to Deepgram",
+          subtext: "Please wait...",
+          icon: <Globe className="h-4 w-4" />
+        };
+      case 'failed':
+        return {
+          color: "bg-red-500",
+          text: "Connection failed",
+          subtext: "Check your internet connection",
+          icon: <AlertCircle className="h-4 w-4" />
+        };
+      default:
+        return {
+          color: "bg-slate-400",
+          text: "Disconnected",
+          subtext: "Press record to connect",
+          icon: <Globe className="h-4 w-4" />
+        };
+    }
+  };
+
+  const statusInfo = getConnectionStatusInfo();
+
   // Component UI with improved feedback on connection status
   return (
     <div className="space-y-4">
@@ -338,10 +374,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className={cn(
-                      "h-3 w-3 rounded-full", 
+                      "h-3 w-3 rounded-full animate-pulse", 
                       connectionStatus === 'open' 
-                        ? "bg-destructive animate-pulse"
-                        : "bg-amber-500 animate-pulse"
+                        ? "bg-destructive"
+                        : "bg-amber-500"
                     )}></span>
                     <span className="font-medium">
                       {connectionStatus === 'open' 
@@ -377,23 +413,17 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
             )}
             
             {/* Connection status indicator */}
-            <div className="flex items-center gap-2 mt-2">
-              {connectionStatus === 'failed' && connectionErrorCount > 1 ? (
-                <div className="flex items-center gap-1 text-amber-600">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm">Connection issues</span>
+            <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-gray-50">
+              <div className={cn("h-3 w-3 rounded-full", statusInfo.color)}></div>
+              <div className="flex flex-col">
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {statusInfo.icon}
+                  <span>{statusInfo.text}</span>
                 </div>
-              ) : (
-                <>
-                  <Globe className="h-4 w-4 text-doctor-primary" />
-                  <div className="text-sm font-medium">
-                    {isRecording ? 
-                      `Using Deepgram real-time transcription with diarization` : 
-                      'Automatic speaker detection enabled'
-                    }
-                  </div>
-                </>
-              )}
+                <div className="text-xs text-muted-foreground">
+                  {statusInfo.subtext}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

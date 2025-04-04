@@ -12,17 +12,9 @@ export interface DeepgramResult {
 // WebSocket connection status
 export type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed';
 
-// Main function to stream audio to Deepgram
-export const streamAudioToDeepgram = (
-  stream: MediaStream, 
-  apiKey: string,
-  onResult: (result: DeepgramResult) => void,
-  onStatusChange?: (status: ConnectionStatus) => void
-): (() => void) => {
-  console.log("Setting up Deepgram connection...");
-  
-  // Create Deepgram WebSocket URL with options
-  const deepgramUrl = "wss://api.deepgram.com/v1/listen?" + 
+// Create Deepgram WebSocket URL with options
+const createDeepgramUrl = () => {
+  return "wss://api.deepgram.com/v1/listen?" + 
     "encoding=linear16&" +
     "sample_rate=16000&" +
     "channels=1&" +
@@ -34,12 +26,92 @@ export const streamAudioToDeepgram = (
     "paragraphs=true&" + // Enable paragraphs
     "utterances=true&" + // Enable utterances
     "topics=medicine,symptoms,doctor,patient"; // Enable topic detection with custom topics
+};
+
+// Function to preconnect to Deepgram - establishes connection early
+export const preconnectToDeepgram = (
+  apiKey: string,
+  onStatusChange?: (status: ConnectionStatus) => void
+): { socket: WebSocket | null; status: ConnectionStatus } => {
+  console.log("Pre-connecting to Deepgram...");
+  
+  try {
+    // Create a socket
+    const deepgramUrl = createDeepgramUrl();
+    const socket = new WebSocket(deepgramUrl);
     
-  // Create WebSocket connection
-  let socket: WebSocket | null = null;
-  let reconnectAttempts = 0;
-  const maxReconnectAttempts = 5;
-  let reconnectTimeout: NodeJS.Timeout | null = null;
+    if (onStatusChange) {
+      onStatusChange('connecting');
+    }
+    
+    socket.onopen = () => {
+      console.log("Deepgram WebSocket opened, sending API key");
+      
+      // Send authentication message
+      socket.send(JSON.stringify({
+        type: "Authorization",
+        token: apiKey
+      }));
+    };
+    
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Check if this is a connection confirmation
+        if (data.type === "ConnectionEstablished") {
+          console.log("Deepgram preconnected successfully");
+          if (onStatusChange) {
+            onStatusChange('open');
+          }
+          return;
+        }
+      } catch (error) {
+        console.error("Error parsing Deepgram response:", error);
+      }
+    };
+    
+    socket.onerror = (error) => {
+      console.error("Deepgram WebSocket error:", error);
+      if (onStatusChange) {
+        onStatusChange('failed');
+      }
+    };
+    
+    socket.onclose = (event) => {
+      console.log(`Deepgram WebSocket closed: ${event.code} - ${event.reason}`);
+      if (onStatusChange) {
+        onStatusChange('closed');
+      }
+    };
+    
+    return { socket, status: 'connecting' };
+  } catch (error) {
+    console.error("Error pre-connecting to Deepgram:", error);
+    if (onStatusChange) {
+      onStatusChange('failed');
+    }
+    return { socket: null, status: 'failed' };
+  }
+};
+
+// Function to disconnect from Deepgram
+export const disconnectDeepgram = (socket: WebSocket): void => {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    socket.close(1000, "User ended session");
+    console.log("Deepgram connection closed");
+  }
+};
+
+// Main function to stream audio to Deepgram
+export const streamAudioToDeepgram = (
+  stream: MediaStream, 
+  apiKey: string,
+  onResult: (result: DeepgramResult) => void,
+  onStatusChange?: (status: ConnectionStatus) => void,
+  existingSocket?: WebSocket | null
+): (() => void) => {
+  console.log("Setting up Deepgram streaming...");
   
   // Set up audio processing
   const audioContext = new AudioContext({
@@ -57,62 +129,36 @@ export const streamAudioToDeepgram = (
   source.connect(processor);
   processor.connect(audioContext.destination);
 
-  // Function to create socket
-  const createSocket = () => {
-    try {
-      // Create a regular WebSocket - we'll send the API key as a message after connection
-      const ws = new WebSocket(deepgramUrl);
-      return ws;
-    } catch (error) {
-      console.error("Error creating WebSocket:", error);
-      onStatusChange?.('failed');
-      return null;
-    }
-  };
+  // Use existing socket or create a new one
+  let socket: WebSocket | null = existingSocket || null;
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  let reconnectTimeout: NodeJS.Timeout | null = null;
 
-  // Function to handle reconnection
-  const reconnect = () => {
-    if (reconnectAttempts >= maxReconnectAttempts) {
-      console.error("Maximum reconnection attempts reached");
-      onStatusChange?.('failed');
-      return;
-    }
-    
-    reconnectAttempts++;
-    console.log(`Attempting to reconnect to Deepgram (attempt ${reconnectAttempts})`);
-    
-    // Clear any existing timeout
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-    }
-    
-    reconnectTimeout = setTimeout(() => {
-      if (socket) {
-        socket.close();
+  // Function to create socket if we don't have an existing one
+  const setupNewSocket = () => {
+    try {
+      // Create WebSocket URL
+      const deepgramUrl = createDeepgramUrl();
+      
+      // Create a new WebSocket
+      const ws = new WebSocket(deepgramUrl);
+      
+      if (onStatusChange) {
+        onStatusChange('connecting');
       }
       
-      socket = createSocket();
-      if (socket) {
-        setupSocket(socket);
-        onStatusChange?.('connecting');
-      }
-    }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
-  };
-  
-  // Function to set up socket event handlers
-  const setupSocket = (ws: WebSocket) => {
-    ws.onopen = () => {
-      console.log("Deepgram WebSocket opened, sending API key");
-      
-      // Send authentication message after connection is established
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      // Set up socket event handlers
+      ws.onopen = () => {
+        console.log("Deepgram WebSocket opened, sending API key");
+        
+        // Send authentication message after connection is established
         ws.send(JSON.stringify({
           type: "Authorization",
           token: apiKey
         }));
-      }
+      };
       
-      // Set up message handler
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -120,7 +166,9 @@ export const streamAudioToDeepgram = (
           // Check if this is a connection confirmation
           if (data.type === "ConnectionEstablished") {
             console.log("Deepgram authenticated successfully");
-            onStatusChange?.('open');
+            if (onStatusChange) {
+              onStatusChange('open');
+            }
             reconnectAttempts = 0;
             return;
           }
@@ -165,39 +213,80 @@ export const streamAudioToDeepgram = (
       // Handle errors
       ws.onerror = (error) => {
         console.error("Deepgram WebSocket error:", error);
-        onStatusChange?.('failed');
-        
-        // Force close the socket to trigger onclose for reconnection
-        if (ws && ws.readyState !== WebSocket.CLOSED) {
-          ws.close();
+        if (onStatusChange) {
+          onStatusChange('failed');
         }
       };
       
       // Handle socket closure
       ws.onclose = (event) => {
         console.log("Deepgram WebSocket closed", event.code, event.reason);
-        onStatusChange?.('closed');
+        if (onStatusChange) {
+          onStatusChange('closed');
+        }
         
         // Don't reconnect if it was a normal closure (code 1000)
         if (event.code !== 1000) {
           reconnect();
         }
       };
-    };
+      
+      return ws;
+    } catch (error) {
+      console.error("Error creating WebSocket:", error);
+      if (onStatusChange) {
+        onStatusChange('failed');
+      }
+      return null;
+    }
   };
   
-  // Create initial socket connection
-  try {
-    socket = createSocket();
-    
-    // Set up socket handlers
-    if (socket) {
-      setupSocket(socket);
-      onStatusChange?.('connecting');
+  // Function to handle reconnection
+  const reconnect = () => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      console.error("Maximum reconnection attempts reached");
+      if (onStatusChange) {
+        onStatusChange('failed');
+      }
+      return;
     }
-  } catch (error) {
-    console.error("Error initializing Deepgram connection:", error);
-    onStatusChange?.('failed');
+    
+    reconnectAttempts++;
+    console.log(`Attempting to reconnect to Deepgram (attempt ${reconnectAttempts})`);
+    
+    // Clear any existing timeout
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+    }
+    
+    reconnectTimeout = setTimeout(() => {
+      if (socket) {
+        socket.close();
+      }
+      
+      socket = setupNewSocket();
+    }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
+  };
+  
+  // If no existing socket, create one
+  if (!socket) {
+    socket = setupNewSocket();
+  } else {
+    console.log("Using existing Deepgram connection");
+    // Make sure existing socket is ready for audio
+    if (socket.readyState === WebSocket.OPEN) {
+      if (onStatusChange) {
+        onStatusChange('open');
+      }
+    } else if (socket.readyState === WebSocket.CONNECTING) {
+      if (onStatusChange) {
+        onStatusChange('connecting');
+      }
+    } else {
+      // If socket is in a bad state, create a new one
+      socket.close();
+      socket = setupNewSocket();
+    }
   }
   
   // Audio processing function for sending data to Deepgram
