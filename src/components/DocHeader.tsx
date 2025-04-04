@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Stethoscope, FileText, Building, LogOut } from 'lucide-react';
@@ -11,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
 import { useAuth } from '@/hooks/useAuth';
-import { auth } from '@/lib/firebase';
+import { signOutUser } from '@/lib/firebase';
 
 interface DocHeaderProps {
   patientInfo: {
@@ -24,15 +23,12 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   const { currentUser } = useAuth();
   const hospitalName = "Arogya General Hospital";
   
-  const handleLogout = () => {
-    auth.signOut()
-      .then(() => {
-        toast.success("Logged out successfully");
-      })
-      .catch((error) => {
-        console.error("Error signing out:", error);
-        toast.error("Failed to log out. Please try again.");
-      });
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+    } catch (error) {
+      console.error("Error in handleLogout:", error);
+    }
   };
 
   // Get user display information with fallbacks
