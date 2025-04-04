@@ -54,7 +54,7 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Say "Namaste [patient name]" to begin a new session</span>
+                  <span>Say "Hi [patient name]" to begin a new session</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
