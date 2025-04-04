@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { 
@@ -37,6 +36,7 @@ const useGoogleSpeechToText = ({
   const processingRef = useRef<boolean>(false);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamCleanupRef = useRef<(() => void) | null>(null);
   
   // Store the complete transcript with proper line breaks between utterances
   const accumulatedTranscriptRef = useRef<string>('');
@@ -90,56 +90,15 @@ const useGoogleSpeechToText = ({
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1
+          channelCount: 1,
+          sampleRate: 48000 // Request 48kHz sample rate for OPUS codec
         } 
       });
       
       mediaStreamRef.current = stream;
       
-      // Create a real-time media recorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 48000
-      });
-      
-      mediaRecorderRef.current = mediaRecorder;
-      
-      // Setup audio processing for real-time transcription
-      mediaRecorder.ondataavailable = async (e) => {
-        if (e.data.size > 0 && isRecording) {
-          // Process each chunk as it comes in for more real-time results
-          try {
-            const results = await processMediaStream(e.data, apiKey);
-            
-            // Update last speech time
-            if (results.length > 0) {
-              lastSpeechTimeRef.current = Date.now();
-              
-              // Process all results immediately
-              results.forEach((result, index) => {
-                // Detect language from transcript
-                const newLanguage = detectLanguageFromTranscript(result.transcript);
-                if (newLanguage !== detectedLanguage) {
-                  setDetectedLanguage(newLanguage);
-                }
-                
-                // Send each result to callback with full details
-                onResult({
-                  transcript: result.transcript,
-                  isFinal: result.isFinal,
-                  resultIndex: index,
-                  speakerTag: result.speakerTag
-                });
-              });
-            }
-          } catch (error) {
-            console.error('Error processing audio chunk:', error);
-          }
-        }
-      };
-      
       // Setup streaming to Google Speech API
-      streamMediaToGoogleSpeech(stream, apiKey, (result) => {
+      const cleanupFn = streamMediaToGoogleSpeech(stream, apiKey, (result) => {
         if (result.error) {
           console.error('Stream processing error:', result.error);
           return;
@@ -157,8 +116,7 @@ const useGoogleSpeechToText = ({
         });
       });
       
-      // Start recording with shorter timeslices for more frequent chunks
-      mediaRecorder.start(1000); // Send data every second
+      streamCleanupRef.current = cleanupFn;
       
       // Setup silence detection
       setupSilenceDetection();
@@ -175,112 +133,18 @@ const useGoogleSpeechToText = ({
         resultIndex: -1
       });
       
-      // Start continuous processing immediately
-      processContinuously();
-      
-      // Setup automatic processing every few seconds
-      if (recordingTimeoutRef.current) {
-        clearInterval(recordingTimeoutRef.current);
-      }
-      
-      recordingTimeoutRef.current = setInterval(() => {
-        if (isRecording && !processingRef.current) {
-          console.log("Triggering periodic processing of audio");
-          processContinuously();
-        }
-      }, 3000); // Process every 3 seconds instead of 5 to be more responsive
-      
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
     }
   };
 
-  const processContinuously = async () => {
-    if (!mediaStreamRef.current || !apiKey) {
-      console.log("Cannot process: recording state:", isRecording, "stream:", !!mediaStreamRef.current, "api key:", !!apiKey);
-      return;
-    }
-    
-    if (processingRef.current) {
-      console.log("Already processing, skipping this cycle");
-      return;
-    }
-    
-    processingRef.current = true;
-    
-    try {
-      console.log("Processing audio with Google Speech API");
-      
-      // Process audio stream and get results
-      const results = await processMediaStream(mediaStreamRef.current, apiKey);
-      console.log("Google Speech API returned results:", results);
-      
-      // Update last speech time
-      if (results.length > 0) {
-        lastSpeechTimeRef.current = Date.now();
-      }
-      
-      // Process all results in order
-      results.forEach((result, index) => {
-        // Detect language from transcript
-        const newLanguage = detectLanguageFromTranscript(result.transcript);
-        if (newLanguage !== detectedLanguage) {
-          setDetectedLanguage(newLanguage);
-        }
-        
-        // Add to accumulated transcript
-        if (result.isFinal) {
-          if (accumulatedTranscriptRef.current && !accumulatedTranscriptRef.current.endsWith('\n')) {
-            accumulatedTranscriptRef.current += '\n';
-          }
-          accumulatedTranscriptRef.current += result.transcript;
-        }
-        
-        // Send each result to callback with full details
-        onResult({
-          transcript: result.transcript,
-          isFinal: result.isFinal,
-          resultIndex: index,
-          speakerTag: result.speakerTag
-        });
-      });
-      
-      processingRef.current = false;
-      
-      // Continue processing if still recording
-      if (isRecording) {
-        // Schedule next processing after a short delay
-        setTimeout(() => {
-          if (isRecording) {
-            processContinuously();
-          }
-        }, 1000); // Reduced from 2s to 1s for more responsive transcription
-      }
-    } catch (error) {
-      console.error('Error during speech processing:', error);
-      processingRef.current = false;
-      
-      // Send the error to the callback for debugging
-      onResult({
-        transcript: `Error: ${error.message || 'Unknown error processing speech'}`,
-        isFinal: false,
-        resultIndex: -2
-      });
-      
-      if (isRecording) {
-        toast.error('Error processing speech. Restarting...');
-        // Wait a bit before trying again
-        setTimeout(() => {
-          if (isRecording) {
-            processContinuously();
-          }
-        }, 3000);
-      }
-    }
-  };
-
   const stopRecording = () => {
+    if (streamCleanupRef.current) {
+      streamCleanupRef.current();
+      streamCleanupRef.current = null;
+    }
+    
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;

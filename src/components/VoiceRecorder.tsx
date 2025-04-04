@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -145,7 +146,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   } = useGoogleSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    pauseThreshold,
+    pauseThreshold: pauseThreshold, // Fixed: pauseThreshold is now a number
     apiKey: googleApiKey
   });
 

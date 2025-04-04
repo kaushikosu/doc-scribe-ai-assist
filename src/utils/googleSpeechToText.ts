@@ -8,7 +8,7 @@ const GOOGLE_SPEECH_STREAMING_URL = "https://speech.googleapis.com/v1p1beta1/spe
 // Configuration for speech recognition
 interface RecognitionConfig {
   encoding: string;
-  sampleRateHertz?: number;
+  sampleRateHertz: number; // Make this required
   languageCode: string;
   alternativeLanguageCodes?: string[];
   enableAutomaticPunctuation?: boolean;
@@ -62,7 +62,7 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     
     const recognitionConfig: RecognitionConfig = {
       encoding: "WEBM_OPUS",
-      // Let Google detect the sample rate from the WEBM header
+      sampleRateHertz: 48000, // Set a fixed sample rate that works with OPUS
       languageCode: "en-US",
       alternativeLanguageCodes: ["hi-IN", "te-IN"],
       enableAutomaticPunctuation: true,
@@ -174,6 +174,35 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
   }
 };
 
+// Create a function to capture audio chunks from a MediaStream
+const createAudioChunksFromStream = (stream: MediaStream): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const chunks: BlobPart[] = [];
+    // Use a short-lived media recorder to capture a chunk
+    const recorder = new MediaRecorder(stream, {
+      mimeType: 'audio/webm;codecs=opus',
+      audioBitsPerSecond: 48000 // Match our specified sample rate
+    });
+    
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+    
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+      resolve(blob);
+    };
+    
+    recorder.onerror = reject;
+    
+    // Start recording for a short duration
+    recorder.start();
+    setTimeout(() => recorder.stop(), 1000); // 1 second chunk
+  });
+};
+
 // New function for streaming audio to Google Speech API
 // This simulates streaming using frequent small chunks
 export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, callback: (result: GoogleSpeechResult) => void) => {
@@ -187,7 +216,7 @@ export const streamMediaToGoogleSpeech = (stream: MediaStream, apiKey: string, c
   // Create a media recorder with shorter time slices for more real-time feel
   const mediaRecorder = new MediaRecorder(stream, {
     mimeType: 'audio/webm;codecs=opus',
-    audioBitsPerSecond: 48000
+    audioBitsPerSecond: 48000 // Match our specified sample rate
   });
   
   let processingChunk = false;
