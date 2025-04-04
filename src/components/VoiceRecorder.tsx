@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,6 +32,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [apiKey, setApiKey] = useState<string>('');
   const [region, setRegion] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("auto");
   
   // Track complete formatted transcript with speaker labels
   const [formattedTranscript, setFormattedTranscript] = useState('');
@@ -151,6 +151,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     toggleRecording, 
     startRecording, 
     stopRecording,
+    setLanguage,
     getAccumulatedTranscript,
     resetTranscript
   } = useAzureSpeechToText({
@@ -467,6 +468,29 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     stopRecording();
   };
 
+  // Handle language selection
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguage(language);
+    
+    if (language === "auto") {
+      // In auto mode, let Azure detect the language
+      console.log("Using automatic language detection");
+      return;
+    }
+    
+    // Map UI language selections to language codes
+    const languageMap: Record<string, string> = {
+      "english": "en-IN",
+      "hindi": "hi-IN",
+      "telugu": "te-IN"
+    };
+    
+    if (languageMap[language]) {
+      setLanguage(languageMap[language]);
+      toast.success(`Language set to ${language.charAt(0).toUpperCase() + language.slice(1)}`);
+    }
+  };
+
   // Handle toggling recording
   const handleToggleRecording = () => {
     if (isRecording) {
@@ -486,6 +510,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       processedSpeakerTagsRef.current.clear();
       pendingTranscriptsRef.current.clear();
       
+      // If a specific language is selected, set it before starting
+      if (selectedLanguage !== "auto") {
+        const languageMap: Record<string, string> = {
+          "english": "en-IN",
+          "hindi": "hi-IN",
+          "telugu": "te-IN"
+        };
+        
+        if (languageMap[selectedLanguage]) {
+          setLanguage(languageMap[selectedLanguage]);
+        }
+      }
+      
       // Add an initial transcript entry to test the flow
       const initialMessage = "[Doctor]: Starting new recording session.\n";
       setFormattedTranscript(initialMessage);
@@ -495,7 +532,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Component UI
+  // Component UI with added language selector
   return (
     <div className="space-y-4">
       <ApiKeyInput onApiKeySet={handleApiKeySet} />
@@ -530,6 +567,40 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               </Button>
             </div>
             
+            {/* Language selector */}
+            {!isRecording && (
+              <div className="flex space-x-2 mt-2">
+                <Button 
+                  size="sm"
+                  variant={selectedLanguage === "auto" ? "default" : "outline"} 
+                  onClick={() => handleLanguageChange("auto")}
+                >
+                  Auto
+                </Button>
+                <Button 
+                  size="sm"
+                  variant={selectedLanguage === "english" ? "default" : "outline"} 
+                  onClick={() => handleLanguageChange("english")}
+                >
+                  English
+                </Button>
+                <Button 
+                  size="sm"
+                  variant={selectedLanguage === "telugu" ? "default" : "outline"} 
+                  onClick={() => handleLanguageChange("telugu")}
+                >
+                  Telugu
+                </Button>
+                <Button 
+                  size="sm"
+                  variant={selectedLanguage === "hindi" ? "default" : "outline"} 
+                  onClick={() => handleLanguageChange("hindi")}
+                >
+                  Hindi
+                </Button>
+              </div>
+            )}
+            
             <div className="text-center">
               {isRecording ? (
                 <div className="flex flex-col items-center gap-2">
@@ -541,7 +612,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Recording ({lastSpeaker === 'Identifying' ? 'Listening...' : `${lastSpeaker} speaking`})</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using {localStorage.getItem('speechProvider') === 'azure' ? 'Azure' : 'Google Cloud'} Speech-to-Text with enhanced medical vocabulary
+                    Using Azure Speech-to-Text with enhanced medical vocabulary
                   </div>
                 </div>
               ) : (
@@ -564,13 +635,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               </div>
             )}
             
-            {/* Language indicator */}
+            {/* Language indicator with clear Telugu support */}
             <div className="flex items-center gap-2 mt-2">
               <Globe className="h-4 w-4 text-doctor-primary" />
               <div className="text-sm font-medium">
                 {isRecording ? 
-                  `Detecting: ${detectedLanguage === 'en-IN' ? 'English' : detectedLanguage === 'hi-IN' ? 'Hindi' : 'Telugu'}` : 
-                  'Multi-language recognition enabled'
+                  `Detecting: ${
+                    detectedLanguage === 'en-IN' ? 'English' : 
+                    detectedLanguage === 'hi-IN' ? 'Hindi' : 
+                    detectedLanguage === 'te-IN' ? 'Telugu' : 
+                    'Unknown'
+                  }` : 
+                  selectedLanguage === "auto" ? 
+                    'Multi-language recognition enabled' : 
+                    `Language set to ${selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}`
                 }
               </div>
             </div>
