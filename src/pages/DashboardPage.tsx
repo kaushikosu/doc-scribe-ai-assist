@@ -19,6 +19,8 @@ const DashboardPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isClassifying, setIsClassifying] = useState(false);
+  const [showClassifiedView, setShowClassifiedView] = useState(false);
+  const [prescriptionEnabled, setPrescriptionEnabled] = useState(false);
 
   // Debug the transcript updates
   useEffect(() => {
@@ -30,6 +32,12 @@ const DashboardPage = () => {
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
       setIsClassifying(true);
+      setPrescriptionEnabled(false); // Disable prescription until classification is done
+      
+      // Show a toast to notify the user that we're enhancing the transcript
+      toast.info('Enhancing transcript with speaker identification...', {
+        duration: 3000,
+      });
       
       // Add a small delay to make sure we have the final transcript
       const timeoutId = setTimeout(() => {
@@ -38,18 +46,22 @@ const DashboardPage = () => {
             const classified = classifyTranscript(transcript);
             setClassifiedTranscript(classified);
             setLastProcessedTranscript(transcript);
+            setShowClassifiedView(true); // Show the classified view
+            setPrescriptionEnabled(true); // Enable prescription generation
             console.log("Transcript auto-classified");
-            toast.success("Transcript classified with enhanced accuracy");
+            toast.success("Transcript enhanced with speaker identification");
           } catch (error) {
             console.error("Error classifying transcript:", error);
-            toast.error("Failed to classify transcript");
+            toast.error("Failed to enhance transcript");
+            setPrescriptionEnabled(true); // Enable prescription even if classification fails
           } finally {
             setIsClassifying(false);
           }
         } else {
           setIsClassifying(false);
+          setPrescriptionEnabled(true); // Enable prescription if no transcript to classify
         }
-      }, 800);
+      }, 1200); // Slightly longer delay for better UX
       
       return () => clearTimeout(timeoutId);
     }
@@ -59,6 +71,11 @@ const DashboardPage = () => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
       setTranscript(newTranscript);
+      
+      // Reset classified view when recording starts again
+      if (isRecording && showClassifiedView) {
+        setShowClassifiedView(false);
+      }
     }
   };
 
@@ -69,14 +86,21 @@ const DashboardPage = () => {
   const handleRecordingStateChange = (recordingState: boolean) => {
     setIsRecording(recordingState);
     
-    // When recording starts, reset the classified transcript if needed
-    if (recordingState && classifiedTranscript) {
-      // Keep the classified transcript until we have a new one
+    // When recording starts, reset the classified view
+    if (recordingState && showClassifiedView) {
+      setShowClassifiedView(false);
     }
     
     // When recording stops, show a toast notification
     if (!recordingState && transcript) {
       toast.info('Processing transcript with enhanced speaker detection...');
+    }
+  };
+  
+  // Allow manually showing original transcript view
+  const handleToggleView = () => {
+    if (classifiedTranscript && !isRecording) {
+      setShowClassifiedView(!showClassifiedView);
     }
   };
 
@@ -111,11 +135,11 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>When you stop recording, the transcript will be classified automatically</span>
+                  <span>When you stop recording, the transcript will be enhanced automatically</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>A prescription will be automatically generated based on the conversation</span>
+                  <span>A prescription will be generated based on the enhanced conversation</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
@@ -131,6 +155,10 @@ const DashboardPage = () => {
               transcript={transcript} 
               onTranscriptChange={setTranscript}
               isRecording={isRecording}
+              isClassifying={isClassifying}
+              classifiedTranscript={classifiedTranscript}
+              showClassifiedView={showClassifiedView}
+              onToggleView={handleToggleView}
             />
             
             <PrescriptionGenerator 
@@ -138,6 +166,7 @@ const DashboardPage = () => {
               patientInfo={patientInfo}
               classifiedTranscript={classifiedTranscript}
               isClassifying={isClassifying}
+              isEnabled={prescriptionEnabled}
             />
           </div>
         </div>

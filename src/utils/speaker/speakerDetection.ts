@@ -1,4 +1,3 @@
-
 // src/utils/speaker/speakerDetection.ts
 // Core speaker detection functionality
 
@@ -264,7 +263,8 @@ export function detectSpeaker(
     /^(i would like to|i('ll| will) prescribe|let me|i recommend)/i.test(lowerText) ||
     /^(based on|according to|looking at) (your|the|these)/i.test(lowerText) ||
     /^(take|use) (this|these|the|two|three|four|one)/i.test(lowerText) ||
-    /^(we need to|you should|you need to|you must)/i.test(lowerText)
+    /^(we need to|you should|you need to|you must)/i.test(lowerText) ||
+    /\b(prescribe|tablet|medicine|dose|treatment)\b/i.test(lowerText) 
   ) {
     return 'Doctor';
   }
@@ -274,7 +274,8 @@ export function detectSpeaker(
     /^i('m| am) (not )?feeling/i.test(lowerText) ||
     /^i('ve| have) been/i.test(lowerText) ||
     /^(my|i('ve| have)|the) (pain|headache|problem|issue)/i.test(lowerText) ||
-    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerText)
+    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerText) ||
+    /\b(hurts|stomach|pain|dirty|loose)\b/i.test(lowerText)
   ) {
     return 'Patient';
   }
@@ -290,38 +291,61 @@ export function detectSpeaker(
   return predictionScore > 0 ? 'Doctor' : 'Patient';
 }
 
-// Split merged utterances and classify each part
+// More conservative approach to splitting utterances
 function splitMergedUtterances(text: string): string[] {
-  // Define sentence splitters, considering both punctuation and speaker change indicators
-  const splitters = [
-    // End of complete sentences
-    /(?<=[.!?])\s+(?=[A-Z])/,
+  // First, check if we even need to split the text
+  // Define patterns that indicate a clear speaker change
+  const clearSpeakerChangePatterns = [
+    // Patient to doctor transitions
+    /(?<=\b(pain|hurts|suffering|symptoms|help))\s+(?=\b(don't worry|let's|i recommend|we should|take|okay|alright)\b)/i,
     
-    // Speaker transition indicators
-    /(?<=\b(hi|hello|okay|yes|no|thank you|alright))\s+(?=[a-z])/i,
+    // Doctor to patient transitions 
+    /(?<=\b(how are you feeling|what symptoms|when did|how long|any other)\?)\s+(?=\b(i have|i've been|my|yes|no)\b)/i,
     
-    // Question-answer pairs
-    /(?<=\?)\s+(?=[A-Z])/,
-    
-    // Common patient phrases that often start patient's turn
-    /(?=\b(i have|i feel|i am|i've been|my|yes doctor|no doctor)\b)/i,
-    
-    // Common doctor phrases that often start doctor's turn
-    /(?=\b(don't worry|let me|i'll prescribe|we need to|take|alright|okay)\b)/i,
-    
-    // Doctor's questions
-    /(?=\b(what|how|when|where|do you|are you|is it|have you)\b\s)/i,
+    // Clear question-answer pairs
+    /\?\s+(?=[A-Z])/,
   ];
   
-  // Apply sequential splitting
-  let sentences: string[] = [text];
+  // Check if there's a strong indication of speaker change
+  let shouldSplit = false;
+  for (const pattern of clearSpeakerChangePatterns) {
+    if (pattern.test(text)) {
+      shouldSplit = true;
+      break;
+    }
+  }
   
-  // Apply each splitter in sequence
+  // If we don't detect a strong pattern, keep the text as a single utterance
+  if (!shouldSplit) {
+    return [text];
+  }
+  
+  // Define less aggressive splitters than before
+  const splitters = [
+    // Clear speaker transitions with strong indicators
+    /(?<=\b(yes doctor|no doctor|thank you doctor)\.?\s+)(?=[A-Z])/i,
+    /(?<=\b(don't worry|let me prescribe|take these|alright)\.?\s+)(?=[A-Z])/i,
+    
+    // Question-answer pairs (only clear ones)
+    /\?\s+(?=[A-Z][a-z]+ [a-z]+)/,
+    
+    // Sentences with distinct doctor/patient vocabulary
+    /(?<=\b(symptoms|pain|hurts|suffering)\.?\s+)(?=\b(let me|i'll prescribe|take this|don't worry)\b)/i,
+    /(?<=\b(prescribe|treatment|medication|tablets)\.?\s+)(?=\b(thank you|thanks|ok|yes)\b)/i,
+  ];
+  
+  // Apply only the strong splitters
+  let sentences = [text];
   for (const splitter of splitters) {
     const result: string[] = [];
     sentences.forEach(sentence => {
-      const parts = sentence.split(splitter).filter(p => p.trim().length > 0);
-      result.push(...parts);
+      // Only split if we have a clear match
+      if (splitter.test(sentence)) {
+        const parts = sentence.split(splitter).filter(p => p.trim().length > 0);
+        result.push(...parts);
+      } else {
+        result.push(sentence);
+      }
     });
     sentences = result;
   }
@@ -332,7 +356,7 @@ function splitMergedUtterances(text: string): string[] {
     .filter(s => s.length > 0);
 }
 
-// Helper function to classify entire transcript with enhanced sentence splitting
+// Improved transcript classification that's more conservative with splitting
 export function classifyTranscript(transcript: string): string {
   // If transcript is already classified, return as is
   if (transcript.includes('[Doctor]:') || transcript.includes('[Patient]:')) {
@@ -346,7 +370,7 @@ export function classifyTranscript(transcript: string): string {
   
   if (paragraphs.length === 0) return '';
   
-  // Initialize conversation context with extended fields
+  // Initialize conversation context
   let context: ConversationContext = {
     isPatientDescribingSymptoms: false,
     doctorAskedQuestion: false,
@@ -356,7 +380,7 @@ export function classifyTranscript(transcript: string): string {
     lastSpeaker: 'Doctor', // Starting assumption
     isFirstInteraction: true,
     turnCount: 0,
-    // New context properties
+    // Advanced context properties
     medicalTermsCount: 0,
     questionCount: 0,
     firstPersonPronounCount: 0,
@@ -367,7 +391,6 @@ export function classifyTranscript(transcript: string): string {
   // Process each paragraph
   let classified = '';
   
-  // First pass: Check if paragraphs need to be split and classify everything
   for (let i = 0; i < paragraphs.length; i++) {
     const paragraph = paragraphs[i];
     
@@ -391,6 +414,7 @@ export function classifyTranscript(transcript: string): string {
     }
     
     // Try to identify if this paragraph contains merged utterances
+    // Use more conservative approach to splitting
     const possibleUtterances = splitMergedUtterances(paragraph);
     
     // If we detected multiple potential utterances, process each separately
@@ -403,7 +427,7 @@ export function classifyTranscript(transcript: string): string {
         }
         
         // Detect speaker for this utterance
-        const speaker = detectSpeakerForSentence(formattedUtterance, context);
+        const speaker = detectSpeaker(formattedUtterance, context);
         
         // Add speaker label to the utterance
         classified += `[${speaker}]: ${formattedUtterance}\n\n`;
@@ -429,13 +453,6 @@ export function classifyTranscript(transcript: string): string {
         context.isPrescribing = 
           speaker === 'Doctor' && 
           (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(formattedUtterance));
-          
-        // Update advanced context metrics
-        const features = extractSpeakerFeatures(formattedUtterance);
-        context.medicalTermsCount += features.medicalTermsUsage / 2;
-        context.questionCount += features.questionDensity / 10;
-        context.firstPersonPronounCount += features.firstPersonUsage / 20;
-        context.sentenceStructureComplexity = features.sentenceComplexity;
       }
     } else {
       // Process as a single paragraph
@@ -466,13 +483,6 @@ export function classifyTranscript(transcript: string): string {
       context.isPrescribing = 
         speaker === 'Doctor' && 
         (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
-        
-      // Update advanced context metrics
-      const features = extractSpeakerFeatures(paragraph);
-      context.medicalTermsCount += features.medicalTermsUsage / 2;
-      context.questionCount += features.questionDensity / 10;
-      context.firstPersonPronounCount += features.firstPersonUsage / 20;
-      context.sentenceStructureComplexity = features.sentenceComplexity;
     }
   }
   
