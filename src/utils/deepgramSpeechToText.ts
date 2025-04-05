@@ -1,4 +1,3 @@
-
 import { createClient, LiveClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 
 export interface DeepgramResult {
@@ -363,8 +362,7 @@ export const processCompleteAudio = async (
     // Create the Deepgram API client
     const deepgram = createClient(apiKey);
     
-    // Use the prerecorded API correctly - this was the issue
-    // The client structure has changed in the latest @deepgram/sdk
+    // Use the prerecorded API correctly with the correct response structure
     const response = await deepgram.listen.prerecorded.transcribeFile(
       Buffer.from(arrayBuffer), 
       {
@@ -373,16 +371,16 @@ export const processCompleteAudio = async (
       }
     );
     
-    // Check if we have results
-    if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
+    // Check if we have results - using 'result' instead of 'results'
+    if (!response?.result?.channels?.[0]?.alternatives?.[0]) {
       return {
         transcript: '',
         error: 'No transcription results returned'
       };
     }
     
-    // Format the transcript with speaker diarization
-    const result = response.results;
+    // Format the transcript with speaker diarization - using 'result' instead of 'results'
+    const result = response.result;
     const transcription = formatDiarizedTranscript(result);
     
     return {
@@ -425,7 +423,7 @@ function formatDiarizedTranscript(result: any): string {
   }
 }
 
-// Fallback formatting using paragraphs
+// Helper to format paragraph transcript from Deepgram response
 function formatParagraphTranscript(result: any): string {
   try {
     const paragraphs = result.channels[0].alternatives[0].paragraphs?.paragraphs || [];
