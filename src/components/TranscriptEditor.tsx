@@ -17,6 +17,7 @@ interface TranscriptEditorProps {
   classifiedTranscript?: string;
   showClassifiedView?: boolean;
   onToggleView?: () => void;
+  setIsClassifying?: (isClassifying: boolean) => void;
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 
@@ -26,7 +27,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   isClassifying = false,
   classifiedTranscript = "",
   showClassifiedView = false,
-  onToggleView
+  onToggleView,
+  setIsClassifying
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
@@ -94,7 +96,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         return;
       }
 
-      setIsClassifying(true);
+      if (setIsClassifying) {
+        setIsClassifying(true);
+      }
       
       setTimeout(() => {
         try {
@@ -108,13 +112,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           console.error('Error during speaker classification:', error);
           toast.error('Failed to classify speakers');
         } finally {
-          setIsClassifying(false);
+          if (setIsClassifying) {
+            setIsClassifying(false);
+          }
         }
       }, 800);
     } catch (error) {
       console.error('Error during speaker classification:', error);
       toast.error('Failed to classify speakers');
-      setIsClassifying(false);
+      if (setIsClassifying) {
+        setIsClassifying(false);
+      }
     }
   };
 

@@ -21,24 +21,20 @@ const DashboardPage = () => {
   const [showClassifiedView, setShowClassifiedView] = useState(false);
   const [prescriptionEnabled, setPrescriptionEnabled] = useState(false);
 
-  // Debug the transcript updates
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
-  // Auto-classify the transcript when recording stops
   useEffect(() => {
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
       setIsClassifying(true);
       setPrescriptionEnabled(false); // Disable prescription until classification is done
       
-      // Show a toast to notify the user that we're enhancing the transcript
       toast.info('Enhancing transcript with speaker identification...', {
         duration: 3000,
       });
       
-      // Add a small delay to make sure we have the final transcript
       const timeoutId = setTimeout(() => {
         if (transcript && transcript.trim().length > 0) {
           try {
@@ -71,7 +67,6 @@ const DashboardPage = () => {
     if (newTranscript !== undefined) {
       setTranscript(newTranscript);
       
-      // Reset classified view when recording starts again
       if (isRecording && showClassifiedView) {
         setShowClassifiedView(false);
       }
@@ -85,18 +80,15 @@ const DashboardPage = () => {
   const handleRecordingStateChange = (recordingState: boolean) => {
     setIsRecording(recordingState);
     
-    // When recording starts, reset the classified view
     if (recordingState && showClassifiedView) {
       setShowClassifiedView(false);
     }
     
-    // When recording stops, show a toast notification
     if (!recordingState && transcript) {
       toast.info('Processing transcript with enhanced speaker detection...');
     }
   };
   
-  // Allow manually showing original transcript view
   const handleToggleView = () => {
     if (classifiedTranscript && !isRecording) {
       setShowClassifiedView(!showClassifiedView);
@@ -109,7 +101,6 @@ const DashboardPage = () => {
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
-          {/* Voice Recorder Column */}
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
@@ -148,7 +139,6 @@ const DashboardPage = () => {
             </Card>
           </div>
           
-          {/* Main Content Column */}
           <div className="md:col-span-8 space-y-6">
             <TranscriptEditor 
               transcript={transcript} 
