@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -38,6 +39,7 @@ const DashboardPage = () => {
             setClassifiedTranscript(classified);
             setLastProcessedTranscript(transcript);
             console.log("Transcript auto-classified");
+            toast.success("Transcript classified with enhanced accuracy");
           } catch (error) {
             console.error("Error classifying transcript:", error);
             toast.error("Failed to classify transcript");
@@ -74,7 +76,7 @@ const DashboardPage = () => {
     
     // When recording stops, show a toast notification
     if (!recordingState && transcript) {
-      toast.info('Processing transcript...');
+      toast.info('Processing transcript with enhanced speaker detection...');
     }
   };
 

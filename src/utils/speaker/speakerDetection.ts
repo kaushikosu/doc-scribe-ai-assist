@@ -158,6 +158,86 @@ function predictSpeakerFromFeatures(features: SpeakerFeatures, context: Conversa
   return score;
 }
 
+// Enhanced sentence-level speaker detection
+export function detectSpeakerForSentence(
+  sentence: string, 
+  context: ConversationContext
+): SpeakerRole {
+  const lowerSentence = sentence.toLowerCase().trim();
+  
+  if (!sentence || sentence.trim().length === 0) {
+    return context.lastSpeaker || 'Doctor';
+  }
+  
+  // First interaction is likely doctor greeting
+  if (context.isFirstInteraction) {
+    // Check for doctor greetings at the very beginning
+    if (/(hello|hi|good morning|namaste|welcome)/i.test(lowerSentence)) {
+      return 'Doctor';
+    }
+  }
+  
+  // STRONG pattern-based indicators - these override most other patterns
+  // Doctor strong indicators
+  if (
+    /^(i would like to|i('ll| will) prescribe|let me|i recommend)/i.test(lowerSentence) ||
+    /^(based on|according to|looking at) (your|the|these)/i.test(lowerSentence) ||
+    /^(take|use) (this|these|the|two|three|four|one)/i.test(lowerSentence) ||
+    /^(we need to|you should|you need to|you must)/i.test(lowerSentence) ||
+    /\b(prescribe|tablets|medication|doctor|medicine|days|treatment)\b/i.test(lowerSentence)
+  ) {
+    return 'Doctor';
+  }
+  
+  // Patient strong indicators
+  if (
+    /^i('m| am) (not )?feeling/i.test(lowerSentence) ||
+    /^i('ve| have) been/i.test(lowerSentence) ||
+    /^(my|i('ve| have)|the) (pain|headache|problem|issue)/i.test(lowerSentence) ||
+    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerSentence) ||
+    /\b(pain|hurt|stomach|dirty|loose)\b/i.test(lowerSentence)
+  ) {
+    return 'Patient';
+  }
+  
+  // Common greeting patterns should be analyzed in sequence for better detection
+  if (/\b(hello|hi|hey|good morning|good afternoon|good evening)\b/i.test(lowerSentence)) {
+    // Check if greeting includes formal doctor/patient address
+    if (/\b(doctor|dr\.)\b/i.test(lowerSentence)) {
+      return 'Patient';
+    }
+    // If name is mentioned after greeting, likely doctor greeting patient
+    else if (/\b(hello|hi|hey|good morning|good afternoon|good evening)\s+[A-Z][a-z]+\b/i.test(sentence)) {
+      return 'Doctor';
+    }
+  }
+  
+  // Response patterns to identify patient/doctor exchanges
+  if (/\b(yes|no)\s+doctor\b/i.test(lowerSentence)) {
+    return 'Patient';
+  }
+  
+  if (/\b(don['']t worry|we will get|let me check|i['']ll prescribe)\b/i.test(lowerSentence)) {
+    return 'Doctor';
+  }
+  
+  // Question patterns strongly indicate speaker roles
+  if (/\b(what did you have|how long have you|when did you|do you have|are you feeling)\b/i.test(lowerSentence) && 
+      sentence.endsWith('?')) {
+    return 'Doctor';
+  }
+  
+  // Extract comprehensive features for ML-style classification
+  const features = extractSpeakerFeatures(sentence);
+  
+  // Use features to predict speaker (positive score = doctor, negative = patient)
+  const predictionScore = predictSpeakerFromFeatures(features, context);
+  
+  // Make final prediction based on score
+  // Positive score indicates doctor, negative indicates patient
+  return predictionScore > 0 ? 'Doctor' : 'Patient';
+}
+
 // Advanced speaker detection using ML-inspired feature extraction and context
 export function detectSpeaker(
   text: string, 
@@ -169,6 +249,7 @@ export function detectSpeaker(
     return context.lastSpeaker || 'Doctor';
   }
   
+  // First, try to detect at paragraph level for efficiency
   // First interaction is likely doctor greeting
   if (context.isFirstInteraction) {
     // Check for doctor greetings at the very beginning
@@ -209,8 +290,55 @@ export function detectSpeaker(
   return predictionScore > 0 ? 'Doctor' : 'Patient';
 }
 
-// Helper function to classify entire transcript
+// Split merged utterances and classify each part
+function splitMergedUtterances(text: string): string[] {
+  // Define sentence splitters, considering both punctuation and speaker change indicators
+  const splitters = [
+    // End of complete sentences
+    /(?<=[.!?])\s+(?=[A-Z])/,
+    
+    // Speaker transition indicators
+    /(?<=\b(hi|hello|okay|yes|no|thank you|alright))\s+(?=[a-z])/i,
+    
+    // Question-answer pairs
+    /(?<=\?)\s+(?=[A-Z])/,
+    
+    // Common patient phrases that often start patient's turn
+    /(?=\b(i have|i feel|i am|i've been|my|yes doctor|no doctor)\b)/i,
+    
+    // Common doctor phrases that often start doctor's turn
+    /(?=\b(don't worry|let me|i'll prescribe|we need to|take|alright|okay)\b)/i,
+    
+    // Doctor's questions
+    /(?=\b(what|how|when|where|do you|are you|is it|have you)\b\s)/i,
+  ];
+  
+  // Apply sequential splitting
+  let sentences: string[] = [text];
+  
+  // Apply each splitter in sequence
+  for (const splitter of splitters) {
+    const result: string[] = [];
+    sentences.forEach(sentence => {
+      const parts = sentence.split(splitter).filter(p => p.trim().length > 0);
+      result.push(...parts);
+    });
+    sentences = result;
+  }
+  
+  // Filter and clean up
+  return sentences
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
+
+// Helper function to classify entire transcript with enhanced sentence splitting
 export function classifyTranscript(transcript: string): string {
+  // If transcript is already classified, return as is
+  if (transcript.includes('[Doctor]:') || transcript.includes('[Patient]:')) {
+    return transcript;
+  }
+  
   // Split transcript into paragraphs
   const paragraphs = transcript
     .split(/\n+/)
@@ -239,8 +367,10 @@ export function classifyTranscript(transcript: string): string {
   // Process each paragraph
   let classified = '';
   
-  // First pass: identify speakers and build context
-  paragraphs.forEach((paragraph, index) => {
+  // First pass: Check if paragraphs need to be split and classify everything
+  for (let i = 0; i < paragraphs.length; i++) {
+    const paragraph = paragraphs[i];
+    
     // Skip already classified paragraphs
     if (paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/)) {
       classified += paragraph + '\n\n';
@@ -257,44 +387,94 @@ export function classifyTranscript(transcript: string): string {
         });
       }
       
-      return;
+      continue;
     }
     
-    // Detect speaker for this paragraph
-    const speaker = detectSpeaker(paragraph, context);
+    // Try to identify if this paragraph contains merged utterances
+    const possibleUtterances = splitMergedUtterances(paragraph);
     
-    // Add speaker label to the paragraph
-    classified += `[${speaker}]: ${paragraph}\n\n`;
-    
-    // Add to interaction history for context
-    context.interactionHistory.push({
-      speaker: speaker,
-      text: paragraph
-    });
-    
-    // Update context for next iteration
-    context.lastSpeaker = speaker;
-    context.isFirstInteraction = false;
-    context.turnCount++;
-    
-    // Update other context flags based on content
-    context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
-    
-    context.isPatientDescribingSymptoms = 
-      speaker === 'Patient' && 
-      (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
+    // If we detected multiple potential utterances, process each separately
+    if (possibleUtterances.length > 1) {
+      for (const utterance of possibleUtterances) {
+        // Add proper punctuation if missing
+        let formattedUtterance = utterance;
+        if (!/[.!?]$/.test(formattedUtterance)) {
+          formattedUtterance += '.';
+        }
+        
+        // Detect speaker for this utterance
+        const speaker = detectSpeakerForSentence(formattedUtterance, context);
+        
+        // Add speaker label to the utterance
+        classified += `[${speaker}]: ${formattedUtterance}\n\n`;
+        
+        // Add to interaction history for context
+        context.interactionHistory.push({
+          speaker,
+          text: formattedUtterance
+        });
+        
+        // Update context for next iteration
+        context.lastSpeaker = speaker;
+        context.isFirstInteraction = false;
+        context.turnCount++;
+        
+        // Update other context flags based on content
+        context.doctorAskedQuestion = formattedUtterance.includes('?') && speaker === 'Doctor';
+        
+        context.isPatientDescribingSymptoms = 
+          speaker === 'Patient' && 
+          (/pain|hurt|feel|symptom|problem|issue/i.test(formattedUtterance));
+          
+        context.isPrescribing = 
+          speaker === 'Doctor' && 
+          (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(formattedUtterance));
+          
+        // Update advanced context metrics
+        const features = extractSpeakerFeatures(formattedUtterance);
+        context.medicalTermsCount += features.medicalTermsUsage / 2;
+        context.questionCount += features.questionDensity / 10;
+        context.firstPersonPronounCount += features.firstPersonUsage / 20;
+        context.sentenceStructureComplexity = features.sentenceComplexity;
+      }
+    } else {
+      // Process as a single paragraph
+      // Detect speaker for this paragraph
+      const speaker = detectSpeaker(paragraph, context);
       
-    context.isPrescribing = 
-      speaker === 'Doctor' && 
-      (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
+      // Add speaker label to the paragraph
+      classified += `[${speaker}]: ${paragraph}\n\n`;
       
-    // Update advanced context metrics
-    const features = extractSpeakerFeatures(paragraph);
-    context.medicalTermsCount += features.medicalTermsUsage / 2;
-    context.questionCount += features.questionDensity / 10;
-    context.firstPersonPronounCount += features.firstPersonUsage / 20;
-    context.sentenceStructureComplexity = features.sentenceComplexity;
-  });
+      // Add to interaction history for context
+      context.interactionHistory.push({
+        speaker,
+        text: paragraph
+      });
+      
+      // Update context for next iteration
+      context.lastSpeaker = speaker;
+      context.isFirstInteraction = false;
+      context.turnCount++;
+      
+      // Update other context flags based on content
+      context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
+      
+      context.isPatientDescribingSymptoms = 
+        speaker === 'Patient' && 
+        (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
+        
+      context.isPrescribing = 
+        speaker === 'Doctor' && 
+        (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
+        
+      // Update advanced context metrics
+      const features = extractSpeakerFeatures(paragraph);
+      context.medicalTermsCount += features.medicalTermsUsage / 2;
+      context.questionCount += features.questionDensity / 10;
+      context.firstPersonPronounCount += features.firstPersonUsage / 20;
+      context.sentenceStructureComplexity = features.sentenceComplexity;
+    }
+  }
   
   return classified.trim();
 }
