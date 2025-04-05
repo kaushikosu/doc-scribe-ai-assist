@@ -83,12 +83,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     const lineCount = transcript.split(/\n/).length;
     
     // Each line is roughly 24px, add padding
-    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 240);
+    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 300);
     return `h-[${estimatedHeight}px]`;
   };
 
   return (
-    <Card className="border border-doctor-secondary/20 shadow-md">
+    <Card className="border-2 border-doctor-secondary/30">
       <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
         <div className="flex items-center gap-1.5">
           <AlignJustify className="h-4 w-4 text-doctor-secondary" />
@@ -96,22 +96,36 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         </div>
         <div className="flex gap-1">
           <Button 
-            variant="ghost" 
+            variant="outline" 
             size="sm"
             onClick={copyToClipboard}
             disabled={!transcript.length}
-            className="h-7 text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10"
+            className="h-7 text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10 border-doctor-primary"
           >
-            <Copy className="h-3.5 w-3.5" />
+            <Copy className="h-3.5 w-3.5 mr-1" />
+            Copy
           </Button>
           <Button 
-            variant="ghost" 
+            variant="outline" 
             size="sm"
             onClick={isEditing ? handleSave : handleEdit}
             disabled={!transcript.length}
-            className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10"
+            className={cn(
+              "h-7 border-doctor-secondary text-doctor-secondary",
+              isEditing ? "hover:bg-doctor-secondary hover:text-white" : "hover:bg-doctor-secondary/10"
+            )}
           >
-            {isEditing ? <Save className="h-3.5 w-3.5" /> : <Edit className="h-3.5 w-3.5" />}
+            {isEditing ? (
+              <>
+                <Save className="h-3.5 w-3.5 mr-1" />
+                Save
+              </>
+            ) : (
+              <>
+                <Edit className="h-3.5 w-3.5 mr-1" />
+                Edit
+              </>
+            )}
           </Button>
         </div>
       </CardHeader>
@@ -120,12 +134,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[240px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2`}
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[300px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2`}
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[240px] min-h-[120px]`}
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[300px] min-h-[120px]`}
             ref={scrollAreaRef}
           >
             <div 
