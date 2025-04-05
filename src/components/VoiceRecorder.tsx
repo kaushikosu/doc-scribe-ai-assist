@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -136,19 +135,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // For Web Speech API, we'll simulate speaker tags
-    // Simple alternating pattern: first utterance is doctor, then patient, then doctor, etc.
-    const speakerTag = resultIndex % 2 === 0 ? 1 : 2; // 1 for Doctor, 2 for Patient
-    
-    // Track speakers we've seen
-    if (speakerTag > 0) {
-      speakersDetectedRef.current.add(speakerTag);
-      console.log(`Speaker ${speakerTag} detected. Total speakers: ${speakersDetectedRef.current.size}`);
-    }
-    
-    // Format result with a speaker tag
-    const speakerLabel = speakerTag === 1 ? 'Doctor' : 'Patient';
-    const formattedResult = `[${speakerLabel}]: ${result}`;
+    // Simply use the raw result without speaker tags
+    // This will create a more natural transcript with automatic chunking
     
     if (isFinal) {
       // Add the new text to the raw transcript - ensure it's on a new line if needed
@@ -156,11 +144,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         // If we're starting a new utterance and the previous doesn't end with a newline, add one
         let newRawTranscript;
         if (prev === '') {
-          newRawTranscript = formattedResult;
+          newRawTranscript = result;
         } else if (prev.endsWith('\n')) {
-          newRawTranscript = prev + formattedResult;
+          newRawTranscript = prev + result;
         } else {
-          newRawTranscript = prev + '\n' + formattedResult;
+          newRawTranscript = prev + '\n' + result;
         }
         
         currentTranscriptRef.current = newRawTranscript;
@@ -173,10 +161,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       }
     } else {
       // For non-final results, show them as temporary text in real-time
-      // Add the non-final result to the current transcript for real-time feedback
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
-        formattedResult + '...'; // Show ellipsis for non-final results
+        result + '...'; // Show ellipsis for non-final results
       
       // Update both the reference and the parent component
       onTranscriptUpdate(updatedTranscript);

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, UserCircle, UserRound } from 'lucide-react';
+import { Edit, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -44,52 +44,31 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
-  // Process and format the transcript for better readability with clear speaker distinction
+  // Process and format the transcript with improved chunking and no speaker labels
   const formattedTranscript = React.useMemo(() => {
     if (!transcript) return '';
     
-    // Check if transcript contains speaker labels
-    const hasLabels = transcript.includes('[Doctor]:') || transcript.includes('[Patient]:');
+    // Remove all speaker labels for a clean transcript
+    let cleanTranscript = transcript.replace(/\[(Doctor|Patient|Identifying)\]:\s*/g, '');
     
-    if (hasLabels) {
-      // Format with speaker labels - each utterance gets its own message element
-      return transcript
-        .split('\n')
-        .filter(line => line.trim() !== '')  // Filter out empty lines
-        .map((line, index) => {
-          // Extract speaker and content using regex
-          const match = line.match(/\[(Doctor|Patient|Identifying)\]:\s*(.*)/);
-          
-          if (!match) {
-            // If no speaker label, show as a plain line
-            return `<div class="message plain-message"><div class="message-content">${line}</div></div>`;
-          }
-          
-          const [_, speaker, content] = match;
-          
-          if (speaker === 'Doctor') {
-            return `<div class="message doctor-message"><div class="speaker-icon doctor-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-circle"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/></svg></div><div class="speaker-label doctor-label">Doctor</div><div class="message-content">${content}</div></div>`;
-          } else if (speaker === 'Patient') {
-            return `<div class="message patient-message"><div class="speaker-icon patient-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg></div><div class="speaker-label patient-label">Patient</div><div class="message-content">${content}</div></div>`;
-          } else {
-            return `<div class="message identifying-message"><div class="speaker-label identifying-label">Listening...</div><div class="message-content">${content}</div></div>`;
-          }
-        })
-        .join(''); // Join all formatted lines together
-    } else {
-      // Format raw transcript (during recording) - each line gets treated as a separate utterance
-      return transcript
-        .split('\n')
-        .filter(line => line.trim() !== '')
-        .map(line => {
-          // Handle "Processing..." and "Listening..." indicators specially
-          if (line === "Processing..." || line === "Listening...") {
-            return `<div class="message realtime-message"><div class="message-content"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-doctor-primary animate-pulse"></span>${line}</div></div></div>`;
-          }
-          return `<div class="message realtime-message"><div class="message-content">${line}</div></div>`;
-        })
-        .join('');
-    }
+    // Split by natural breaks - line breaks, periods followed by space, etc.
+    const chunks = cleanTranscript
+      .split(/(?:\n+|\.\s+|\?\s+|\!\s+)/g)
+      .filter(chunk => chunk.trim().length > 0);
+    
+    // Format each chunk as a separate paragraph
+    return chunks
+      .map(chunk => {
+        // Determine if this is a processing indication
+        if (chunk.includes("Processing...") || chunk.includes("Listening...")) {
+          return `<div class="processing-indicator"><span class="h-2 w-2 rounded-full bg-doctor-primary animate-pulse"></span> ${chunk}</div>`;
+        }
+        
+        // Return a standard paragraph for regular text
+        return `<div class="transcript-paragraph">${chunk}</div>`;
+      })
+      .join('');
+      
   }, [transcript]);
 
   return (
@@ -126,17 +105,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className="min-h-[400px] max-h-[600px] resize-none focus-visible:ring-doctor-secondary"
+            className="h-[300px] max-h-[300px] resize-none focus-visible:ring-doctor-secondary"
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className="h-[400px] rounded-md overflow-auto pr-2" 
+            className="h-[300px] rounded-md" 
             ref={scrollAreaRef}
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md min-h-full w-full space-y-2"
+              className="bg-muted p-4 rounded-md min-h-full w-full"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 
@@ -147,86 +126,26 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         )}
         <style>
           {`
-          .message {
-            margin-bottom: 1rem;
+          .transcript-paragraph {
+            margin-bottom: 0.75rem;
             padding-bottom: 0.5rem;
             border-bottom: 1px solid #f0f0f0;
-            display: grid;
-            grid-template-columns: auto 1fr;
-            grid-template-rows: auto 1fr;
-            grid-template-areas:
-              "icon label"
-              "content content";
-            gap: 0.25rem 0.5rem;
-          }
-          
-          .realtime-message {
-            grid-template-columns: 1fr;
-            grid-template-areas: "content";
-            padding: 0.5rem;
-            background-color: #f9f9f9;
-            border-radius: 0.25rem;
-            border-left: 3px solid #d1d5db;
-          }
-          
-          .speaker-icon {
-            grid-area: icon;
-            width: 1.25rem;
-            height: 1.25rem;
-            display: flex;
-            align-items: center;
-          }
-          
-          .speaker-label {
-            grid-area: label;
-            font-weight: 600;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-          }
-          
-          .message-content {
-            grid-area: content;
-            padding-left: 0.5rem;
-            margin-top: 0.25rem;
-            border-left: 2px solid #e5e7eb;
             line-height: 1.5;
           }
           
-          .realtime-message .message-content {
-            margin-top: 0;
-            padding-left: 0;
-            border-left: none;
-          }
-          
-          .plain-message .message-content {
-            grid-column: 1 / -1;
-            padding-left: 0;
-            border-left: none;
-          }
-          
-          .doctor-message .speaker-icon,
-          .doctor-label {
-            color: #2563eb;
-          }
-          
-          .patient-message .speaker-icon,
-          .patient-label {
-            color: #7c3aed;
-          }
-          
-          .identifying-label {
+          .processing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-style: italic;
             color: #6b7280;
-            font-style: italic;
-            grid-column: span 2;
+            margin-bottom: 0.5rem;
           }
           
-          .identifying-message {
-            opacity: 0.85;
-          }
-          
-          .identifying-message .message-content {
-            font-style: italic;
+          .processing-indicator span {
+            display: inline-block;
+            width: 0.5rem;
+            height: 0.5rem;
           }
           `}
         </style>
