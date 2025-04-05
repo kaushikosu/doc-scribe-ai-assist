@@ -77,31 +77,41 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       
   }, [transcript]);
 
+  // Calculate dynamic height based on content (with min and max constraints)
+  const getContentHeight = () => {
+    if (!transcript) return 'min-h-[120px]';
+    const lineCount = transcript.split(/\n/).length;
+    
+    // Each line is roughly 24px, add padding
+    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 240);
+    return `h-[${estimatedHeight}px]`;
+  };
+
   return (
-    <Card className="border border-doctor-secondary/20 shadow-md h-full">
-      <CardHeader className="pb-2 pt-3 px-4 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
-        <div className="flex items-center gap-2">
+    <Card className="border border-doctor-secondary/20 shadow-md">
+      <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
+        <div className="flex items-center gap-1.5">
           <AlignJustify className="h-4 w-4 text-doctor-secondary" />
-          <CardTitle className="text-lg text-doctor-secondary font-medium">Transcript</CardTitle>
+          <CardTitle className="text-base text-doctor-secondary font-medium">Transcript</CardTitle>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <Button 
             variant="ghost" 
             size="sm"
             onClick={copyToClipboard}
             disabled={!transcript.length}
-            className="text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10"
+            className="h-7 text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10"
           >
-            <Copy className="h-4 w-4" />
+            <Copy className="h-3.5 w-3.5" />
           </Button>
           <Button 
             variant="ghost" 
             size="sm"
             onClick={isEditing ? handleSave : handleEdit}
             disabled={!transcript.length}
-            className="text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10"
+            className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10"
           >
-            {isEditing ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
+            {isEditing ? <Save className="h-3.5 w-3.5" /> : <Edit className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </CardHeader>
@@ -110,17 +120,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className="h-[240px] max-h-[240px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary"
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[240px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2`}
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className="h-[240px]" 
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[240px] min-h-[120px]`}
             ref={scrollAreaRef}
           >
             <div 
               ref={contentRef} 
-              className="p-3 min-h-full w-full"
+              className={`p-2 w-full`}
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 
@@ -132,10 +142,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         <style>
           {`
           .transcript-paragraph {
-            margin-bottom: 0.5rem;
-            padding-bottom: 0.25rem;
-            border-bottom: 1px dotted rgba(0,0,0,0.05);
-            line-height: 1.4;
+            margin-bottom: 0.25rem;
+            padding-bottom: 0.15rem;
+            border-bottom: 1px dotted rgba(0,0,0,0.03);
+            line-height: 1.3;
           }
           
           .processing-indicator {
@@ -144,13 +154,13 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             gap: 0.5rem;
             font-style: italic;
             color: #6b7280;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
           }
           
           .processing-indicator span {
             display: inline-block;
-            width: 0.5rem;
-            height: 0.5rem;
+            width: 0.4rem;
+            height: 0.4rem;
           }
           `}
         </style>
