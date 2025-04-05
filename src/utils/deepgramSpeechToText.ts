@@ -1,3 +1,4 @@
+
 import { createClient, LiveClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 
 export interface DeepgramResult {
@@ -25,15 +26,57 @@ const createDeepgramOptions = () => ({
   channels: 1,
 });
 
+// Pre-connect to Deepgram (establishes connection without sending audio)
+export const preconnectToDeepgram = (
+  apiKey: string,
+  onStatusChange?: (status: ConnectionStatus) => void
+): { client: any, status: ConnectionStatus } => {
+  try {
+    const deepgram = createClient(apiKey);
+    const client = deepgram.listen.live(createDeepgramOptions());
+    
+    if (onStatusChange) onStatusChange('connecting');
+    
+    client.on(LiveTranscriptionEvents.Open, () => {
+      if (onStatusChange) onStatusChange('open');
+    });
+    
+    client.on(LiveTranscriptionEvents.Error, () => {
+      if (onStatusChange) onStatusChange('failed');
+    });
+    
+    client.on(LiveTranscriptionEvents.Close, () => {
+      if (onStatusChange) onStatusChange('closed');
+    });
+    
+    return { client, status: 'connecting' };
+  } catch (error) {
+    console.error('Error pre-connecting to Deepgram:', error);
+    return { client: null, status: 'failed' };
+  }
+};
+
+// Disconnect from Deepgram
+export const disconnectDeepgram = (client: any) => {
+  if (client) {
+    try {
+      client.finish();
+    } catch (error) {
+      console.error('Error disconnecting from Deepgram:', error);
+    }
+  }
+};
+
 export const streamAudioToDeepgram = (
   stream: MediaStream,
   apiKey: string,
   onResult: (result: DeepgramResult) => void,
-  onStatusChange?: (status: ConnectionStatus) => void
+  onStatusChange?: (status: ConnectionStatus) => void,
+  existingClient?: any
 ): (() => void) => {
   console.log('Setting up Deepgram streaming with API Key:', apiKey.slice(0, 4) + '...');
 
-  let client: LiveClient | null = null;
+  let client: LiveClient | null = existingClient || null;
   let audioContext: AudioContext | null = null;
   let processor: ScriptProcessorNode | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
@@ -49,9 +92,11 @@ export const streamAudioToDeepgram = (
       source.connect(processor);
       processor.connect(audioContext.destination);
 
-      // Initialize Deepgram client
-      const deepgram = createClient(apiKey);
-      client = deepgram.listen.live(createDeepgramOptions());
+      // Initialize Deepgram client if one wasn't provided
+      if (!client) {
+        const deepgram = createClient(apiKey);
+        client = deepgram.listen.live(createDeepgramOptions());
+      }
 
       if (onStatusChange) onStatusChange('connecting');
 

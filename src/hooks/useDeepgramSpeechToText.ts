@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
-import { Deepgram } from "@deepgram/sdk";
 import { 
   streamAudioToDeepgram,
   ConnectionStatus,
@@ -196,7 +195,7 @@ const useDeepgramSpeechToText = ({
         apiKey,
         handleSpeechResult,
         handleConnectionStatusChange,
-        client // Pass the existing client if we have one
+        client // Pass the existing client
       );
       
       cleanupFunctionRef.current = cleanup;
