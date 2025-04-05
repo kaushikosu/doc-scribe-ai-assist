@@ -1,6 +1,5 @@
-
 // Define types for Deepgram responses
-import { createClient, LiveTranscriptionEvents, LiveClient } from "@deepgram/sdk";
+import { Deepgram, LiveTranscriptionResponse, DeepgramClient, LiveClient, LiveTranscriptionEvent } from "@deepgram/sdk/browser";
 
 export interface DeepgramResult {
   transcript: string;
@@ -47,27 +46,27 @@ export const preconnectToDeepgram = (
     }
     
     // Create Deepgram client
-    const deepgramClient = createClient(apiKey);
+    const deepgramClient = new Deepgram(apiKey);
 
     // Create a live transcription client
     const liveClient = deepgramClient.listen.live(createDeepgramOptions());
 
     // Set up event listeners
-    liveClient.on(LiveTranscriptionEvents.Open, () => {
+    liveClient.on(LiveTranscriptionEvent.Open, () => {
       console.log("Deepgram connection opened");
       if (onStatusChange) {
         onStatusChange('open');
       }
     });
 
-    liveClient.on(LiveTranscriptionEvents.Error, (error) => {
+    liveClient.on(LiveTranscriptionEvent.Error, (error) => {
       console.error("Deepgram error:", error);
       if (onStatusChange) {
         onStatusChange('failed');
       }
     });
 
-    liveClient.on(LiveTranscriptionEvents.Close, () => {
+    liveClient.on(LiveTranscriptionEvent.Close, () => {
       console.log("Deepgram connection closed");
       if (onStatusChange) {
         onStatusChange('closed');
@@ -139,7 +138,7 @@ export const streamAudioToDeepgram = (
         client = clientCache.client;
       } else {
         // Create a new Deepgram client
-        const deepgramClient = createClient(apiKey);
+        const deepgramClient = new Deepgram(apiKey);
         client = deepgramClient.listen.live(createDeepgramOptions());
         clientCache = { client, apiKey };
       }
@@ -166,7 +165,7 @@ export const streamAudioToDeepgram = (
 
     client.removeAllListeners();
 
-    client.on(LiveTranscriptionEvents.Open, () => {
+    client.on(LiveTranscriptionEvent.Open, () => {
       console.log("Deepgram connection opened");
       if (onStatusChange) {
         onStatusChange('open');
@@ -174,7 +173,7 @@ export const streamAudioToDeepgram = (
       reconnectAttempts = 0;
     });
 
-    client.on(LiveTranscriptionEvents.Transcript, (data) => {
+    client.on(LiveTranscriptionEvent.Transcript, (data: LiveTranscriptionResponse) => {
       try {
         if (!data?.channel?.alternatives?.length) return;
         
@@ -212,7 +211,7 @@ export const streamAudioToDeepgram = (
       }
     });
 
-    client.on(LiveTranscriptionEvents.Error, (error) => {
+    client.on(LiveTranscriptionEvent.Error, (error) => {
       console.error("Deepgram error:", error);
       if (onStatusChange) {
         onStatusChange('failed');
@@ -221,7 +220,7 @@ export const streamAudioToDeepgram = (
       reconnect();
     });
 
-    client.on(LiveTranscriptionEvents.Close, () => {
+    client.on(LiveTranscriptionEvent.Close, () => {
       console.log("Deepgram connection closed");
       if (onStatusChange) {
         onStatusChange('closed');
@@ -232,7 +231,7 @@ export const streamAudioToDeepgram = (
       }
     });
 
-    client.on(LiveTranscriptionEvents.Warning, (warning) => {
+    client.on(LiveTranscriptionEvent.Warning, (warning) => {
       console.warn("Deepgram warning:", warning);
     });
   };

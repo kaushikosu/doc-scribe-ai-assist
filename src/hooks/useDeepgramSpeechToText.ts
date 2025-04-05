@@ -1,7 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
-import { LiveClient } from "@deepgram/sdk";
+import { LiveClient } from "@deepgram/sdk/browser";
 import { 
   streamAudioToDeepgram,
   ConnectionStatus,
@@ -266,3 +266,4 @@ const useDeepgramSpeechToText = ({
 };
 
 export default useDeepgramSpeechToText;
+
