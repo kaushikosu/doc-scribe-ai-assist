@@ -39,14 +39,17 @@ export const preconnectToDeepgram = (
     if (onStatusChange) onStatusChange('connecting');
     
     client.on(LiveTranscriptionEvents.Open, () => {
+      console.log('Deepgram connection opened');
       if (onStatusChange) onStatusChange('open');
     });
     
-    client.on(LiveTranscriptionEvents.Error, () => {
+    client.on(LiveTranscriptionEvents.Error, (error) => {
+      console.error('Deepgram error:', error);
       if (onStatusChange) onStatusChange('failed');
     });
     
     client.on(LiveTranscriptionEvents.Close, () => {
+      console.log('Deepgram connection closed');
       if (onStatusChange) onStatusChange('closed');
     });
     
@@ -62,12 +65,14 @@ export const disconnectDeepgram = (client: any) => {
   if (client) {
     try {
       client.finish();
+      console.log('Deepgram connection closed');
     } catch (error) {
       console.error('Error disconnecting from Deepgram:', error);
     }
   }
 };
 
+// Stream audio to an existing Deepgram connection
 export const streamAudioToDeepgram = (
   stream: MediaStream,
   apiKey: string,
@@ -75,13 +80,13 @@ export const streamAudioToDeepgram = (
   onStatusChange?: (status: ConnectionStatus) => void,
   existingClient?: any
 ): (() => void) => {
-  console.log('Setting up Deepgram streaming with API Key:', apiKey.slice(0, 4) + '...');
+  console.log('Setting up Deepgram audio streaming');
 
   let client: LiveClient | null = existingClient || null;
   let audioContext: AudioContext | null = null;
   let processor: ScriptProcessorNode | null = null;
   let source: MediaStreamAudioSourceNode | null = null;
-  let isOpen = false;
+  let isOpen = client ? true : false; // Assume connection is open if client exists
   let resultCounter = 0;
 
   const setupStreaming = async () => {
@@ -95,17 +100,25 @@ export const streamAudioToDeepgram = (
 
       // Initialize Deepgram client if one wasn't provided
       if (!client) {
+        console.log('Creating new Deepgram client');
         const deepgram = createClient(apiKey);
         client = deepgram.listen.live(createDeepgramOptions());
+        
+        if (onStatusChange) onStatusChange('connecting');
+
+        client.on(LiveTranscriptionEvents.Open, () => {
+          console.log('Deepgram connection opened');
+          isOpen = true;
+          if (onStatusChange) onStatusChange('open');
+          startSendingAudio();
+        });
+      } else {
+        console.log('Using existing Deepgram client');
+        isOpen = true;
+        startSendingAudio();
       }
 
-      if (onStatusChange) onStatusChange('connecting');
-
-      client.on(LiveTranscriptionEvents.Open, () => {
-        console.log('Deepgram connection opened');
-        isOpen = true;
-        if (onStatusChange) onStatusChange('open');
-
+      function startSendingAudio() {
         // Start sending audio immediately
         processor!.onaudioprocess = (e) => {
           if (client && isOpen) {
@@ -121,46 +134,74 @@ export const streamAudioToDeepgram = (
             }
           }
         };
-      });
+      }
 
-      client.on(LiveTranscriptionEvents.Transcript, (data) => {
-        if (!data?.channel?.alternatives?.length) return;
-        const transcript = data.channel.alternatives[0].transcript;
-        if (!transcript.trim()) return;
+      // Only set up event listeners if we created a new client
+      if (!existingClient) {
+        client.on(LiveTranscriptionEvents.Transcript, (data) => {
+          if (!data?.channel?.alternatives?.length) return;
+          const transcript = data.channel.alternatives[0].transcript;
+          if (!transcript.trim()) return;
 
-        const topics = data.channel.alternatives[0].topics?.map((t: any) => t.topic);
-        const speakerTag = data.channel.alternatives[0].words?.[0]?.speaker !== undefined
-          ? data.channel.alternatives[0].words[0].speaker + 1
-          : undefined;
+          const topics = data.channel.alternatives[0].topics?.map((t: any) => t.topic);
+          const speakerTag = data.channel.alternatives[0].words?.[0]?.speaker !== undefined
+            ? data.channel.alternatives[0].words[0].speaker + 1
+            : undefined;
 
-        onResult({
-          transcript,
-          isFinal: data.is_final || false,
-          resultIndex: resultCounter++,
-          speakerTag,
-          topics,
+          onResult({
+            transcript,
+            isFinal: data.is_final || false,
+            resultIndex: resultCounter++,
+            speakerTag,
+            topics,
+          });
         });
-      });
 
-      client.on(LiveTranscriptionEvents.Error, (error: Event) => {
-        console.error('Deepgram error details:', {
-          type: error.type,
-          target: error.target instanceof WebSocket ? {
-            readyState: (error.target as WebSocket).readyState,
-            url: (error.target as WebSocket).url,
-            protocol: (error.target as WebSocket).protocol,
-          } : 'Not a WebSocket',
-          isTrusted: error.isTrusted,
+        client.on(LiveTranscriptionEvents.Error, (error: Event) => {
+          console.error('Deepgram error details:', {
+            type: error.type,
+            target: error.target instanceof WebSocket ? {
+              readyState: (error.target as WebSocket).readyState,
+              url: (error.target as WebSocket).url,
+              protocol: (error.target as WebSocket).protocol,
+            } : 'Not a WebSocket',
+            isTrusted: error.isTrusted,
+          });
+          isOpen = false;
+          if (onStatusChange) onStatusChange('failed');
         });
-        isOpen = false;
-        if (onStatusChange) onStatusChange('failed');
-      });
 
-      client.on(LiveTranscriptionEvents.Close, (event) => {
-        console.log('Deepgram connection closed:', event);
-        isOpen = false;
-        if (onStatusChange) onStatusChange('closed');
-      });
+        client.on(LiveTranscriptionEvents.Close, (event) => {
+          console.log('Deepgram connection closed:', event);
+          isOpen = false;
+          if (onStatusChange) onStatusChange('closed');
+        });
+      } else {
+        // For existing clients, set up transcript handling
+        const existingHandlers = (existingClient as any)._callbacks;
+        
+        // Only add a new transcript handler if one doesn't already exist
+        if (!existingHandlers || !existingHandlers[LiveTranscriptionEvents.Transcript]) {
+          client.on(LiveTranscriptionEvents.Transcript, (data) => {
+            if (!data?.channel?.alternatives?.length) return;
+            const transcript = data.channel.alternatives[0].transcript;
+            if (!transcript.trim()) return;
+            
+            const topics = data.channel.alternatives[0].topics?.map((t: any) => t.topic);
+            const speakerTag = data.channel.alternatives[0].words?.[0]?.speaker !== undefined
+              ? data.channel.alternatives[0].words[0].speaker + 1
+              : undefined;
+
+            onResult({
+              transcript,
+              isFinal: data.is_final || false,
+              resultIndex: resultCounter++,
+              speakerTag,
+              topics,
+            });
+          });
+        }
+      }
     } catch (error) {
       console.error('Error setting up Deepgram streaming:', error);
       if (onStatusChange) onStatusChange('failed');
@@ -170,15 +211,14 @@ export const streamAudioToDeepgram = (
   setupStreaming();
 
   return () => {
+    // Just stop sending audio and clean up audio resources
     if (processor && source) {
       source.disconnect(processor);
       processor.disconnect(audioContext!.destination);
     }
     if (audioContext && audioContext.state !== 'closed') audioContext.close();
-    if (client) {
-      client.finish();
-      console.log('Deepgram connection closed');
-    }
+    
+    // Do not close the client - leave it connected
     client = null;
     isOpen = false;
     audioContext = null;

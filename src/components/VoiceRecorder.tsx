@@ -307,14 +307,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       case 'open':
         return {
           color: "bg-green-500",
-          text: "Connected to Deepgram",
+          text: "Connected",
           subtext: isRecording ? "Recording in progress..." : "Ready to record",
           icon: <Check className="h-4 w-4" />
         };
       case 'connecting':
         return {
           color: "bg-amber-500",
-          text: "Connecting to Deepgram",
+          text: "Connecting",
           subtext: "Please wait...",
           icon: <Globe className="h-4 w-4" />
         };
@@ -381,15 +381,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     )}></span>
                     <span className="font-medium">
                       {connectionStatus === 'open' 
-                        ? "Recording with Deepgram" 
-                        : "Connecting to Deepgram..."}
+                        ? "Recording" 
+                        : "Connecting..."}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {connectionStatus === 'open' ? 
-                      'Connected and streaming audio...' : 
+                      'Streaming audio...' : 
                       connectionStatus === 'connecting' ? 
-                      'Connecting to Deepgram...' :
+                      'Connecting...' :
                       connectionStatus === 'failed' ?
                       'Connection issues - trying to reconnect...' :
                       'Waiting for connection...'}

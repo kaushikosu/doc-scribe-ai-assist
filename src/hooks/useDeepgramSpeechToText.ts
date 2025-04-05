@@ -48,22 +48,42 @@ const useDeepgramSpeechToText = ({
     console.log("useDeepgramSpeechToText initialized with API key:", apiKey ? "API key provided" : "No API key");
     
     // Pre-connect to Deepgram when component mounts
-    if (apiKey && !isPreconnected) {
-      const { client, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
-      deepgramClientRef.current = client;
-      setConnectionStatus(status);
-      setIsPreconnected(true);
+    if (apiKey && !isPreconnected && !deepgramClientRef.current) {
+      preconnectDeepgram();
     }
     
     return () => {
       // Clean up the connection when component unmounts
-      if (deepgramClientRef.current) {
-        disconnectDeepgram(deepgramClientRef.current);
-        deepgramClientRef.current = null;
-      }
-      stopRecording();
+      cleanupDeepgramConnection();
     };
   }, [apiKey]);
+
+  // Pre-connect to Deepgram, but don't start sending audio yet
+  const preconnectDeepgram = () => {
+    if (!apiKey) return;
+    
+    console.log("Pre-connecting to Deepgram...");
+    const { client, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
+    deepgramClientRef.current = client;
+    setConnectionStatus(status);
+    setIsPreconnected(true);
+  };
+  
+  // Clean up the Deepgram connection
+  const cleanupDeepgramConnection = () => {
+    // Stop sending audio first
+    if (cleanupFunctionRef.current) {
+      cleanupFunctionRef.current();
+      cleanupFunctionRef.current = null;
+    }
+    
+    // Then disconnect from Deepgram
+    if (deepgramClientRef.current) {
+      disconnectDeepgram(deepgramClientRef.current);
+      deepgramClientRef.current = null;
+      setIsPreconnected(false);
+    }
+  };
   
   // Set up silence detection timer
   const setupSilenceDetection = () => {
@@ -92,7 +112,10 @@ const useDeepgramSpeechToText = ({
     if (!isStoppingManuallyRef.current) {
       if (status === 'open') {
         setConnectionErrors(0); // Reset error count on successful connection
-        toast.success("Connected to Deepgram");
+        if (!isRecording) {
+          // Only show the toast when we're not recording (initial connection)
+          toast.success("Connected to Deepgram");
+        }
       } else if (status === 'failed') {
         setConnectionErrors(prevErrors => prevErrors + 1);
         
@@ -101,15 +124,8 @@ const useDeepgramSpeechToText = ({
           toast.error("Connection issues with Deepgram - attempting to restart");
           
           // Try to reconnect
-          if (deepgramClientRef.current) {
-            disconnectDeepgram(deepgramClientRef.current);
-            deepgramClientRef.current = null;
-          }
-          
-          const { client, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
-          deepgramClientRef.current = client;
-          setConnectionStatus(status);
-          setIsPreconnected(true);
+          cleanupDeepgramConnection();
+          preconnectDeepgram();
         }
       }
     }
@@ -186,16 +202,18 @@ const useDeepgramSpeechToText = ({
         });
       };
       
-      // Use existing client if we have one, otherwise create a new one
-      let client = deepgramClientRef.current;
+      // Ensure we have a valid client to use
+      if (!deepgramClientRef.current) {
+        preconnectDeepgram();
+      }
       
-      // Start streaming audio to Deepgram
+      // Start streaming audio to Deepgram using the existing client
       const cleanup = streamAudioToDeepgram(
         stream,
         apiKey,
         handleSpeechResult,
         handleConnectionStatusChange,
-        client // Pass the existing client
+        deepgramClientRef.current
       );
       
       cleanupFunctionRef.current = cleanup;
@@ -217,7 +235,7 @@ const useDeepgramSpeechToText = ({
     // Mark that we're stopping manually to avoid reconnection messages
     isStoppingManuallyRef.current = true;
     
-    // Clean up Deepgram connection
+    // Clean up audio streaming but keep the Deepgram connection alive
     if (cleanupFunctionRef.current) {
       cleanupFunctionRef.current();
       cleanupFunctionRef.current = null;
@@ -236,7 +254,6 @@ const useDeepgramSpeechToText = ({
     }
     
     setIsRecording(false);
-    setConnectionStatus('closed');
     
     console.log("Recording stopped");
     toast.success('Recording stopped');
