@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, Copy, AlignJustify, MessageSquare, RotateCw, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Copy, Edit, Save, AlignJustify, MessageSquare, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/lib/toast';
@@ -36,7 +35,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
   const classifiedScrollAreaRef = useRef<HTMLDivElement>(null);
   
-  // Array of processing messages to cycle through
   const processingMessages = [
     "Identifying speakers...",
     "Enhancing transcript clarity...",
@@ -44,7 +42,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     "Distinguishing doctor and patient speech..."
   ];
   
-  // Cycle through processing messages for better UX
   useEffect(() => {
     if (isClassifying) {
       let messageIndex = 0;
@@ -60,14 +57,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   useEffect(() => {
     setEditableTranscript(transcript);
     
-    // Scroll to bottom immediately when transcript updates
     if (scrollAreaRef.current && contentRef.current) {
       const scrollContainer = scrollAreaRef.current;
       scrollContainer.scrollTop = contentRef.current.scrollHeight;
     }
   }, [transcript]);
   
-  // Scroll classified transcript into view when it appears
   useEffect(() => {
     if (showClassifiedView && classifiedScrollAreaRef.current) {
       classifiedScrollAreaRef.current.scrollTop = 0;
@@ -92,7 +87,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     toast.success(message);
   };
 
-  // Manual classification trigger
   const manualClassifyTranscript = () => {
     try {
       if (!transcript.trim()) {
@@ -102,13 +96,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
       setIsClassifying(true);
       
-      // Add a small delay for better UX
       setTimeout(() => {
         try {
-          // Use the utility function to classify the transcript
           const classified = classifyTranscript(transcript);
           
-          // Set the classified text
           if (onToggleView) {
             onToggleView();
           }
@@ -127,11 +118,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     }
   };
 
-  // Process and format the transcript with improved chunking and speaker labels
   const formattedTranscript = React.useMemo(() => {
     if (!transcript) return '';
     
-    // Split transcript into paragraphs for better visualization
     const paragraphs = transcript
       .split(/\n+/)
       .filter(p => p.trim().length > 0);
@@ -140,7 +129,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       return '<div class="text-muted-foreground text-center italic h-full flex items-center justify-center">Transcript will appear here...</div>';
     }
     
-    // Process transcript to highlight speaker labels if they exist
     const processedTranscript = paragraphs.map(paragraph => {
       const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       
@@ -148,7 +136,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         const speaker = speakerMatch[1];
         const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
         
-        // Apply different styling based on speaker
         const speakerClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
                             (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
                             'text-muted-foreground font-semibold');
@@ -158,18 +145,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         </div>`;
       }
       
-      // Regular paragraph without speaker label
       return `<div class="transcript-paragraph">${paragraph}</div>`;
     }).join('');
     
     return processedTranscript;
   }, [transcript]);
 
-  // Format the classified transcript with speaker labels
   const formattedClassifiedTranscript = React.useMemo(() => {
     if (!classifiedTranscript) return '';
     
-    // Split into paragraphs for better visualization
     const paragraphs = classifiedTranscript
       .split(/\n+/)
       .filter(p => p.trim().length > 0);
@@ -178,7 +162,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       return '<div class="text-muted-foreground text-center italic">No classified content yet</div>';
     }
     
-    // Process transcript to highlight speaker labels
     const processedTranscript = paragraphs.map(paragraph => {
       const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       
@@ -186,7 +169,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         const speaker = speakerMatch[1];
         const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
         
-        // Apply different styling based on speaker
         const speakerClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
                             (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
                             'text-muted-foreground font-semibold');
@@ -196,14 +178,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         </div>`;
       }
       
-      // Regular paragraph without speaker label
       return `<div class="transcript-paragraph">${paragraph}</div>`;
     }).join('');
     
     return processedTranscript;
   }, [classifiedTranscript]);
   
-  // Show loading/processing state
   if (isClassifying) {
     return (
       <Card className="border-2 border-doctor-accent/30 animate-pulse">
@@ -235,7 +215,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     );
   }
   
-  // Show classified view when available and selected
   if (showClassifiedView && classifiedTranscript) {
     return (
       <Card className="border-2 border-doctor-accent/30 animate-fade-in">
@@ -289,7 +268,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     );
   }
 
-  // Default view - original transcript
   return (
     <Card className="border-2 border-doctor-secondary/30">
       <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
@@ -382,7 +360,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         )}
       </CardContent>
 
-      <style jsx>{`
+      <style>
+        {`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
@@ -398,7 +377,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           border-bottom: 1px dotted rgba(0,0,0,0.05);
           line-height: 1.5;
         }
-      `}</style>
+        `}
+      </style>
     </Card>
   );
 };

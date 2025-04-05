@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -159,6 +158,7 @@ const DashboardPage = () => {
               classifiedTranscript={classifiedTranscript}
               showClassifiedView={showClassifiedView}
               onToggleView={handleToggleView}
+              setIsClassifying={setIsClassifying}
             />
             
             <PrescriptionGenerator 
