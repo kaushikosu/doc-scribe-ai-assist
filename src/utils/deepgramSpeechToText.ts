@@ -12,17 +12,18 @@ export interface DeepgramResult {
 export type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed';
 
 const createDeepgramOptions = () => ({
-  model: 'nova-2',
-  smartFormat: true,
-  fillerWords: false,
+  model: 'nova-3',
+  smart_format: true,
   diarize: true,
+  dictation: true,
   punctuate: true,
-  paragraphs: true,
-  utterances: true,
-  detectTopics: true,
-  encoding: 'linear16',
-  sampleRate: 16000,
-  channels: 1,
+  filler_words: true,
+  measurements:true, 
+  punctuation: true,
+  redact: true,
+  numerals: true,
+  sample_rate: 8000,
+  paragraphs: true
 });
 
 export const streamAudioToDeepgram = (
