@@ -38,7 +38,7 @@ export const preconnectToDeepgram = (
   try {
     // Create a socket
     const deepgramUrl = createDeepgramUrl();
-    const socket = new WebSocket(deepgramUrl, ['token', apiKey]);
+    const socket = new WebSocket(deepgramUrl, [`token ${apiKey}`]);
     
     if (onStatusChange) {
       onStatusChange('connecting');
