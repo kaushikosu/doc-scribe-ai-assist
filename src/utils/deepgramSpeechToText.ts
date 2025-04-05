@@ -50,7 +50,7 @@ export const preconnectToDeepgram = (
       // Send authentication message
       socket.send(JSON.stringify({
         type: "Authorization",
-        token: apiKey
+        token: `Token ${apiKey}`
       }));
     };
     
