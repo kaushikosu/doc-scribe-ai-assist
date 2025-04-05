@@ -21,7 +21,17 @@ export default defineConfig(({ mode }) => ({
     },
   },
   define: {
-    // Polyfill for Node.js global object used by Deepgram SDK
+    // Polyfill for Node.js global objects used by Deepgram SDK
     global: 'window',
-  }
+    // Add buffer polyfill
+    Buffer: ['buffer', 'Buffer'],
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      // Node.js global to browser globalThis
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
 }));
