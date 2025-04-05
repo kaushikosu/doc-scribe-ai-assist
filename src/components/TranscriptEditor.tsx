@@ -7,7 +7,7 @@ import { Edit, Save, Copy, AlignJustify, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/lib/toast';
-import { processMediaStream } from '@/utils/googleSpeechToText';
+import { detectSpeaker, ConversationContext } from '@/utils/speaker';
 
 interface TranscriptEditorProps {
   transcript: string;
@@ -20,10 +20,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
-  const [isDiarizing, setIsDiarizing] = useState(false);
+  const [isClassifying, setIsClassifying] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const audioDataRef = useRef<Blob | null>(null);
 
   useEffect(() => {
     setEditableTranscript(transcript);
@@ -34,40 +33,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       scrollContainer.scrollTop = contentRef.current.scrollHeight;
     }
   }, [transcript]);
-
-  // Effect to capture audio for diarization
-  useEffect(() => {
-    // Set up audio recording when component mounts
-    const setupAudioRecording = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        const audioChunks: BlobPart[] = [];
-        
-        mediaRecorder.addEventListener("dataavailable", event => {
-          audioChunks.push(event.data);
-        });
-        
-        mediaRecorder.addEventListener("stop", () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          audioDataRef.current = audioBlob;
-        });
-        
-        // Start recording
-        mediaRecorder.start();
-        
-        // Cleanup function to stop recording when component unmounts
-        return () => {
-          mediaRecorder.stop();
-          stream.getTracks().forEach(track => track.stop());
-        };
-      } catch (error) {
-        console.error("Error setting up audio recording:", error);
-      }
-    };
-    
-    setupAudioRecording();
-  }, []);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -87,53 +52,81 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     toast.success('Transcript copied to clipboard');
   };
 
-  const handleDiarize = async () => {
-    if (!audioDataRef.current) {
-      toast.error('No audio data available for diarization');
-      return;
-    }
-    
+  const classifySpeakers = () => {
     try {
-      setIsDiarizing(true);
-      toast.info('Processing audio for speaker diarization...');
+      setIsClassifying(true);
+      toast.info('Classifying speakers in transcript...');
       
-      const apiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
-      if (!apiKey) {
-        toast.error('Google Speech API key not configured');
-        setIsDiarizing(false);
+      // Split the transcript into paragraphs/sentences
+      const paragraphs = transcript
+        .split(/\n+/)
+        .filter(p => p.trim().length > 0);
+      
+      if (paragraphs.length === 0) {
+        toast.warning('No content to classify');
+        setIsClassifying(false);
         return;
       }
+
+      // Initialize conversation context
+      let context: ConversationContext = {
+        isPatientDescribingSymptoms: false,
+        doctorAskedQuestion: false,
+        patientResponded: false,
+        isPrescribing: false,
+        isGreeting: false,
+        lastSpeaker: 'Doctor', // Starting assumption
+        isFirstInteraction: true,
+        turnCount: 0
+      };
+
+      // Process each paragraph to determine speaker
+      let classifiedText = '';
       
-      // Process the audio data with Google Speech API
-      const results = await processMediaStream(audioDataRef.current, apiKey);
-      
-      if (results && results.length > 0) {
-        // Format results with speaker labels
-        let diarizedText = '';
-        const speakerMap = new Map<number, string>();
-        
-        results.forEach(result => {
-          if (result.speakerTag !== undefined) {
-            const speakerLabel = result.speakerTag === 1 ? 'Doctor' : 'Patient';
-            speakerMap.set(result.speakerTag, speakerLabel);
-            
-            diarizedText += `[${speakerLabel}]: ${result.transcript}\n\n`;
-          } else {
-            // No speaker tag, just add the transcript
-            diarizedText += `${result.transcript}\n\n`;
+      paragraphs.forEach((paragraph, index) => {
+        // Skip already classified paragraphs
+        if (paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/)) {
+          classifiedText += paragraph + '\n\n';
+          
+          // Update context based on existing classification
+          const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
+          if (speakerMatch && speakerMatch[1]) {
+            context.lastSpeaker = speakerMatch[1] as 'Doctor' | 'Patient' | 'Identifying';
           }
-        });
+          
+          return;
+        }
         
-        onTranscriptChange(diarizedText);
-        toast.success('Diarization completed successfully');
-      } else {
-        toast.warning('No diarization results were returned');
-      }
+        // Detect speaker for this paragraph
+        const speaker = detectSpeaker(paragraph, context);
+        
+        // Add speaker label to the paragraph
+        classifiedText += `[${speaker}]: ${paragraph}\n\n`;
+        
+        // Update context for next iteration
+        context.lastSpeaker = speaker;
+        context.isFirstInteraction = false;
+        context.turnCount++;
+        
+        // Update other context flags based on content
+        context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
+        context.isPatientDescribingSymptoms = 
+          speaker === 'Patient' && 
+          (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
+        context.isPrescribing = 
+          speaker === 'Doctor' && 
+          (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
+      });
+      
+      // Update the transcript with speaker labels
+      onTranscriptChange(classifiedText.trim());
+      toast.success('Speaker classification completed');
+      
     } catch (error) {
-      console.error('Error during diarization:', error);
-      toast.error('Failed to diarize transcript');
+      console.error('Error during speaker classification:', error);
+      toast.error('Failed to classify speakers');
     } finally {
-      setIsDiarizing(false);
+      setIsClassifying(false);
     }
   };
 
@@ -195,12 +188,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={handleDiarize}
-            disabled={!transcript.length || isDiarizing}
+            onClick={classifySpeakers}
+            disabled={!transcript.length || isClassifying}
             className="h-7 text-doctor-accent hover:text-doctor-accent/80 hover:bg-doctor-accent/10 border-doctor-accent"
           >
             <Users className="h-3.5 w-3.5 mr-1" />
-            {isDiarizing ? "Processing..." : "Diarize"}
+            {isClassifying ? "Processing..." : "Classify"}
           </Button>
           <Button 
             variant="outline" 
