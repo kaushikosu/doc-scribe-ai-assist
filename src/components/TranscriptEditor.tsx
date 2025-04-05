@@ -130,31 +130,40 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     }
   };
 
-  // Process and format the transcript with improved chunking and no speaker labels
+  // Process and format the transcript with improved chunking and speaker labels
   const formattedTranscript = React.useMemo(() => {
     if (!transcript) return '';
     
-    // Remove all speaker labels for a clean transcript
-    let cleanTranscript = transcript.replace(/\[(Doctor|Patient|Identifying)\]:\s*/g, '');
-    
-    // Split by natural breaks - line breaks, periods followed by space, etc.
-    const chunks = cleanTranscript
-      .split(/(?:\n+|\.\s+|\?\s+|\!\s+)/g)
-      .filter(chunk => chunk.trim().length > 0);
-    
-    // Format each chunk as a separate paragraph
-    return chunks
-      .map(chunk => {
-        // Determine if this is a processing indication
-        if (chunk.includes("Processing...") || chunk.includes("Listening...")) {
-          return `<div class="processing-indicator"><span class="h-2 w-2 rounded-full bg-doctor-primary animate-pulse"></span> ${chunk}</div>`;
-        }
-        
-        // Return a standard paragraph for regular text
-        return `<div class="transcript-paragraph">${chunk.trim()}</div>`;
-      })
-      .join('');
+    // Process transcript to highlight speaker labels
+    const processedTranscript = transcript.split('\n\n').map(paragraph => {
+      const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       
+      if (speakerMatch) {
+        const speaker = speakerMatch[1];
+        const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
+        
+        // Apply different styling based on speaker
+        const speakerClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
+                            (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
+                            'text-muted-foreground font-semibold');
+        
+        return `<div class="transcript-paragraph">
+          <span class="${speakerClass}">[${speaker}]:</span> ${content}
+        </div>`;
+      }
+      
+      // For processing indicators or non-labeled text
+      if (paragraph.includes("Processing...") || paragraph.includes("Listening...")) {
+        return `<div class="processing-indicator">
+          <span class="h-2 w-2 rounded-full bg-doctor-primary animate-pulse"></span> ${paragraph}
+        </div>`;
+      }
+      
+      // Regular paragraph without speaker label
+      return `<div class="transcript-paragraph">${paragraph}</div>`;
+    }).join('');
+    
+    return processedTranscript;
   }, [transcript]);
 
   // Calculate dynamic height based on content (with min and max constraints)
