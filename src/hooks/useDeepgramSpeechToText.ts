@@ -1,6 +1,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
+import { LiveClient } from "@deepgram/sdk";
 import { 
   streamAudioToDeepgram,
   ConnectionStatus,
@@ -42,7 +43,7 @@ const useDeepgramSpeechToText = ({
   const accumulatedTranscriptRef = useRef<string>('');
   const currentSessionIdRef = useRef<string>(Date.now().toString());
   const isStoppingManuallyRef = useRef<boolean>(false);
-  const deepgramSocketRef = useRef<WebSocket | null>(null);
+  const deepgramClientRef = useRef<LiveClient | null>(null);
   
   // Effect to initialize Deepgram connection when the component mounts
   useEffect(() => {
@@ -50,17 +51,17 @@ const useDeepgramSpeechToText = ({
     
     // Pre-connect to Deepgram when component mounts
     if (apiKey && !isPreconnected) {
-      const { socket, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
-      deepgramSocketRef.current = socket;
+      const { client, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
+      deepgramClientRef.current = client;
       setConnectionStatus(status);
       setIsPreconnected(true);
     }
     
     return () => {
       // Clean up the connection when component unmounts
-      if (deepgramSocketRef.current) {
-        disconnectDeepgram(deepgramSocketRef.current);
-        deepgramSocketRef.current = null;
+      if (deepgramClientRef.current) {
+        disconnectDeepgram(deepgramClientRef.current);
+        deepgramClientRef.current = null;
       }
       stopRecording();
     };
@@ -102,13 +103,13 @@ const useDeepgramSpeechToText = ({
           toast.error("Connection issues with Deepgram - attempting to restart");
           
           // Try to reconnect
-          if (deepgramSocketRef.current) {
-            disconnectDeepgram(deepgramSocketRef.current);
-            deepgramSocketRef.current = null;
+          if (deepgramClientRef.current) {
+            disconnectDeepgram(deepgramClientRef.current);
+            deepgramClientRef.current = null;
           }
           
-          const { socket, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
-          deepgramSocketRef.current = socket;
+          const { client, status } = preconnectToDeepgram(apiKey, handleConnectionStatusChange);
+          deepgramClientRef.current = client;
           setConnectionStatus(status);
           setIsPreconnected(true);
         }
@@ -187,8 +188,8 @@ const useDeepgramSpeechToText = ({
         });
       };
       
-      // Use existing websocket if we have one, otherwise create a new one
-      let socket = deepgramSocketRef.current;
+      // Use existing client if we have one, otherwise create a new one
+      let client = deepgramClientRef.current;
       
       // Start streaming audio to Deepgram
       const cleanup = streamAudioToDeepgram(
@@ -196,7 +197,7 @@ const useDeepgramSpeechToText = ({
         apiKey,
         handleSpeechResult,
         handleConnectionStatusChange,
-        socket // Pass the existing socket if we have one
+        client // Pass the existing client if we have one
       );
       
       cleanupFunctionRef.current = cleanup;

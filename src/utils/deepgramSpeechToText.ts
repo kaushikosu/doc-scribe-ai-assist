@@ -1,5 +1,7 @@
 
 // Define types for Deepgram responses
+import { createClient, LiveTranscriptionEvents, LiveClient } from "@deepgram/sdk";
+
 export interface DeepgramResult {
   transcript: string;
   isFinal: boolean;
@@ -12,94 +14,88 @@ export interface DeepgramResult {
 // WebSocket connection status
 export type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'failed';
 
-// Create Deepgram WebSocket URL with options
-const createDeepgramUrl = () => {
-  return "wss://api.deepgram.com/v1/listen?" + 
-    "encoding=linear16&" +
-    "sample_rate=16000&" +
-    "channels=1&" +
-    "model=nova-2&" +
-    "smart_format=true&" +
-    "filler_words=false&" +
-    "diarize=true&" + // Enable diarization
-    "punctuate=true&" + // Enable punctuation
-    "paragraphs=true&" + // Enable paragraphs
-    "utterances=true&" + // Enable utterances
-    "topics=medicine,symptoms,doctor,patient"; // Enable topic detection with custom topics
+// Create Deepgram client with options
+const createDeepgramOptions = () => {
+  return {
+    model: "nova-2",
+    smart_format: true,
+    filler_words: false,
+    diarize: true, // Enable diarization
+    punctuate: true, // Enable punctuation
+    paragraphs: true, // Enable paragraphs
+    utterances: true, // Enable utterances
+    encoding: "linear16",
+    sample_rate: 16000,
+    channels: 1,
+    topics: "medicine,symptoms,doctor,patient", // Enable topic detection with custom topics
+  };
 };
+
+// Cache for Deepgram clients
+let clientCache: { client: LiveClient | null, apiKey: string } = { client: null, apiKey: '' };
 
 // Function to preconnect to Deepgram - establishes connection early
 export const preconnectToDeepgram = (
   apiKey: string,
   onStatusChange?: (status: ConnectionStatus) => void
-): { socket: WebSocket | null; status: ConnectionStatus } => {
+): { client: LiveClient | null; status: ConnectionStatus } => {
   console.log("Pre-connecting to Deepgram...");
   
   try {
-    // Create a socket
-    const deepgramUrl = createDeepgramUrl();
-    const socket = new WebSocket(deepgramUrl, apiKey);
-    
     if (onStatusChange) {
       onStatusChange('connecting');
     }
     
-    socket.onopen = () => {
-      console.log("Deepgram WebSocket opened");
-      
-      // Send authentication message
-      // socket.send(JSON.stringify({
-      //   type: "Authorization",
-      //   token: `Token ${apiKey}`
-      // }));
-    };
-    
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        // Check if this is a connection confirmation
-        if (data.type === "ConnectionEstablished") {
-          console.log("Deepgram preconnected successfully");
-          if (onStatusChange) {
-            onStatusChange('open');
-          }
-          return;
-        }
-      } catch (error) {
-        console.error("Error parsing Deepgram response:", error);
+    // Create Deepgram client
+    const deepgramClient = createClient(apiKey);
+
+    // Create a live transcription client
+    const liveClient = deepgramClient.listen.live(createDeepgramOptions());
+
+    // Set up event listeners
+    liveClient.on(LiveTranscriptionEvents.Open, () => {
+      console.log("Deepgram connection opened");
+      if (onStatusChange) {
+        onStatusChange('open');
       }
-    };
-    
-    socket.onerror = (error) => {
-      console.error("Deepgram WebSocket error:", error);
+    });
+
+    liveClient.on(LiveTranscriptionEvents.Error, (error) => {
+      console.error("Deepgram error:", error);
       if (onStatusChange) {
         onStatusChange('failed');
       }
-    };
-    
-    socket.onclose = (event) => {
-      console.log(`Deepgram WebSocket closed: ${event.code} - ${event.reason}`);
+    });
+
+    liveClient.on(LiveTranscriptionEvents.Close, () => {
+      console.log("Deepgram connection closed");
       if (onStatusChange) {
         onStatusChange('closed');
       }
-    };
+    });
+
+    // Cache the client for reuse
+    clientCache = { client: liveClient, apiKey };
     
-    return { socket, status: 'connecting' };
+    return { client: liveClient, status: 'connecting' };
   } catch (error) {
     console.error("Error pre-connecting to Deepgram:", error);
     if (onStatusChange) {
       onStatusChange('failed');
     }
-    return { socket: null, status: 'failed' };
+    return { client: null, status: 'failed' };
   }
 };
 
 // Function to disconnect from Deepgram
-export const disconnectDeepgram = (socket: WebSocket): void => {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-    socket.close(1000, "User ended session");
-    console.log("Deepgram connection closed");
+export const disconnectDeepgram = (client: LiveClient | null): void => {
+  if (client) {
+    try {
+      client.finish();
+      console.log("Deepgram connection closed");
+    } catch (error) {
+      console.error("Error disconnecting from Deepgram:", error);
+    }
   }
 };
 
@@ -109,7 +105,7 @@ export const streamAudioToDeepgram = (
   apiKey: string,
   onResult: (result: DeepgramResult) => void,
   onStatusChange?: (status: ConnectionStatus) => void,
-  existingSocket?: WebSocket | null
+  existingClient?: LiveClient | null
 ): (() => void) => {
   console.log("Setting up Deepgram streaming...");
   
@@ -129,116 +125,116 @@ export const streamAudioToDeepgram = (
   source.connect(processor);
   processor.connect(audioContext.destination);
 
-  // Use existing socket or create a new one
-  let socket: WebSocket | null = existingSocket || null;
+  // Use existing client or create a new one
+  let client: LiveClient | null = existingClient || null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 5;
   let reconnectTimeout: NodeJS.Timeout | null = null;
 
-  // Function to create socket if we don't have an existing one
-  const setupNewSocket = () => {
+  const setupNewClient = () => {
     try {
-      // Create WebSocket URL
-      const deepgramUrl = createDeepgramUrl();
-      
-      // Create a new WebSocket
-      const ws = new WebSocket(deepgramUrl);
-      
+      // If we have a cached client with the same API key, reuse it
+      if (clientCache.client && clientCache.apiKey === apiKey) {
+        console.log("Reusing cached Deepgram client");
+        client = clientCache.client;
+      } else {
+        // Create a new Deepgram client
+        const deepgramClient = createClient(apiKey);
+        client = deepgramClient.listen.live(createDeepgramOptions());
+        clientCache = { client, apiKey };
+      }
+
       if (onStatusChange) {
         onStatusChange('connecting');
       }
+
+      // Set up client event listeners
+      setupClientEventHandlers(client);
       
-      // Set up socket event handlers
-      ws.onopen = () => {
-        console.log("Deepgram WebSocket opened, sending API key");
-        
-        // Send authentication message after connection is established
-        ws.send(JSON.stringify({
-          type: "Authorization",
-          token: apiKey
-        }));
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Check if this is a connection confirmation
-          if (data.type === "ConnectionEstablished") {
-            console.log("Deepgram authenticated successfully");
-            if (onStatusChange) {
-              onStatusChange('open');
-            }
-            reconnectAttempts = 0;
-            return;
-          }
-          
-          // Process transcriptions
-          if (data.channel && data.channel.alternatives && data.channel.alternatives.length > 0) {
-            const transcript = data.channel.alternatives[0].transcript;
-            
-            // Extract topics if available
-            let topics: string[] | undefined;
-            if (data.channel.topics && data.channel.topics.topics) {
-              topics = data.channel.topics.topics.map((t: any) => t.topic);
-            }
-            
-            if (transcript.trim() === '') {
-              return; // Skip empty results
-            }
-            
-            // Determine speaker if diarization is available
-            let speakerTag: number | undefined;
-            if (data.channel.alternatives[0].words && data.channel.alternatives[0].words.length > 0) {
-              const firstWord = data.channel.alternatives[0].words[0];
-              if (firstWord.speaker !== undefined) {
-                speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
-              }
-            }
-            
-            // Send result to callback
-            onResult({
-              transcript,
-              isFinal: data.is_final || false,
-              resultIndex: Date.now(), // Use timestamp as unique ID
-              speakerTag,
-              topics
-            });
-          }
-        } catch (error) {
-          console.error("Error parsing Deepgram response:", error);
-        }
-      };
-      
-      // Handle errors
-      ws.onerror = (error) => {
-        console.error("Deepgram WebSocket error:", error);
-        if (onStatusChange) {
-          onStatusChange('failed');
-        }
-      };
-      
-      // Handle socket closure
-      ws.onclose = (event) => {
-        console.log("Deepgram WebSocket closed", event.code, event.reason);
-        if (onStatusChange) {
-          onStatusChange('closed');
-        }
-        
-        // Don't reconnect if it was a normal closure (code 1000)
-        if (event.code !== 1000) {
-          reconnect();
-        }
-      };
-      
-      return ws;
+      return client;
     } catch (error) {
-      console.error("Error creating WebSocket:", error);
+      console.error("Error creating Deepgram client:", error);
       if (onStatusChange) {
         onStatusChange('failed');
       }
       return null;
     }
+  };
+
+  const setupClientEventHandlers = (client: LiveClient) => {
+    if (!client) return;
+
+    client.removeAllListeners();
+
+    client.on(LiveTranscriptionEvents.Open, () => {
+      console.log("Deepgram connection opened");
+      if (onStatusChange) {
+        onStatusChange('open');
+      }
+      reconnectAttempts = 0;
+    });
+
+    client.on(LiveTranscriptionEvents.Transcript, (data) => {
+      try {
+        if (!data?.channel?.alternatives?.length) return;
+        
+        const transcript = data.channel.alternatives[0].transcript;
+        
+        // Extract topics if available
+        let topics: string[] | undefined;
+        if (data.channel.topics && data.channel.topics.topics) {
+          topics = data.channel.topics.topics.map((t: any) => t.topic);
+        }
+        
+        if (transcript.trim() === '') {
+          return; // Skip empty results
+        }
+        
+        // Determine speaker if diarization is available
+        let speakerTag: number | undefined;
+        if (data.channel.alternatives[0].words && data.channel.alternatives[0].words.length > 0) {
+          const firstWord = data.channel.alternatives[0].words[0];
+          if (firstWord.speaker !== undefined) {
+            speakerTag = parseInt(firstWord.speaker) + 1; // We add 1 to match our expected speaker numbering
+          }
+        }
+        
+        // Send result to callback
+        onResult({
+          transcript,
+          isFinal: data.is_final || false,
+          resultIndex: Date.now(), // Use timestamp as unique ID
+          speakerTag,
+          topics
+        });
+      } catch (error) {
+        console.error("Error processing Deepgram transcript:", error);
+      }
+    });
+
+    client.on(LiveTranscriptionEvents.Error, (error) => {
+      console.error("Deepgram error:", error);
+      if (onStatusChange) {
+        onStatusChange('failed');
+      }
+      // Try to reconnect on error
+      reconnect();
+    });
+
+    client.on(LiveTranscriptionEvents.Close, () => {
+      console.log("Deepgram connection closed");
+      if (onStatusChange) {
+        onStatusChange('closed');
+      }
+      // Try to reconnect on close unless we're finishing normally
+      if (reconnectAttempts < maxReconnectAttempts) {
+        reconnect();
+      }
+    });
+
+    client.on(LiveTranscriptionEvents.Warning, (warning) => {
+      console.warn("Deepgram warning:", warning);
+    });
   };
   
   // Function to handle reconnection
@@ -260,38 +256,49 @@ export const streamAudioToDeepgram = (
     }
     
     reconnectTimeout = setTimeout(() => {
-      if (socket) {
-        socket.close();
+      if (client) {
+        try {
+          client.finish();
+        } catch (e) {
+          // Ignore errors when finishing
+        }
       }
       
-      socket = setupNewSocket();
+      client = setupNewClient();
     }, 1000 * Math.min(reconnectAttempts, 3)); // Exponential backoff up to 3 seconds
   };
   
-  // If no existing socket, create one
-  if (!socket) {
-    socket = setupNewSocket();
+  // If no existing client, create one
+  if (!client) {
+    client = setupNewClient();
   } else {
     console.log("Using existing Deepgram connection");
-    // Make sure existing socket is ready for audio
-    if (socket.readyState === WebSocket.OPEN) {
+    // Make sure existing client events are set up correctly
+    setupClientEventHandlers(client);
+    
+    // Check client connection status
+    if (client.getReadyState() === 1) { // 1 = OPEN
       if (onStatusChange) {
         onStatusChange('open');
       }
-    } else if (socket.readyState === WebSocket.CONNECTING) {
+    } else if (client.getReadyState() === 0) { // 0 = CONNECTING
       if (onStatusChange) {
         onStatusChange('connecting');
       }
     } else {
-      // If socket is in a bad state, create a new one
-      socket.close();
-      socket = setupNewSocket();
+      // If client is in a bad state, create a new one
+      try {
+        client.finish();
+      } catch (e) {
+        // Ignore errors when finishing
+      }
+      client = setupNewClient();
     }
   }
   
   // Audio processing function for sending data to Deepgram
   processor.onaudioprocess = (e) => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
+    if (client && client.getReadyState() === 1) { // 1 = OPEN
       // Get audio data
       const inputData = e.inputBuffer.getChannelData(0);
       
@@ -302,7 +309,11 @@ export const streamAudioToDeepgram = (
       }
       
       // Send audio data to Deepgram
-      socket.send(int16Array.buffer);
+      try {
+        client.send(int16Array.buffer);
+      } catch (error) {
+        console.error("Error sending audio data to Deepgram:", error);
+      }
     }
   };
   
@@ -325,12 +336,16 @@ export const streamAudioToDeepgram = (
         audioContext.close();
       }
       
-      // Close WebSocket
-      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-        socket.close(1000, "User ended session"); // Use code 1000 for normal closure
+      // Close Deepgram connection
+      if (client) {
+        try {
+          client.finish();
+        } catch (e) {
+          // Ignore errors when finishing
+        }
       }
       
-      socket = null;
+      client = null;
       console.log("Deepgram connection cleaned up");
     } catch (error) {
       console.error("Error cleaning up Deepgram resources:", error);
