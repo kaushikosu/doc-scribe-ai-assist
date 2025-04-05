@@ -1,5 +1,5 @@
 // Define types for Deepgram responses
-import { Deepgram, LiveTranscriptionResponse, DeepgramClient, LiveClient, LiveTranscriptionEvent } from "@deepgram/sdk/browser";
+import { Deepgram, LiveTranscriptionResponse, LiveClient, LiveTranscriptionEvent } from "@deepgram/sdk";
 
 export interface DeepgramResult {
   transcript: string;
