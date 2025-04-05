@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -18,6 +17,7 @@ const DashboardPage = () => {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
+  const [isClassifying, setIsClassifying] = useState(false);
 
   // Debug the transcript updates
   useEffect(() => {
@@ -28,16 +28,26 @@ const DashboardPage = () => {
   useEffect(() => {
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
+      setIsClassifying(true);
       
       // Add a small delay to make sure we have the final transcript
       const timeoutId = setTimeout(() => {
         if (transcript && transcript.trim().length > 0) {
-          const classified = classifyTranscript(transcript);
-          setClassifiedTranscript(classified);
-          setLastProcessedTranscript(transcript);
-          console.log("Transcript auto-classified");
+          try {
+            const classified = classifyTranscript(transcript);
+            setClassifiedTranscript(classified);
+            setLastProcessedTranscript(transcript);
+            console.log("Transcript auto-classified");
+          } catch (error) {
+            console.error("Error classifying transcript:", error);
+            toast.error("Failed to classify transcript");
+          } finally {
+            setIsClassifying(false);
+          }
+        } else {
+          setIsClassifying(false);
         }
-      }, 500);
+      }, 800);
       
       return () => clearTimeout(timeoutId);
     }
@@ -56,6 +66,11 @@ const DashboardPage = () => {
   
   const handleRecordingStateChange = (recordingState: boolean) => {
     setIsRecording(recordingState);
+    
+    // When recording starts, reset the classified transcript if needed
+    if (recordingState && classifiedTranscript) {
+      // Keep the classified transcript until we have a new one
+    }
     
     // When recording stops, show a toast notification
     if (!recordingState && transcript) {
@@ -120,6 +135,7 @@ const DashboardPage = () => {
               transcript={transcript} 
               patientInfo={patientInfo}
               classifiedTranscript={classifiedTranscript}
+              isClassifying={isClassifying}
             />
           </div>
         </div>

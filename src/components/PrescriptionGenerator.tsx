@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, Check, MessageSquare, Printer } from 'lucide-react';
+import { Edit, Save, Check, MessageSquare, Printer, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 
@@ -14,12 +14,14 @@ interface PrescriptionGeneratorProps {
     time: string;
   };
   classifiedTranscript?: string;
+  isClassifying?: boolean;
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
   transcript, 
   patientInfo,
-  classifiedTranscript
+  classifiedTranscript,
+  isClassifying = false
 }) => {
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -27,21 +29,24 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     // Generate prescription when classified transcript becomes available or changes
-    if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript) {
+    if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
       console.log("Classified transcript changed, generating prescription");
-      generatePrescription(classifiedTranscript);
-      setLastProcessedTranscript(classifiedTranscript);
+      setIsGenerating(true);
+      
+      // Add a slight delay for better visual feedback
+      const timeoutId = setTimeout(() => {
+        generatePrescription(classifiedTranscript);
+        setLastProcessedTranscript(classifiedTranscript);
+        setIsGenerating(false);
+      }, 800);
+      
+      return () => clearTimeout(timeoutId);
     }
-    // Fallback to regular transcript if no classified transcript is available
-    else if (transcript && !classifiedTranscript && transcript !== lastProcessedTranscript) {
-      console.log("Using regular transcript for prescription generation");
-      generatePrescription(transcript);
-      setLastProcessedTranscript(transcript);
-    }
-  }, [classifiedTranscript, transcript]);
+  }, [classifiedTranscript, isClassifying]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
@@ -243,11 +248,21 @@ Department of General Medicine
 
   const handleGenerateAI = () => {
     if (classifiedTranscript) {
+      setIsGenerating(true);
       toast.success('Regenerating prescription with AI...');
-      generatePrescription(classifiedTranscript);
-    } else if (transcript) {
+      
+      setTimeout(() => {
+        generatePrescription(classifiedTranscript);
+        setIsGenerating(false);
+      }, 800);
+    } else if (transcript && !isClassifying) {
+      setIsGenerating(true);
       toast.success('Regenerating prescription with AI...');
-      generatePrescription(transcript);
+      
+      setTimeout(() => {
+        generatePrescription(transcript);
+        setIsGenerating(false);
+      }, 800);
     } else {
       toast.error('No transcript available for prescription generation');
     }
@@ -277,9 +292,14 @@ Department of General Medicine
       toast.error('Could not open print window. Please check your browser settings.');
     }
   };
+  
+  // Determine if prescription actions should be disabled
+  const isPrescriptionDisabled = isClassifying || isGenerating || !classifiedTranscript;
 
   return (
-    <Card className="border-2 border-doctor-accent/30">
+    <Card 
+      className={`border-2 border-doctor-accent/30 transition-all ${isClassifying ? 'opacity-60' : ''}`}
+    >
       <CardHeader className="pb-3">
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl text-doctor-accent">Prescription</CardTitle>
@@ -288,17 +308,26 @@ Department of General Medicine
               variant="outline" 
               size="sm"
               onClick={handleGenerateAI}
-              disabled={!transcript.length}
+              disabled={isPrescriptionDisabled}
               className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
             >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Generate
+              {isGenerating ? (
+                <>
+                  <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Generate
+                </>
+              )}
             </Button>
             <Button 
               variant="outline" 
               size="sm"
               onClick={isEditing ? handleSave : handleEdit}
-              disabled={!prescription.length}
+              disabled={!prescription.length || isPrescriptionDisabled}
               className={cn(
                 "border-doctor-accent text-doctor-accent",
                 isEditing ? "hover:bg-doctor-accent hover:text-white" : "hover:bg-doctor-accent/10"
@@ -320,7 +349,13 @@ Department of General Medicine
         </div>
       </CardHeader>
       <CardContent>
-        {isEditing ? (
+        {isGenerating ? (
+          <div className="min-h-[300px] bg-muted p-3 rounded-md flex flex-col justify-center items-center">
+            <RotateCw className="h-8 w-8 text-doctor-accent animate-spin mb-2" />
+            <p className="font-medium text-doctor-accent">Creating prescription</p>
+            <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
+          </div>
+        ) : isEditing ? (
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
@@ -329,11 +364,15 @@ Department of General Medicine
           />
         ) : (
           <div className="bg-muted p-3 rounded-md min-h-[300px] font-mono text-sm whitespace-pre-wrap">
-            {prescription || "Prescription will be generated automatically after transcript is processed..."}
+            {prescription || (
+              isClassifying ? 
+                "Waiting for transcript classification to complete..." : 
+                "Prescription will be generated automatically after transcript is processed..."
+            )}
           </div>
         )}
       </CardContent>
-      {prescription && !isEditing && (
+      {prescription && !isEditing && !isPrescriptionDisabled && (
         <CardFooter className="pt-0 flex gap-2">
           <Button 
             className="mt-2 flex-1 bg-doctor-accent hover:bg-doctor-accent/90"
