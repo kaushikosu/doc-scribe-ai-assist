@@ -12,7 +12,8 @@ export {
 
 export type { 
   ConversationContext,
-  PatientInfo 
+  PatientInfo,
+  SpeakerRole
 } from './types';
 
 export {

@@ -14,6 +14,7 @@ const Index = () => {
     name: '',
     time: ''
   });
+  const [isRecording, setIsRecording] = useState(false);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     setTranscript(newTranscript);
@@ -21,6 +22,10 @@ const Index = () => {
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
     setPatientInfo(newPatientInfo);
+  };
+  
+  const handleRecordingStateChange = (recordingState: boolean) => {
+    setIsRecording(recordingState);
   };
 
   return (
@@ -33,7 +38,8 @@ const Index = () => {
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
-              onPatientInfoUpdate={handlePatientInfoUpdate} 
+              onPatientInfoUpdate={handlePatientInfoUpdate}
+              onRecordingStateChange={handleRecordingStateChange}
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
@@ -67,7 +73,8 @@ const Index = () => {
           <div className="md:col-span-8 space-y-6">
             <TranscriptEditor 
               transcript={transcript} 
-              onTranscriptChange={setTranscript} 
+              onTranscriptChange={setTranscript}
+              isRecording={isRecording}
             />
             
             <PrescriptionGenerator 

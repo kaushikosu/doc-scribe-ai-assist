@@ -2,7 +2,7 @@
 // src/utils/speaker/speakerDetection.ts
 // Core speaker detection functionality
 
-import { ConversationContext } from './types';
+import { ConversationContext, SpeakerRole } from './types';
 import { doctorPatterns, patientPatterns } from './speakerPatterns';
 import { detectLanguage } from './languageDetection';
 import { detectPatientInfo } from './patientDetection';
@@ -11,7 +11,7 @@ import { detectPatientInfo } from './patientDetection';
 export function detectSpeaker(
   text: string, 
   context: ConversationContext
-): 'Doctor' | 'Patient' {
+): SpeakerRole {
   const lowerText = text.toLowerCase().trim();
   
   if (!text || text.trim().length === 0) {
@@ -216,4 +216,4 @@ export function classifyTranscript(transcript: string): string {
 // Re-export functions from other files to maintain backward compatibility
 export { detectLanguage } from './languageDetection';
 export { detectPatientInfo } from './patientDetection';
-export type { ConversationContext, PatientInfo } from './types';
+export type { ConversationContext, PatientInfo, SpeakerRole } from './types';

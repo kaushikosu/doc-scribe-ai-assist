@@ -17,3 +17,6 @@ export interface PatientInfo {
   name: string;
   time: string;
 }
+
+// Define a union type for speaker roles
+export type SpeakerRole = 'Doctor' | 'Patient' | 'Identifying';
