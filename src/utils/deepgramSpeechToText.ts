@@ -354,9 +354,8 @@ export const processCompleteAudio = async (
   try {
     console.log('Processing complete audio with Deepgram for diarization');
     
-    // Convert blob to base64 for API transmission
+    // Convert blob to array buffer
     const arrayBuffer = await audioBlob.arrayBuffer();
-    const audioBase64 = arrayBufferToBase64(arrayBuffer);
     
     // Create options for batch processing
     const options = createBatchProcessingOptions();
@@ -364,11 +363,15 @@ export const processCompleteAudio = async (
     // Create the Deepgram API client
     const deepgram = createClient(apiKey);
     
-    // Request for transcription with enhanced diarization
-    const response = await deepgram.listen.prerecorded({
-      buffer: Buffer.from(arrayBuffer),
-      mimetype: 'audio/wav',
-    }, options);
+    // Use the prerecorded API correctly - this was the issue
+    // The client structure has changed in the latest @deepgram/sdk
+    const response = await deepgram.listen.prerecorded.transcribeFile(
+      Buffer.from(arrayBuffer), 
+      {
+        mimetype: 'audio/wav',
+        ...options
+      }
+    );
     
     // Check if we have results
     if (!response?.results?.channels?.[0]?.alternatives?.[0]) {
