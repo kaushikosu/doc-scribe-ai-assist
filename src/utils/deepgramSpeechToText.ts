@@ -371,15 +371,15 @@ export const processCompleteAudio = async (
       }
     );
     
-    // Check if we have results - using 'result' instead of 'results'
-    if (!response?.result?.channels?.[0]?.alternatives?.[0]) {
+    // Check if the result exists and has the expected structure
+    if (!response?.result) {
       return {
         transcript: '',
         error: 'No transcription results returned'
       };
     }
     
-    // Format the transcript with speaker diarization - using 'result' instead of 'results'
+    // Format the transcript with speaker diarization
     const result = response.result;
     const transcription = formatDiarizedTranscript(result);
     
@@ -426,29 +426,41 @@ function formatDiarizedTranscript(result: any): string {
 // Helper to format paragraph transcript from Deepgram response
 function formatParagraphTranscript(result: any): string {
   try {
-    const paragraphs = result.channels[0].alternatives[0].paragraphs?.paragraphs || [];
-    let formattedText = '';
+    // The structure of the result may vary based on Deepgram API version
+    // First try to access paragraphs using the expected path
+    const paragraphs = result.paragraphs?.paragraphs || [];
     
-    paragraphs.forEach((para: any) => {
-      // Try to determine speaker from the first word
-      const firstWord = para.sentences?.[0]?.words?.[0];
-      const speakerLabel = firstWord?.speaker !== undefined 
-        ? `[${getSpeakerLabel(firstWord.speaker + 1)}]: `
-        : '';
+    if (paragraphs.length > 0) {
+      let formattedText = '';
       
-      formattedText += speakerLabel + para.text + '\n\n';
-    });
+      paragraphs.forEach((para: any) => {
+        // Try to determine speaker from the first word
+        const firstWord = para.sentences?.[0]?.words?.[0];
+        const speakerLabel = firstWord?.speaker !== undefined 
+          ? `[${getSpeakerLabel(firstWord.speaker + 1)}]: `
+          : '';
+        
+        formattedText += speakerLabel + para.text + '\n\n';
+      });
+      
+      return formattedText.trim();
+    }
     
-    return formattedText.trim() || result.channels[0].alternatives[0].transcript;
+    // If paragraphs not found via expected path, try alternative paths
+    // This is a fallback for different response structures
+    if (result.alternatives && result.alternatives[0]) {
+      return result.alternatives[0].transcript;
+    }
+    
+    // Last resort: try to find transcript directly in the result
+    if (result.transcript) {
+      return result.transcript;
+    }
+    
+    return '';
   } catch (error) {
     console.error('Error formatting paragraph transcript:', error);
-    
-    // Last resort: just return the plain transcript
-    try {
-      return result.channels[0].alternatives[0].transcript;
-    } catch {
-      return '';
-    }
+    return '';
   }
 }
 
