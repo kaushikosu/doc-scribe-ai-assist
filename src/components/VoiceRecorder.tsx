@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe, AlertCircle, Check } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe, AlertCircle, Check, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useDeepgramSpeechToText from '@/hooks/useDeepgramSpeechToText';
@@ -57,6 +57,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     });
   };
 
+  // Handle receiving a diarized transcript from post-processing
+  const handleDiarizedTranscript = (diarizedTranscript: string) => {
+    console.log("Received diarized transcript:", diarizedTranscript.substring(0, 100) + "...");
+    
+    if (diarizedTranscript) {
+      // Replace the real-time transcript with the diarized version
+      setRawTranscript(diarizedTranscript);
+      currentTranscriptRef.current = diarizedTranscript;
+      
+      // Update the parent component
+      onTranscriptUpdate(diarizedTranscript);
+    }
+  };
+
   // Improved transcript update function with better real-time performance
   const updateTranscriptDebounced = (newTranscript: string) => {
     if (transcriptUpdateTimeoutRef.current) {
@@ -105,11 +119,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     toggleRecording, 
     startRecording, 
     stopRecording,
+    processingDiarization,
     getAccumulatedTranscript,
-    resetTranscript
+    resetTranscript,
+    processDiarization
   } = useDeepgramSpeechToText({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
+    onDiarizedTranscriptReady: handleDiarizedTranscript,
     pauseThreshold,
     apiKey
   });
@@ -283,7 +300,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       transcriptUpdateTimeoutRef.current = null;
     }
     
-    stopRecording();
+    // Stop recording and process for diarization
+    stopRecording(true);
   };
 
   // Handle toggling recording
@@ -301,8 +319,22 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
+  // Manually trigger diarization processing
+  const handleProcessDiarization = () => {
+    processDiarization();
+  };
+
   // Get connection status display info
   const getConnectionStatusInfo = () => {
+    if (processingDiarization) {
+      return {
+        color: "bg-blue-500",
+        text: "Processing",
+        subtext: "Enhancing transcript with speaker detection...",
+        icon: <RotateCw className="h-4 w-4 animate-spin" />
+      };
+    }
+
     switch(connectionStatus) {
       case 'open':
         return {
@@ -352,6 +384,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     ? "bg-destructive hover:bg-destructive/90" 
                     : "bg-doctor-primary hover:bg-doctor-primary/90"
                 )}
+                disabled={processingDiarization}
               >
                 {isRecording ? (
                   <MicOff className="h-8 w-8" />
@@ -363,7 +396,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               <Button
                 onClick={startNewSession}
                 className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
-                disabled={isRecording}
+                disabled={isRecording || processingDiarization}
               >
                 <UserPlus className="h-8 w-8" />
               </Button>
@@ -395,10 +428,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                       'Waiting for connection...'}
                   </div>
                 </div>
+              ) : processingDiarization ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
+                    <span className="font-medium">Processing</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Enhancing transcript with speaker detection...
+                  </div>
+                </div>
               ) : (
                 <span className="text-muted-foreground">
                   {isNewSession ? 
-                    "Start with 'Namaste [patient name]' or 'Hello [patient name]'" : 
+                    "Start with 'Hello [patient name]' or 'Hi [patient name]'" : 
                     "Press to resume recording"
                   }
                 </span>
@@ -425,6 +468,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 </div>
               </div>
             </div>
+            
+            {/* Manual diarization processing button */}
+            {!isRecording && !processingDiarization && rawTranscript && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleProcessDiarization}
+                className="mt-2 text-xs"
+              >
+                <RotateCw className="h-3 w-3 mr-1" />
+                Enhance Speaker Detection
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

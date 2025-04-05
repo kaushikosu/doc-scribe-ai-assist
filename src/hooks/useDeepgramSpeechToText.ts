@@ -5,7 +5,8 @@ import {
   ConnectionStatus,
   getSpeakerLabel,
   preconnectToDeepgram,
-  disconnectDeepgram
+  disconnectDeepgram,
+  processCompleteAudio
 } from '@/utils/deepgramSpeechToText';
 
 interface UseDeepgramSpeechToTextProps {
@@ -17,6 +18,7 @@ interface UseDeepgramSpeechToTextProps {
     topics?: string[] 
   }) => void;
   onSilence: () => void;
+  onDiarizedTranscriptReady?: (transcript: string) => void;
   pauseThreshold: number;
   apiKey: string;
 }
@@ -24,6 +26,7 @@ interface UseDeepgramSpeechToTextProps {
 const useDeepgramSpeechToText = ({ 
   onResult, 
   onSilence,
+  onDiarizedTranscriptReady,
   pauseThreshold,
   apiKey
 }: UseDeepgramSpeechToTextProps) => {
@@ -32,6 +35,7 @@ const useDeepgramSpeechToText = ({
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('closed');
   const [connectionErrors, setConnectionErrors] = useState(0);
   const [isPreconnected, setIsPreconnected] = useState(false);
+  const [processingDiarization, setProcessingDiarization] = useState(false);
   
   // References to maintain state between renders
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -42,6 +46,7 @@ const useDeepgramSpeechToText = ({
   const currentSessionIdRef = useRef<string>(Date.now().toString());
   const isStoppingManuallyRef = useRef<boolean>(false);
   const deepgramClientRef = useRef<any | null>(null);
+  const audioDataRef = useRef<{ getAudioBlob: () => Promise<Blob | null> } | null>(null);
   
   // Effect to initialize Deepgram connection when the component mounts
   useEffect(() => {
@@ -83,6 +88,9 @@ const useDeepgramSpeechToText = ({
       deepgramClientRef.current = null;
       setIsPreconnected(false);
     }
+    
+    // Clear audio data reference
+    audioDataRef.current = null;
   };
   
   // Set up silence detection timer
@@ -128,6 +136,59 @@ const useDeepgramSpeechToText = ({
           preconnectDeepgram();
         }
       }
+    }
+  };
+  
+  // Process recorded audio for enhanced diarization
+  const processDiarization = async () => {
+    if (!audioDataRef.current || !apiKey) {
+      console.log("No audio data available for diarization");
+      return;
+    }
+    
+    try {
+      setProcessingDiarization(true);
+      toast.info("Processing audio for improved speaker detection...");
+      
+      // Get the recorded audio blob
+      const audioBlob = await audioDataRef.current.getAudioBlob();
+      if (!audioBlob) {
+        console.error("Failed to get audio blob for diarization");
+        setProcessingDiarization(false);
+        return;
+      }
+      
+      console.log(`Got audio blob for diarization: ${audioBlob.size} bytes`);
+      
+      // Process the complete audio for improved diarization
+      const result = await processCompleteAudio(audioBlob, apiKey);
+      
+      if (result.error) {
+        console.error("Error in diarization:", result.error);
+        toast.error("Speaker detection failed. Using real-time transcript instead.");
+        setProcessingDiarization(false);
+        return;
+      }
+      
+      if (!result.transcript) {
+        console.warn("Empty diarized transcript returned");
+        setProcessingDiarization(false);
+        return;
+      }
+      
+      console.log("Diarized transcript ready:", result.transcript.substring(0, 100) + "...");
+      
+      // Send the diarized transcript back to the component
+      if (onDiarizedTranscriptReady) {
+        onDiarizedTranscriptReady(result.transcript);
+        toast.success("Transcript processed with speaker detection");
+      }
+      
+    } catch (error) {
+      console.error("Error processing diarization:", error);
+      toast.error("Failed to process audio for speaker detection");
+    } finally {
+      setProcessingDiarization(false);
     }
   };
   
@@ -208,7 +269,7 @@ const useDeepgramSpeechToText = ({
       }
       
       // Start streaming audio to Deepgram using the existing client
-      const cleanup = streamAudioToDeepgram(
+      const { stopStreaming, audioData } = streamAudioToDeepgram(
         stream,
         apiKey,
         handleSpeechResult,
@@ -216,7 +277,8 @@ const useDeepgramSpeechToText = ({
         deepgramClientRef.current
       );
       
-      cleanupFunctionRef.current = cleanup;
+      cleanupFunctionRef.current = stopStreaming;
+      audioDataRef.current = audioData;
       
       // Set up silence detection
       setupSilenceDetection();
@@ -231,7 +293,7 @@ const useDeepgramSpeechToText = ({
   };
 
   // Stop recording and clean up resources
-  const stopRecording = () => {
+  const stopRecording = async (processDiarizedTranscript = true) => {
     // Mark that we're stopping manually to avoid reconnection messages
     isStoppingManuallyRef.current = true;
     
@@ -239,6 +301,11 @@ const useDeepgramSpeechToText = ({
     if (cleanupFunctionRef.current) {
       cleanupFunctionRef.current();
       cleanupFunctionRef.current = null;
+    }
+    
+    // Process the audio for diarization if requested
+    if (processDiarizedTranscript && audioDataRef.current) {
+      await processDiarization();
     }
     
     // Stop media streams
@@ -264,6 +331,7 @@ const useDeepgramSpeechToText = ({
     isRecording,
     connectionStatus,
     connectionErrors,
+    processingDiarization,
     startRecording,
     stopRecording,
     toggleRecording: () => {
@@ -276,7 +344,8 @@ const useDeepgramSpeechToText = ({
     getAccumulatedTranscript: () => accumulatedTranscriptRef.current,
     resetTranscript: () => {
       accumulatedTranscriptRef.current = '';
-    }
+    },
+    processDiarization
   };
 };
 
