@@ -20,12 +20,6 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  define: {
-    // Polyfill for Node.js global objects used by Deepgram SDK
-    global: 'window',
-    // Add buffer polyfill
-    Buffer: ['buffer', 'Buffer'],
-  },
   optimizeDeps: {
     esbuildOptions: {
       // Node.js global to browser globalThis
