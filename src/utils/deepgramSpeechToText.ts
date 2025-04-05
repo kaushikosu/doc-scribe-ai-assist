@@ -44,15 +44,15 @@ export const preconnectToDeepgram = (
       onStatusChange('connecting');
     }
     
-    // socket.onopen = () => {
-    //   console.log("Deepgram WebSocket opened, sending API key");
+    socket.onopen = () => {
+      console.log("Deepgram WebSocket opened");
       
-    //   // Send authentication message
-    //   // socket.send(JSON.stringify({
-    //   //   type: "Authorization",
-    //   //   token: `Token ${apiKey}`
-    //   // }));
-    // };
+      // Send authentication message
+      // socket.send(JSON.stringify({
+      //   type: "Authorization",
+      //   token: `Token ${apiKey}`
+      // }));
+    };
     
     socket.onmessage = (event) => {
       try {
