@@ -2,12 +2,163 @@
 // src/utils/speaker/speakerDetection.ts
 // Core speaker detection functionality
 
-import { ConversationContext, SpeakerRole } from './types';
+import { ConversationContext, SpeakerRole, SpeakerFeatures } from './types';
 import { doctorPatterns, patientPatterns } from './speakerPatterns';
 import { detectLanguage } from './languageDetection';
 import { detectPatientInfo } from './patientDetection';
 
-// Advanced speaker detection using statistical patterns and context
+// Linguistic complexity analysis
+function analyzeSentenceComplexity(text: string): number {
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  // No valid sentences
+  if (sentences.length === 0) return 0;
+  
+  // Calculate average words per sentence
+  const wordsPerSentence = sentences.map(s => {
+    const words = s.trim().split(/\s+/).filter(w => w.length > 0);
+    return words.length;
+  });
+  
+  // Complexity factors
+  const avgLength = wordsPerSentence.reduce((sum, len) => sum + len, 0) / sentences.length;
+  const subordinateClauseIndicators = (text.match(/\b(because|since|although|though|if|when|while|as|that)\b/gi) || []).length;
+  const complexConstructs = (text.match(/\b(however|therefore|consequently|furthermore|nevertheless|moreover)\b/gi) || []).length;
+  
+  // Calculate complexity score (normalized between 0-10)
+  const lengthScore = Math.min(avgLength / 20 * 5, 5); // 20+ word sentences get max score of 5
+  const clauseScore = Math.min(subordinateClauseIndicators / sentences.length * 3, 3);
+  const constructScore = Math.min(complexConstructs / sentences.length * 2, 2);
+  
+  return lengthScore + clauseScore + constructScore;
+}
+
+// Technical jargon detection (beyond basic medical terms)
+function detectTechnicalJargon(text: string): number {
+  const technicalTerms = [
+    /\b(differential diagnosis|etiology|pathophysiology|contraindication|idiopathic|iatrogenic)\b/i,
+    /\b(comorbidity|prodromal|sequelae|nosocomial|prophylaxis|palliative)\b/i,
+    /\b(hemodynamic|histopathology|pharmacokinetics|pharmacodynamics)\b/i,
+    /\b(anamnesis|auscultation|endogenous|exogenous|homeostasis)\b/i,
+    /\b(oncotic|osmotic|perfusion|peristalsis|stenosis|thrombosis|ischemic)\b/i
+  ];
+  
+  let termCount = 0;
+  technicalTerms.forEach(term => {
+    const matches = text.match(term) || [];
+    termCount += matches.length;
+  });
+  
+  // Normalize to a 0-10 scale
+  return Math.min(termCount * 2, 10);
+}
+
+// Extract comprehensive features from text for ML-style classification
+function extractSpeakerFeatures(text: string): SpeakerFeatures {
+  const lowerText = text.toLowerCase();
+  
+  // Medical terminology usage
+  const medicalTermMatches = doctorPatterns.medicalTerms.filter(pattern => pattern.test(text)).length;
+  
+  // Question density
+  const questionMarks = (text.match(/\?/g) || []).length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length || 1;
+  const questionDensity = questionMarks / sentences;
+  
+  // First-person pronoun usage
+  const firstPersonPronouns = (text.match(/\b(i|i'm|i've|i'll|i'd|my|mine|me|myself)\b/gi) || []).length;
+  const totalWords = text.split(/\s+/).length || 1;
+  const firstPersonDensity = firstPersonPronouns / totalWords;
+  
+  // Directive language (instructions, orders, recommendations)
+  const directivePatterns = [
+    /\b(should|must|need to|have to|take|use|apply|avoid|increase|decrease|continue|stop)\b/gi,
+    /\b(try|let|get|don't|do not|be sure to|make sure|remember to|follow|monitor)\b/gi
+  ];
+  
+  let directiveCount = 0;
+  directivePatterns.forEach(pattern => {
+    const matches = text.match(pattern) || [];
+    directiveCount += matches.length;
+  });
+  
+  // Symptom description language
+  const symptomPatterns = [
+    /\b(feel|felt|feeling|pain|ache|hurt|hurting|discomfort|burning|itching|swelling)\b/gi,
+    /\b(tired|fatigue|exhausted|dizzy|nauseous|sick|sore|stiff|weak|symptoms)\b/gi
+  ];
+  
+  let symptomCount = 0;
+  symptomPatterns.forEach(pattern => {
+    const matches = text.match(pattern) || [];
+    symptomCount += matches.length;
+  });
+  
+  return {
+    medicalTermsUsage: medicalTermMatches * 2, // Weighted importance
+    sentenceComplexity: analyzeSentenceComplexity(text),
+    questionDensity: questionDensity * 10, // Scale to 0-10
+    firstPersonUsage: firstPersonDensity * 20, // Scale to 0-10
+    directiveLanguage: Math.min(directiveCount * 2, 10),
+    symptomDescription: Math.min(symptomCount * 2, 10),
+    technicalJargon: detectTechnicalJargon(text)
+  };
+}
+
+// Use extracted features to predict speaker with weighted scoring algorithm
+function predictSpeakerFromFeatures(features: SpeakerFeatures, context: ConversationContext): number {
+  // Positive score indicates doctor, negative indicates patient
+  // Weights determined through analysis of medical conversations
+  const weights = {
+    medicalTermsUsage: 1.5,     // Strong indicator for doctor
+    sentenceComplexity: 0.8,    // Doctors often use more complex sentences
+    questionDensity: 0.6,       // Questions can come from either, but slightly more from doctors
+    firstPersonUsage: -1.8,     // Strong indicator for patient
+    directiveLanguage: 1.2,     // Doctors give directives/instructions 
+    symptomDescription: -2.0,   // Very strong indicator for patient
+    technicalJargon: 2.0        // Very strong indicator for doctor
+  };
+  
+  // Calculate weighted score
+  let score = 0;
+  score += features.medicalTermsUsage * weights.medicalTermsUsage;
+  score += features.sentenceComplexity * weights.sentenceComplexity;
+  score += features.questionDensity * weights.questionDensity;
+  score += features.firstPersonUsage * weights.firstPersonUsage;
+  score += features.directiveLanguage * weights.directiveLanguage;
+  score += features.symptomDescription * weights.symptomDescription;
+  score += features.technicalJargon * weights.technicalJargon;
+  
+  // Apply conversation context adjustments
+  if (context.lastSpeaker === 'Doctor') {
+    // If doctor spoke last, slightly favor patient next
+    score -= 2;
+    
+    // If doctor asked a question, strongly favor patient response
+    if (context.doctorAskedQuestion) {
+      score -= 4;
+    }
+  } else if (context.lastSpeaker === 'Patient') {
+    // If patient spoke last, slightly favor doctor next
+    score += 2;
+    
+    // If patient was describing symptoms, doctor likely responds
+    if (context.isPatientDescribingSymptoms) {
+      score += 4;
+    }
+  }
+  
+  // Balance score based on turn count to create more realistic dialogue patterns
+  if (context.turnCount % 2 === 0) {
+    score += 1; // Even turns slightly favor doctor
+  } else {
+    score -= 1; // Odd turns slightly favor patient
+  }
+  
+  return score;
+}
+
+// Advanced speaker detection using ML-inspired feature extraction and context
 export function detectSpeaker(
   text: string, 
   context: ConversationContext
@@ -18,11 +169,6 @@ export function detectSpeaker(
     return context.lastSpeaker || 'Doctor';
   }
   
-  // Initialize scores with bias based on conversation turn count
-  // This helps create more realistic back-and-forth dialogue patterns
-  let doctorScore = context.turnCount % 2 === 0 ? 1 : 0; // Even turns slightly favor doctor
-  let patientScore = context.turnCount % 2 === 1 ? 1 : 0; // Odd turns slightly favor patient
-  
   // First interaction is likely doctor greeting
   if (context.isFirstInteraction) {
     // Check for doctor greetings at the very beginning
@@ -31,124 +177,36 @@ export function detectSpeaker(
     }
   }
   
-  // STRONG patient indicators - these override most other patterns
-  if (
-    /^i('m| am) (not )?feeling/i.test(lowerText) ||
-    /^i('ve| have) been/i.test(lowerText) ||
-    /^(my|i('ve| have)|the) (pain|headache|problem|issue)/i.test(lowerText) ||
-    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerText)
-  ) {
-    patientScore += 8; // Very strong patient indicators
-  }
-  
-  // STRONG doctor indicators - these override most other patterns
+  // STRONG pattern-based indicators - these override most other patterns
+  // Doctor strong indicators
   if (
     /^(i would like to|i('ll| will) prescribe|let me|i recommend)/i.test(lowerText) ||
     /^(based on|according to|looking at) (your|the|these)/i.test(lowerText) ||
     /^(take|use) (this|these|the|two|three|four|one)/i.test(lowerText) ||
     /^(we need to|you should|you need to|you must)/i.test(lowerText)
   ) {
-    doctorScore += 8; // Very strong doctor indicators
+    return 'Doctor';
   }
   
-  // Check pattern matches for doctor speech
-  const isDocQuestion = doctorPatterns.questions.some(pattern => pattern.test(lowerText));
-  const isDocExplanation = doctorPatterns.explanations.some(pattern => pattern.test(lowerText));
-  const isDocDirective = doctorPatterns.directives.some(pattern => pattern.test(lowerText));
-  const isPrescriptionContent = doctorPatterns.prescriptions.some(pattern => pattern.test(lowerText));
-  const hasMedicalTerms = doctorPatterns.medicalTerms.some(pattern => pattern.test(lowerText));
-  
-  // Check pattern matches for patient speech
-  const isPatientSymptom = patientPatterns.symptoms.some(pattern => pattern.test(lowerText));
-  const isPatientResponse = patientPatterns.responses.some(pattern => pattern.test(lowerText));
-  const isPatientQuestion = patientPatterns.questions.some(pattern => pattern.test(lowerText));
-  const isPatientHistory = patientPatterns.history.some(pattern => pattern.test(lowerText));
-  
-  // Add scores based on pattern matches
-  doctorScore += (isDocQuestion ? 3 : 0) + 
-                (isDocExplanation ? 4 : 0) + 
-                (isDocDirective ? 4 : 0) +
-                (hasMedicalTerms ? 2 : 0);
-  
-  patientScore += (isPatientSymptom ? 4 : 0) + 
-                 (isPatientResponse ? 3 : 0) + 
-                 (isPatientQuestion ? 3 : 0) +
-                 (isPatientHistory ? 4 : 0);
-  
-  // Consider conversation flow context
-  if (context.lastSpeaker === 'Doctor') {
-    // If doctor spoke last, this is more likely a patient response
-    patientScore += 2;
-    
-    // If last utterance was a question, more likely patient is answering
-    if (context.doctorAskedQuestion) {
-      patientScore += 3;
-    }
-  } else if (context.lastSpeaker === 'Patient') {
-    // If patient spoke last, this is more likely a doctor response
-    doctorScore += 2;
-    
-    // If patient was describing symptoms, doctor likely asking follow-up
-    if (context.isPatientDescribingSymptoms) {
-      doctorScore += 3;
-    }
+  // Patient strong indicators
+  if (
+    /^i('m| am) (not )?feeling/i.test(lowerText) ||
+    /^i('ve| have) been/i.test(lowerText) ||
+    /^(my|i('ve| have)|the) (pain|headache|problem|issue)/i.test(lowerText) ||
+    /^(yes|no),? (doctor|i (have|had|am|do|don't|can't))/i.test(lowerText)
+  ) {
+    return 'Patient';
   }
   
-  // Check for first-person pronouns - strong indicator for speaker
-  const firstPersonCount = (text.match(/\b(i|i'm|i've|i'll|i'd|my|mine|me|myself)\b/gi) || []).length;
-  if (firstPersonCount > 0) {
-    // More first-person references likely means patient speaking about themselves
-    patientScore += Math.min(firstPersonCount, 4);
-  }
+  // Extract comprehensive features for ML-style classification
+  const features = extractSpeakerFeatures(text);
   
-  // Check for second-person - more typical of doctor speaking to patient
-  const secondPersonCount = (text.match(/\b(you|your|yours|yourself)\b/gi) || []).length;
-  if (secondPersonCount > 0) {
-    doctorScore += Math.min(secondPersonCount, 3);
-  }
+  // Use features to predict speaker (positive score = doctor, negative = patient)
+  const predictionScore = predictSpeakerFromFeatures(features, context);
   
-  // Check for prescription-related content - strongly biased toward doctor
-  if (isPrescriptionContent) {
-    doctorScore += 6;  
-  }
-  
-  // If we're in prescribing mode, maintain doctor bias
-  if (context.isPrescribing && (
-    lowerText.includes("take") || 
-    lowerText.includes("medication") || 
-    lowerText.includes("medicine") ||
-    lowerText.includes("treatment") ||
-    lowerText.includes("therapy") ||
-    lowerText.includes("tablet") ||
-    lowerText.includes("capsule") ||
-    lowerText.includes("pill") ||
-    lowerText.includes("dose") ||
-    lowerText.includes("mg") ||
-    lowerText.includes("ml")
-  )) {
-    doctorScore += 5;
-  }
-  
-  // Analyze text length and complexity
-  if (text.length > 100) {
-    // Longer explanations are more likely from doctor
-    doctorScore += 2;
-  } else if (text.length < 15 && patientPatterns.responses.some(pattern => pattern.test(lowerText))) {
-    // Very short response is likely patient
-    patientScore += 2;
-  }
-  
-  // Special case: If text contains both "I" and medical terms, could be a doctor 
-  // sharing personal experience or explaining a concept
-  if (firstPersonCount > 0 && hasMedicalTerms) {
-    // If contains "as a doctor" or similar phrases, boost doctor score
-    if (/(as (a|your) doctor|in my experience|in my practice|in my medical opinion)/i.test(text)) {
-      doctorScore += 5;
-    }
-  }
-  
-  // Return the most likely speaker based on scoring
-  return doctorScore > patientScore ? 'Doctor' : 'Patient';
+  // Make final prediction based on score
+  // Positive score indicates doctor, negative indicates patient
+  return predictionScore > 0 ? 'Doctor' : 'Patient';
 }
 
 // Helper function to classify entire transcript
@@ -160,7 +218,7 @@ export function classifyTranscript(transcript: string): string {
   
   if (paragraphs.length === 0) return '';
   
-  // Initialize conversation context
+  // Initialize conversation context with extended fields
   let context: ConversationContext = {
     isPatientDescribingSymptoms: false,
     doctorAskedQuestion: false,
@@ -169,12 +227,19 @@ export function classifyTranscript(transcript: string): string {
     isGreeting: false,
     lastSpeaker: 'Doctor', // Starting assumption
     isFirstInteraction: true,
-    turnCount: 0
+    turnCount: 0,
+    // New context properties
+    medicalTermsCount: 0,
+    questionCount: 0,
+    firstPersonPronounCount: 0,
+    sentenceStructureComplexity: 0,
+    interactionHistory: []
   };
   
   // Process each paragraph
   let classified = '';
   
+  // First pass: identify speakers and build context
   paragraphs.forEach((paragraph, index) => {
     // Skip already classified paragraphs
     if (paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/)) {
@@ -183,7 +248,13 @@ export function classifyTranscript(transcript: string): string {
       // Update context based on existing classification
       const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       if (speakerMatch && speakerMatch[1]) {
-        context.lastSpeaker = speakerMatch[1] as 'Doctor' | 'Patient';
+        context.lastSpeaker = speakerMatch[1] as SpeakerRole;
+        
+        // Add to interaction history
+        context.interactionHistory.push({
+          speaker: speakerMatch[1] as SpeakerRole,
+          text: paragraph.replace(/^\[[^\]]+\]:/, '').trim()
+        });
       }
       
       return;
@@ -195,6 +266,12 @@ export function classifyTranscript(transcript: string): string {
     // Add speaker label to the paragraph
     classified += `[${speaker}]: ${paragraph}\n\n`;
     
+    // Add to interaction history for context
+    context.interactionHistory.push({
+      speaker: speaker,
+      text: paragraph
+    });
+    
     // Update context for next iteration
     context.lastSpeaker = speaker;
     context.isFirstInteraction = false;
@@ -202,12 +279,21 @@ export function classifyTranscript(transcript: string): string {
     
     // Update other context flags based on content
     context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
+    
     context.isPatientDescribingSymptoms = 
       speaker === 'Patient' && 
       (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
+      
     context.isPrescribing = 
       speaker === 'Doctor' && 
       (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
+      
+    // Update advanced context metrics
+    const features = extractSpeakerFeatures(paragraph);
+    context.medicalTermsCount += features.medicalTermsUsage / 2;
+    context.questionCount += features.questionDensity / 10;
+    context.firstPersonPronounCount += features.firstPersonUsage / 20;
+    context.sentenceStructureComplexity = features.sentenceComplexity;
   });
   
   return classified.trim();

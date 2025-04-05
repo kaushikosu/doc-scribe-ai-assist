@@ -13,7 +13,8 @@ export {
 export type { 
   ConversationContext,
   PatientInfo,
-  SpeakerRole
+  SpeakerRole,
+  SpeakerFeatures
 } from './types';
 
 export {

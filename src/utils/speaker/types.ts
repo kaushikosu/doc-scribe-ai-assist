@@ -11,6 +11,15 @@ export interface ConversationContext {
   lastSpeaker: 'Doctor' | 'Patient' | 'Identifying';
   isFirstInteraction: boolean;
   turnCount: number;
+  // New context properties
+  medicalTermsCount: number;
+  questionCount: number;
+  firstPersonPronounCount: number;
+  sentenceStructureComplexity: number;
+  interactionHistory: Array<{
+    speaker: SpeakerRole;
+    text: string;
+  }>;
 }
 
 export interface PatientInfo {
@@ -20,3 +29,14 @@ export interface PatientInfo {
 
 // Define a union type for speaker roles
 export type SpeakerRole = 'Doctor' | 'Patient' | 'Identifying';
+
+// New types for advanced classification
+export interface SpeakerFeatures {
+  medicalTermsUsage: number;
+  sentenceComplexity: number;
+  questionDensity: number;
+  firstPersonUsage: number;
+  directiveLanguage: number;
+  symptomDescription: number;
+  technicalJargon: number;
+}
