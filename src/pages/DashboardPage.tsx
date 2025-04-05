@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -35,7 +36,8 @@ const DashboardPage = () => {
         duration: 3000,
       });
       
-      const timeoutId = setTimeout(() => {
+      // Wrap the timeout in a function to avoid stale closures
+      const processTranscript = () => {
         if (transcript && transcript.trim().length > 0) {
           try {
             const classified = classifyTranscript(transcript);
@@ -56,11 +58,13 @@ const DashboardPage = () => {
           setIsClassifying(false);
           setPrescriptionEnabled(true); // Enable prescription if no transcript to classify
         }
-      }, 1200); // Slightly longer delay for better UX
+      };
+      
+      const timeoutId = setTimeout(processTranscript, 1200);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isRecording, transcript]);
+  }, [isRecording, transcript, lastProcessedTranscript]); // Added lastProcessedTranscript to the dependency array
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
