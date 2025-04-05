@@ -1,5 +1,6 @@
+
 // Define types for Deepgram responses
-import { Deepgram, LiveTranscriptionResponse, LiveClient, LiveTranscriptionEvent } from "@deepgram/sdk";
+import { Deepgram } from "@deepgram/sdk";
 
 export interface DeepgramResult {
   transcript: string;
@@ -31,13 +32,23 @@ const createDeepgramOptions = () => {
 };
 
 // Cache for Deepgram clients
-let clientCache: { client: LiveClient | null, apiKey: string } = { client: null, apiKey: '' };
+let clientCache: { client: any | null, apiKey: string } = { client: null, apiKey: '' };
+
+// Event names for Deepgram live client
+const LiveEvents = {
+  Open: 'open',
+  Close: 'close',
+  Transcript: 'transcript',
+  Error: 'error',
+  Warning: 'warning',
+  Metadata: 'metadata'
+};
 
 // Function to preconnect to Deepgram - establishes connection early
 export const preconnectToDeepgram = (
   apiKey: string,
   onStatusChange?: (status: ConnectionStatus) => void
-): { client: LiveClient | null; status: ConnectionStatus } => {
+): { client: any | null; status: ConnectionStatus } => {
   console.log("Pre-connecting to Deepgram...");
   
   try {
@@ -46,27 +57,27 @@ export const preconnectToDeepgram = (
     }
     
     // Create Deepgram client
-    const deepgramClient = new Deepgram(apiKey);
+    const deepgram = new Deepgram(apiKey);
 
     // Create a live transcription client
-    const liveClient = deepgramClient.listen.live(createDeepgramOptions());
+    const liveClient = deepgram.transcription.live(createDeepgramOptions());
 
     // Set up event listeners
-    liveClient.on(LiveTranscriptionEvent.Open, () => {
+    liveClient.addListener(LiveEvents.Open, () => {
       console.log("Deepgram connection opened");
       if (onStatusChange) {
         onStatusChange('open');
       }
     });
 
-    liveClient.on(LiveTranscriptionEvent.Error, (error) => {
+    liveClient.addListener(LiveEvents.Error, (error) => {
       console.error("Deepgram error:", error);
       if (onStatusChange) {
         onStatusChange('failed');
       }
     });
 
-    liveClient.on(LiveTranscriptionEvent.Close, () => {
+    liveClient.addListener(LiveEvents.Close, () => {
       console.log("Deepgram connection closed");
       if (onStatusChange) {
         onStatusChange('closed');
@@ -87,7 +98,7 @@ export const preconnectToDeepgram = (
 };
 
 // Function to disconnect from Deepgram
-export const disconnectDeepgram = (client: LiveClient | null): void => {
+export const disconnectDeepgram = (client: any | null): void => {
   if (client) {
     try {
       client.finish();
@@ -104,7 +115,7 @@ export const streamAudioToDeepgram = (
   apiKey: string,
   onResult: (result: DeepgramResult) => void,
   onStatusChange?: (status: ConnectionStatus) => void,
-  existingClient?: LiveClient | null
+  existingClient?: any | null
 ): (() => void) => {
   console.log("Setting up Deepgram streaming...");
   
@@ -125,7 +136,7 @@ export const streamAudioToDeepgram = (
   processor.connect(audioContext.destination);
 
   // Use existing client or create a new one
-  let client: LiveClient | null = existingClient || null;
+  let client: any | null = existingClient || null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 5;
   let reconnectTimeout: NodeJS.Timeout | null = null;
@@ -138,8 +149,8 @@ export const streamAudioToDeepgram = (
         client = clientCache.client;
       } else {
         // Create a new Deepgram client
-        const deepgramClient = new Deepgram(apiKey);
-        client = deepgramClient.listen.live(createDeepgramOptions());
+        const deepgram = new Deepgram(apiKey);
+        client = deepgram.transcription.live(createDeepgramOptions());
         clientCache = { client, apiKey };
       }
 
@@ -160,12 +171,13 @@ export const streamAudioToDeepgram = (
     }
   };
 
-  const setupClientEventHandlers = (client: LiveClient) => {
+  const setupClientEventHandlers = (client: any) => {
     if (!client) return;
 
+    // Remove all existing listeners
     client.removeAllListeners();
 
-    client.on(LiveTranscriptionEvent.Open, () => {
+    client.addListener(LiveEvents.Open, () => {
       console.log("Deepgram connection opened");
       if (onStatusChange) {
         onStatusChange('open');
@@ -173,7 +185,7 @@ export const streamAudioToDeepgram = (
       reconnectAttempts = 0;
     });
 
-    client.on(LiveTranscriptionEvent.Transcript, (data: LiveTranscriptionResponse) => {
+    client.addListener(LiveEvents.Transcript, (data: any) => {
       try {
         if (!data?.channel?.alternatives?.length) return;
         
@@ -211,7 +223,7 @@ export const streamAudioToDeepgram = (
       }
     });
 
-    client.on(LiveTranscriptionEvent.Error, (error) => {
+    client.addListener(LiveEvents.Error, (error: any) => {
       console.error("Deepgram error:", error);
       if (onStatusChange) {
         onStatusChange('failed');
@@ -220,7 +232,7 @@ export const streamAudioToDeepgram = (
       reconnect();
     });
 
-    client.on(LiveTranscriptionEvent.Close, () => {
+    client.addListener(LiveEvents.Close, () => {
       console.log("Deepgram connection closed");
       if (onStatusChange) {
         onStatusChange('closed');
@@ -231,7 +243,7 @@ export const streamAudioToDeepgram = (
       }
     });
 
-    client.on(LiveTranscriptionEvent.Warning, (warning) => {
+    client.addListener(LiveEvents.Warning, (warning: any) => {
       console.warn("Deepgram warning:", warning);
     });
   };
@@ -276,11 +288,11 @@ export const streamAudioToDeepgram = (
     setupClientEventHandlers(client);
     
     // Check client connection status
-    if (client.getReadyState() === 1) { // 1 = OPEN
+    if (client.getReadyState && client.getReadyState() === 1) { // 1 = OPEN
       if (onStatusChange) {
         onStatusChange('open');
       }
-    } else if (client.getReadyState() === 0) { // 0 = CONNECTING
+    } else if (client.getReadyState && client.getReadyState() === 0) { // 0 = CONNECTING
       if (onStatusChange) {
         onStatusChange('connecting');
       }
@@ -297,7 +309,7 @@ export const streamAudioToDeepgram = (
   
   // Audio processing function for sending data to Deepgram
   processor.onaudioprocess = (e) => {
-    if (client && client.getReadyState() === 1) { // 1 = OPEN
+    if (client && (!client.getReadyState || client.getReadyState() === 1)) { // 1 = OPEN
       // Get audio data
       const inputData = e.inputBuffer.getChannelData(0);
       

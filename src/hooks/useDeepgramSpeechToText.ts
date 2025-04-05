@@ -1,7 +1,6 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
-import { LiveClient } from "@deepgram/sdk";
+import { Deepgram } from "@deepgram/sdk";
 import { 
   streamAudioToDeepgram,
   ConnectionStatus,
@@ -43,7 +42,7 @@ const useDeepgramSpeechToText = ({
   const accumulatedTranscriptRef = useRef<string>('');
   const currentSessionIdRef = useRef<string>(Date.now().toString());
   const isStoppingManuallyRef = useRef<boolean>(false);
-  const deepgramClientRef = useRef<LiveClient | null>(null);
+  const deepgramClientRef = useRef<any | null>(null);
   
   // Effect to initialize Deepgram connection when the component mounts
   useEffect(() => {
@@ -266,4 +265,3 @@ const useDeepgramSpeechToText = ({
 };
 
 export default useDeepgramSpeechToText;
-
