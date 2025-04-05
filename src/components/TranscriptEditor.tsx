@@ -3,9 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save } from 'lucide-react';
+import { Edit, Save, Copy, AlignJustify } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/lib/toast';
 
 interface TranscriptEditorProps {
   transcript: string;
@@ -44,6 +45,11 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(transcript);
+    toast.success('Transcript copied to clipboard');
+  };
+
   // Process and format the transcript with improved chunking and no speaker labels
   const formattedTranscript = React.useMemo(() => {
     if (!transcript) return '';
@@ -65,57 +71,56 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         }
         
         // Return a standard paragraph for regular text
-        return `<div class="transcript-paragraph">${chunk}</div>`;
+        return `<div class="transcript-paragraph">${chunk.trim()}</div>`;
       })
       .join('');
       
   }, [transcript]);
 
   return (
-    <Card className="border-2 border-doctor-secondary/30 shadow-lg h-full">
-      <CardHeader className="pb-3 bg-gradient-to-r from-doctor-secondary/20 to-doctor-primary/10">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-xl text-doctor-secondary font-semibold">Transcript</CardTitle>
+    <Card className="border border-doctor-secondary/20 shadow-md h-full">
+      <CardHeader className="pb-2 pt-3 px-4 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
+        <div className="flex items-center gap-2">
+          <AlignJustify className="h-4 w-4 text-doctor-secondary" />
+          <CardTitle className="text-lg text-doctor-secondary font-medium">Transcript</CardTitle>
+        </div>
+        <div className="flex gap-2">
           <Button 
-            variant="outline" 
+            variant="ghost" 
+            size="sm"
+            onClick={copyToClipboard}
+            disabled={!transcript.length}
+            className="text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
             size="sm"
             onClick={isEditing ? handleSave : handleEdit}
             disabled={!transcript.length}
-            className={cn(
-              "border-doctor-secondary text-doctor-secondary",
-              isEditing ? "hover:bg-doctor-secondary hover:text-white" : "hover:bg-doctor-secondary/10"
-            )}
+            className="text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10"
           >
-            {isEditing ? (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </>
-            ) : (
-              <>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </>
-            )}
+            {isEditing ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow">
+      <CardContent className="p-0">
         {isEditing ? (
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className="h-[300px] max-h-[300px] resize-none focus-visible:ring-doctor-secondary"
+            className="h-[240px] max-h-[240px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary"
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className="h-[300px] rounded-md" 
+            className="h-[240px]" 
             ref={scrollAreaRef}
           >
             <div 
               ref={contentRef} 
-              className="bg-muted p-4 rounded-md min-h-full w-full"
+              className="p-3 min-h-full w-full"
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 
@@ -127,10 +132,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         <style>
           {`
           .transcript-paragraph {
-            margin-bottom: 0.75rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #f0f0f0;
-            line-height: 1.5;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px dotted rgba(0,0,0,0.05);
+            line-height: 1.4;
           }
           
           .processing-indicator {
