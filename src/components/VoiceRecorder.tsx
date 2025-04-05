@@ -5,11 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe, AlertCircle, Check, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useDeepgramSpeechToText from '@/hooks/useDeepgramSpeechToText';
+import useSpeechRecognition from '@/hooks/useSpeechRecognition';
 import { PatientInfo } from '@/utils/speaker';
-
-// Default Deepgram API key from environment
-const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY || "";
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
@@ -26,9 +23,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [apiKey] = useState<string>(DEEPGRAM_API_KEY);
-  const [speakerMap, setSpeakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
+  const [speakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
   const [connectionErrorCount, setConnectionErrorCount] = useState(0);
+  const [processingTranscript, setProcessingTranscript] = useState(false);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
@@ -55,20 +52,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       if (prev.endsWith('\n')) return prev;
       return prev + "\n";
     });
-  };
-
-  // Handle receiving a diarized transcript from post-processing
-  const handleDiarizedTranscript = (diarizedTranscript: string) => {
-    console.log("Received diarized transcript:", diarizedTranscript.substring(0, 100) + "...");
-    
-    if (diarizedTranscript) {
-      // Replace the real-time transcript with the diarized version
-      setRawTranscript(diarizedTranscript);
-      currentTranscriptRef.current = diarizedTranscript;
-      
-      // Update the parent component
-      onTranscriptUpdate(diarizedTranscript);
-    }
   };
 
   // Improved transcript update function with better real-time performance
@@ -112,51 +95,35 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Deepgram Speech Recognition
+  // Initialize Web Speech Recognition
   const { 
     isRecording, 
-    connectionStatus,
-    toggleRecording, 
+    detectedLanguage,
     startRecording, 
     stopRecording,
-    processingDiarization,
+    toggleRecording: webToggleRecording,
     getAccumulatedTranscript,
-    resetTranscript,
-    processDiarization
-  } = useDeepgramSpeechToText({
+    resetTranscript
+  } = useSpeechRecognition({
     onResult: handleSpeechResult,
     onSilence: handleSilence,
-    onDiarizedTranscriptReady: handleDiarizedTranscript,
-    pauseThreshold,
-    apiKey
+    pauseThreshold
   });
   
   // Monitor connection status
   useEffect(() => {
-    if (connectionStatus === 'failed') {
-      setConnectionErrorCount(prev => prev + 1);
-      
-      // If we've had multiple failures, show a more persistent error
-      if (connectionErrorCount > 2) {
-        toast.error("Experiencing connection issues. Please check your internet connection.", {
-          duration: 5000
-        });
-      }
-    } else if (connectionStatus === 'open') {
-      // Reset error count on successful connection
-      setConnectionErrorCount(0);
-    }
-  }, [connectionStatus]);
+    // Web Speech API doesn't have connection status, so we'll reset error count
+    setConnectionErrorCount(0);
+  }, [isRecording]);
 
   // Improved speech result handler with better real-time updates
-  function handleSpeechResult({ transcript: result, isFinal, resultIndex, speakerTag }: { 
+  function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
-    resultIndex: number,
-    speakerTag?: number 
+    resultIndex: number
   }) {
     // For diagnostic purposes
-    console.log("Received speech result:", { result, isFinal, resultIndex, speakerTag });
+    console.log("Received speech result:", { result, isFinal, resultIndex });
     
     if (!result) {
       console.log("Empty result received, ignoring");
@@ -169,11 +136,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
+    // For Web Speech API, we'll simulate speaker tags
+    // Simple alternating pattern: first utterance is doctor, then patient, then doctor, etc.
+    const speakerTag = resultIndex % 2 === 0 ? 1 : 2; // 1 for Doctor, 2 for Patient
+    
     // Track speakers we've seen
-    if (typeof speakerTag === 'number' && speakerTag > 0) {
+    if (speakerTag > 0) {
       speakersDetectedRef.current.add(speakerTag);
       console.log(`Speaker ${speakerTag} detected. Total speakers: ${speakersDetectedRef.current.size}`);
     }
+    
+    // Format result with a speaker tag
+    const speakerLabel = speakerTag === 1 ? 'Doctor' : 'Patient';
+    const formattedResult = `[${speakerLabel}]: ${result}`;
     
     if (isFinal) {
       // Add the new text to the raw transcript - ensure it's on a new line if needed
@@ -181,11 +156,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         // If we're starting a new utterance and the previous doesn't end with a newline, add one
         let newRawTranscript;
         if (prev === '') {
-          newRawTranscript = result;
+          newRawTranscript = formattedResult;
         } else if (prev.endsWith('\n')) {
-          newRawTranscript = prev + result;
+          newRawTranscript = prev + formattedResult;
         } else {
-          newRawTranscript = prev + '\n' + result;
+          newRawTranscript = prev + '\n' + formattedResult;
         }
         
         currentTranscriptRef.current = newRawTranscript;
@@ -201,7 +176,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       // Add the non-final result to the current transcript for real-time feedback
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
-        result + '...'; // Show ellipsis for non-final results
+        formattedResult + '...'; // Show ellipsis for non-final results
       
       // Update both the reference and the parent component
       onTranscriptUpdate(updatedTranscript);
@@ -300,8 +275,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       transcriptUpdateTimeoutRef.current = null;
     }
     
-    // Stop recording and process for diarization
-    stopRecording(true);
+    // Stop recording
+    stopRecording();
   };
 
   // Handle toggling recording
@@ -319,51 +294,31 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Manually trigger diarization processing
-  const handleProcessDiarization = () => {
-    processDiarization();
-  };
-
   // Get connection status display info
   const getConnectionStatusInfo = () => {
-    if (processingDiarization) {
+    if (processingTranscript) {
       return {
         color: "bg-blue-500",
         text: "Processing",
-        subtext: "Enhancing transcript with speaker detection...",
+        subtext: "Processing transcript...",
         icon: <RotateCw className="h-4 w-4 animate-spin" />
       };
     }
 
-    switch(connectionStatus) {
-      case 'open':
-        return {
-          color: "bg-green-500",
-          text: "Connected",
-          subtext: isRecording ? "Recording in progress..." : "Ready to record",
-          icon: <Check className="h-4 w-4" />
-        };
-      case 'connecting':
-        return {
-          color: "bg-amber-500",
-          text: "Connecting",
-          subtext: "Please wait...",
-          icon: <Globe className="h-4 w-4" />
-        };
-      case 'failed':
-        return {
-          color: "bg-red-500",
-          text: "Connection failed",
-          subtext: "Check your internet connection",
-          icon: <AlertCircle className="h-4 w-4" />
-        };
-      default:
-        return {
-          color: "bg-slate-400",
-          text: "Disconnected",
-          subtext: "Press record to connect",
-          icon: <Globe className="h-4 w-4" />
-        };
+    if (isRecording) {
+      return {
+        color: "bg-green-500",
+        text: "Recording",
+        subtext: `Using ${detectedLanguage} language`,
+        icon: <Check className="h-4 w-4" />
+      };
+    } else {
+      return {
+        color: "bg-slate-400",
+        text: "Ready",
+        subtext: "Press record to start",
+        icon: <Globe className="h-4 w-4" />
+      };
     }
   };
 
@@ -384,7 +339,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     ? "bg-destructive hover:bg-destructive/90" 
                     : "bg-doctor-primary hover:bg-doctor-primary/90"
                 )}
-                disabled={processingDiarization}
+                disabled={processingTranscript}
               >
                 {isRecording ? (
                   <MicOff className="h-8 w-8" />
@@ -396,7 +351,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               <Button
                 onClick={startNewSession}
                 className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
-                disabled={isRecording || processingDiarization}
+                disabled={isRecording || processingTranscript}
               >
                 <UserPlus className="h-8 w-8" />
               </Button>
@@ -406,36 +361,21 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               {isRecording ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "h-3 w-3 rounded-full animate-pulse", 
-                      connectionStatus === 'open' 
-                        ? "bg-destructive"
-                        : "bg-amber-500"
-                    )}></span>
-                    <span className="font-medium">
-                      {connectionStatus === 'open' 
-                        ? "Recording" 
-                        : "Connecting..."}
-                    </span>
+                    <span className="h-3 w-3 rounded-full animate-pulse bg-destructive"></span>
+                    <span className="font-medium">Recording</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {connectionStatus === 'open' ? 
-                      'Streaming audio...' : 
-                      connectionStatus === 'connecting' ? 
-                      'Connecting...' :
-                      connectionStatus === 'failed' ?
-                      'Connection issues - trying to reconnect...' :
-                      'Waiting for connection...'}
+                    Using Web Speech Recognition ({detectedLanguage})
                   </div>
                 </div>
-              ) : processingDiarization ? (
+              ) : processingTranscript ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
                     <span className="font-medium">Processing</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Enhancing transcript with speaker detection...
+                    Processing transcript...
                   </div>
                 </div>
               ) : (
@@ -468,19 +408,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 </div>
               </div>
             </div>
-            
-            {/* Manual diarization processing button */}
-            {!isRecording && !processingDiarization && rawTranscript && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleProcessDiarization}
-                className="mt-2 text-xs"
-              >
-                <RotateCw className="h-3 w-3 mr-1" />
-                Enhance Speaker Detection
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
