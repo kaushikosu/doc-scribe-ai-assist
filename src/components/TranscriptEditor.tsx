@@ -83,7 +83,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     const lineCount = transcript.split(/\n/).length;
     
     // Each line is roughly 24px, add padding
-    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 300);
+    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 400);
     return `h-[${estimatedHeight}px]`;
   };
 
@@ -134,17 +134,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <Textarea
             value={editableTranscript}
             onChange={handleChange}
-            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[300px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2`}
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2 bg-muted`}
             placeholder="Transcript will appear here..."
           />
         ) : (
           <ScrollArea 
-            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[300px] min-h-[120px]`}
+            className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] overflow-auto`}
             ref={scrollAreaRef}
+            scrollHideDelay={0}
           >
             <div 
               ref={contentRef} 
-              className={`p-2 w-full`}
+              className={`p-3 w-full bg-muted rounded-md`}
               style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
               dangerouslySetInnerHTML={{ 
                 __html: formattedTranscript || 
