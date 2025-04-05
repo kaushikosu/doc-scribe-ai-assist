@@ -5,6 +5,7 @@
 // Re-export everything needed from the speaker detection utils
 export {
   detectSpeaker,
+  classifyTranscript,
   detectLanguage,
   detectPatientInfo
 } from './speakerDetection';

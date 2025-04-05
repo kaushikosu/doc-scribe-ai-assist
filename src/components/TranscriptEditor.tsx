@@ -1,27 +1,30 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, Copy, AlignJustify, Users, MessageSquare } from 'lucide-react';
+import { Edit, Save, Copy, AlignJustify, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/lib/toast';
-import { detectSpeaker, ConversationContext } from '@/utils/speaker';
+import { classifyTranscript } from '@/utils/speaker';
 
 interface TranscriptEditorProps {
   transcript: string;
   onTranscriptChange: (transcript: string) => void;
+  isRecording: boolean;
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 
   transcript, 
-  onTranscriptChange
+  onTranscriptChange,
+  isRecording
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
-  const [isClassifying, setIsClassifying] = useState(false);
   const [classifiedText, setClassifiedText] = useState("");
   const [showClassified, setShowClassified] = useState(false);
+  const [lastProcessedTranscript, setLastProcessedTranscript] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const classifiedScrollAreaRef = useRef<HTMLDivElement>(null);
@@ -35,6 +38,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       scrollContainer.scrollTop = contentRef.current.scrollHeight;
     }
   }, [transcript]);
+  
+  // Auto-classify transcript when recording stops and transcript changes
+  useEffect(() => {
+    // Only process if not recording, transcript exists and has changed
+    if (!isRecording && transcript && transcript !== lastProcessedTranscript && transcript.trim().length > 0) {
+      classifyTranscriptText();
+      setLastProcessedTranscript(transcript);
+    }
+  }, [isRecording, transcript]);
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -49,87 +61,31 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     setEditableTranscript(e.target.value);
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(transcript);
-    toast.success('Transcript copied to clipboard');
+  const copyToClipboard = (text: string, message: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(message);
   };
 
-  const classifySpeakers = () => {
+  const classifyTranscriptText = () => {
     try {
-      setIsClassifying(true);
-      toast.info('Classifying speakers in transcript...');
-      
-      // Split the transcript into paragraphs/sentences
-      const paragraphs = transcript
-        .split(/\n+/)
-        .filter(p => p.trim().length > 0);
-      
-      if (paragraphs.length === 0) {
+      if (!transcript.trim()) {
         toast.warning('No content to classify');
-        setIsClassifying(false);
         return;
       }
 
-      // Initialize conversation context
-      let context: ConversationContext = {
-        isPatientDescribingSymptoms: false,
-        doctorAskedQuestion: false,
-        patientResponded: false,
-        isPrescribing: false,
-        isGreeting: false,
-        lastSpeaker: 'Doctor', // Starting assumption
-        isFirstInteraction: true,
-        turnCount: 0
-      };
-
-      // Process each paragraph to determine speaker
-      let classified = '';
+      toast.info('Classifying speakers in transcript...');
       
-      paragraphs.forEach((paragraph, index) => {
-        // Skip already classified paragraphs
-        if (paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/)) {
-          classified += paragraph + '\n\n';
-          
-          // Update context based on existing classification
-          const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
-          if (speakerMatch && speakerMatch[1]) {
-            context.lastSpeaker = speakerMatch[1] as 'Doctor' | 'Patient' | 'Identifying';
-          }
-          
-          return;
-        }
-        
-        // Detect speaker for this paragraph
-        const speaker = detectSpeaker(paragraph, context);
-        
-        // Add speaker label to the paragraph
-        classified += `[${speaker}]: ${paragraph}\n\n`;
-        
-        // Update context for next iteration
-        context.lastSpeaker = speaker;
-        context.isFirstInteraction = false;
-        context.turnCount++;
-        
-        // Update other context flags based on content
-        context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
-        context.isPatientDescribingSymptoms = 
-          speaker === 'Patient' && 
-          (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
-        context.isPrescribing = 
-          speaker === 'Doctor' && 
-          (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
-      });
+      // Use the utility function to classify the transcript
+      const classified = classifyTranscript(transcript);
       
       // Set the classified text
-      setClassifiedText(classified.trim());
+      setClassifiedText(classified);
       setShowClassified(true);
       toast.success('Speaker classification completed');
       
     } catch (error) {
       console.error('Error during speaker classification:', error);
       toast.error('Failed to classify speakers');
-    } finally {
-      setIsClassifying(false);
     }
   };
 
@@ -137,8 +93,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const formattedTranscript = React.useMemo(() => {
     if (!transcript) return '';
     
-    // Process transcript to highlight speaker labels
-    const processedTranscript = transcript.split('\n\n').map(paragraph => {
+    // Split transcript into paragraphs for better visualization
+    const paragraphs = transcript
+      .split(/\n+/)
+      .filter(p => p.trim().length > 0);
+    
+    if (paragraphs.length === 0) {
+      return '<div class="text-muted-foreground text-center italic h-full flex items-center justify-center">Transcript will appear here...</div>';
+    }
+    
+    // Process transcript to highlight speaker labels if they exist
+    const processedTranscript = paragraphs.map(paragraph => {
       const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       
       if (speakerMatch) {
@@ -166,8 +131,17 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const formattedClassifiedTranscript = React.useMemo(() => {
     if (!classifiedText) return '';
     
+    // Split into paragraphs for better visualization
+    const paragraphs = classifiedText
+      .split(/\n+/)
+      .filter(p => p.trim().length > 0);
+    
+    if (paragraphs.length === 0) {
+      return '<div class="text-muted-foreground text-center italic">No classified content yet</div>';
+    }
+    
     // Process transcript to highlight speaker labels
-    const processedTranscript = classifiedText.split('\n\n').map(paragraph => {
+    const processedTranscript = paragraphs.map(paragraph => {
       const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
       
       if (speakerMatch) {
@@ -191,16 +165,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [classifiedText]);
 
-  // Calculate dynamic height based on content (with min and max constraints)
-  const getContentHeight = () => {
-    if (!transcript) return 'min-h-[120px]';
-    const lineCount = transcript.split(/\n/).length;
-    
-    // Each line is roughly 24px, add padding
-    const estimatedHeight = Math.min(Math.max(lineCount * 24, 120), 400);
-    return `h-[${estimatedHeight}px]`;
-  };
-
   return (
     <>
       <Card className="border-2 border-doctor-secondary/30">
@@ -213,22 +177,22 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={copyToClipboard}
+              onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}
               disabled={!transcript.length}
               className="h-7 text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10 border-doctor-primary"
             >
               <Copy className="h-3.5 w-3.5 mr-1" />
               Copy
             </Button>
-            <Button
-              variant="outline"
+            <Button 
+              variant="outline" 
               size="sm"
-              onClick={classifySpeakers}
-              disabled={!transcript.length || isClassifying}
+              onClick={classifyTranscriptText}
+              disabled={!transcript.length}
               className="h-7 text-doctor-accent hover:text-doctor-accent/80 hover:bg-doctor-accent/10 border-doctor-accent"
             >
-              <Users className="h-3.5 w-3.5 mr-1" />
-              {isClassifying ? "Processing..." : "Classify"}
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+              Classify
             </Button>
             <Button 
               variant="outline" 
@@ -270,7 +234,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             >
               <div 
                 ref={contentRef} 
-                className={`p-3 w-full bg-muted rounded-md`}
+                className="p-3 w-full bg-muted rounded-md"
                 style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
                 dangerouslySetInnerHTML={{ 
                   __html: formattedTranscript || 
@@ -282,7 +246,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         </CardContent>
       </Card>
 
-      {/* Classified Transcript Box */}
+      {/* Classified Transcript Box - Only show when there's classified content */}
       {showClassified && classifiedText && (
         <Card className="border-2 border-doctor-accent/30 mt-4">
           <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-accent/10 to-transparent flex flex-row justify-between items-center">
@@ -293,10 +257,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(classifiedText);
-                toast.success('Classified transcript copied');
-              }}
+              onClick={() => copyToClipboard(classifiedText, 'Classified transcript copied')}
               className="h-7 text-doctor-accent hover:text-doctor-accent/80 hover:bg-doctor-accent/10 border-doctor-accent"
             >
               <Copy className="h-3.5 w-3.5 mr-1" />
@@ -325,25 +286,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       <style>
         {`
         .transcript-paragraph {
-          margin-bottom: 0.25rem;
-          padding-bottom: 0.15rem;
-          border-bottom: 1px dotted rgba(0,0,0,0.03);
-          line-height: 1.3;
-        }
-        
-        .processing-indicator {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-style: italic;
-          color: #6b7280;
-          margin-bottom: 0.25rem;
-        }
-        
-        .processing-indicator span {
-          display: inline-block;
-          width: 0.4rem;
-          height: 0.4rem;
+          margin-bottom: 0.75rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 1px dotted rgba(0,0,0,0.05);
+          line-height: 1.5;
         }
         `}
       </style>

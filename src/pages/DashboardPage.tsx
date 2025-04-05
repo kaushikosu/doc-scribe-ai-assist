@@ -1,28 +1,50 @@
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
+import { classifyTranscript } from '@/utils/speaker';
 import { toast } from '@/lib/toast';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
+  const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
     name: '',
     time: ''
   });
+  const [isRecording, setIsRecording] = useState(false);
+  const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
 
   // Debug the transcript updates
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
+  
+  // Auto-classify the transcript when recording stops
+  useEffect(() => {
+    if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
+      console.log("Recording stopped, auto-classifying transcript");
+      
+      // Add a small delay to make sure we have the final transcript
+      const timeoutId = setTimeout(() => {
+        if (transcript && transcript.trim().length > 0) {
+          const classified = classifyTranscript(transcript);
+          setClassifiedTranscript(classified);
+          setLastProcessedTranscript(transcript);
+          console.log("Transcript auto-classified");
+        }
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isRecording, transcript]);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
-    console.log("handleTranscriptUpdate called with:", newTranscript);
+    console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
       setTranscript(newTranscript);
     }
@@ -30,6 +52,15 @@ const DashboardPage = () => {
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
     setPatientInfo(newPatientInfo);
+  };
+  
+  const handleRecordingStateChange = (recordingState: boolean) => {
+    setIsRecording(recordingState);
+    
+    // When recording stops, show a toast notification
+    if (!recordingState && transcript) {
+      toast.info('Processing transcript...');
+    }
   };
 
   return (
@@ -42,7 +73,8 @@ const DashboardPage = () => {
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
-              onPatientInfoUpdate={handlePatientInfoUpdate} 
+              onPatientInfoUpdate={handlePatientInfoUpdate}
+              onRecordingStateChange={handleRecordingStateChange}
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
@@ -62,7 +94,7 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>The transcript with speaker labels will appear in real-time</span>
+                  <span>When you stop recording, the transcript will be classified automatically</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
@@ -80,12 +112,14 @@ const DashboardPage = () => {
           <div className="md:col-span-8 space-y-6">
             <TranscriptEditor 
               transcript={transcript} 
-              onTranscriptChange={setTranscript} 
+              onTranscriptChange={setTranscript}
+              isRecording={isRecording}
             />
             
             <PrescriptionGenerator 
               transcript={transcript} 
-              patientInfo={patientInfo} 
+              patientInfo={patientInfo}
+              classifiedTranscript={classifiedTranscript}
             />
           </div>
         </div>

@@ -1,20 +1,22 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe, AlertCircle, Check, RotateCw } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { PatientInfo } from '@/utils/speaker';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
+  onRecordingStateChange?: (isRecording: boolean) => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
-  onPatientInfoUpdate 
+  onPatientInfoUpdate,
+  onRecordingStateChange
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
@@ -22,9 +24,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
-  const [speakerMap] = useState<Map<number, string>>(new Map([[1, 'Doctor'], [2, 'Patient']]));
-  const [connectionErrorCount, setConnectionErrorCount] = useState(0);
   const [processingTranscript, setProcessingTranscript] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
@@ -32,8 +33,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const speakersDetectedRef = useRef<Set<number>>(new Set());
-
+  
   // Log when transcript changes - useful for debugging
   useEffect(() => {
     console.log("VoiceRecorder raw transcript:", rawTranscript);
@@ -44,12 +44,19 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }, [rawTranscript]);
 
+  // Notify parent about recording state changes
+  useEffect(() => {
+    if (onRecordingStateChange) {
+      onRecordingStateChange(isRecording);
+    }
+  }, [isRecording, onRecordingStateChange]);
+
   // Handle silence - add a line break to separate utterances
   const handleSilence = () => {
     // Add line break to help separate different speech segments
     setRawTranscript(prev => {
-      if (prev.endsWith('\n')) return prev;
-      return prev + "\n";
+      if (prev.endsWith('\n\n')) return prev;
+      return prev + "\n\n";
     });
   };
 
@@ -96,7 +103,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   // Initialize Web Speech Recognition
   const { 
-    isRecording, 
+    isRecording: webSpeechIsRecording, 
     detectedLanguage,
     startRecording, 
     stopRecording,
@@ -109,11 +116,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     pauseThreshold
   });
   
-  // Monitor connection status
+  // Update local recording state when web speech recording state changes
   useEffect(() => {
-    // Web Speech API doesn't have connection status, so we'll reset error count
-    setConnectionErrorCount(0);
-  }, [isRecording]);
+    setIsRecording(webSpeechIsRecording);
+  }, [webSpeechIsRecording]);
 
   // Improved speech result handler with better real-time updates
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
@@ -135,9 +141,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Simply use the raw result without speaker tags
-    // This will create a more natural transcript with automatic chunking
-    
     if (isFinal) {
       // Add the new text to the raw transcript - ensure it's on a new line if needed
       setRawTranscript(prev => {
@@ -145,10 +148,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         let newRawTranscript;
         if (prev === '') {
           newRawTranscript = result;
-        } else if (prev.endsWith('\n')) {
+        } else if (prev.endsWith('\n\n')) {
           newRawTranscript = prev + result;
         } else {
-          newRawTranscript = prev + '\n' + result;
+          newRawTranscript = prev + '\n\n' + result;
         }
         
         currentTranscriptRef.current = newRawTranscript;
@@ -162,7 +165,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     } else {
       // For non-final results, show them as temporary text in real-time
       const updatedTranscript = currentTranscriptRef.current + 
-        (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n') ? '\n' : '') + 
+        (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n\n') ? '\n\n' : '') + 
         result + '...'; // Show ellipsis for non-final results
       
       // Update both the reference and the parent component
@@ -249,7 +252,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     patientNameScanAttempts.current = 0;
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
-    speakersDetectedRef.current.clear();
     
     toast.success('Ready for new patient');
   };
@@ -297,7 +299,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         color: "bg-green-500",
         text: "Recording",
         subtext: `Using ${detectedLanguage} language`,
-        icon: <Check className="h-4 w-4" />
+        icon: <Globe className="h-4 w-4" />
       };
     } else {
       return {

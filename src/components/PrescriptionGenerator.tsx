@@ -13,44 +13,51 @@ interface PrescriptionGeneratorProps {
     name: string;
     time: string;
   };
+  classifiedTranscript?: string;
 }
 
-const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ transcript, patientInfo }) => {
+const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
+  transcript, 
+  patientInfo,
+  classifiedTranscript
+}) => {
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
   const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
-  const [shouldGeneratePrescription, setShouldGeneratePrescription] = useState(false);
+  const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
 
   useEffect(() => {
-    // Only generate prescription when transcript has been processed with speaker labels
-    if (transcript.length > 0) {
-      const hasLabels = transcript.includes('[Doctor]:') || transcript.includes('[Patient]:');
-      if (hasLabels) {
-        console.log("Transcript has speaker labels, generating prescription");
-        setShouldGeneratePrescription(true);
-      } else {
-        console.log("Transcript doesn't have speaker labels yet, waiting for processing");
-        setShouldGeneratePrescription(false);
-      }
-    } else {
-      setPrescription('');
-      setEditablePrescription('');
-      setShouldGeneratePrescription(false);
+    // Generate prescription when classified transcript becomes available or changes
+    if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript) {
+      console.log("Classified transcript changed, generating prescription");
+      generatePrescription(classifiedTranscript);
+      setLastProcessedTranscript(classifiedTranscript);
     }
-  }, [transcript]);
-
-  useEffect(() => {
-    if (shouldGeneratePrescription) {
+    // Fallback to regular transcript if no classified transcript is available
+    else if (transcript && !classifiedTranscript && transcript !== lastProcessedTranscript) {
+      console.log("Using regular transcript for prescription generation");
       generatePrescription(transcript);
+      setLastProcessedTranscript(transcript);
     }
-  }, [shouldGeneratePrescription, transcript, patientInfo]);
+  }, [classifiedTranscript, transcript]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
+      if (!transcriptText.trim()) {
+        return; // Don't generate for empty transcript
+      }
+      
+      toast.info('Generating prescription...');
+      
       const medications = extractMedications(transcriptText);
       const symptoms = extractSymptoms(transcriptText);
+      
+      if (medications.length === 0) {
+        console.log("No medications found in transcript, skipping prescription generation");
+        return;
+      }
       
       const currentDate = new Date().toLocaleDateString('en-US', {
         year: 'numeric', 
@@ -90,6 +97,7 @@ Department of General Medicine
       
       setPrescription(generatedPrescription);
       setEditablePrescription(generatedPrescription);
+      toast.success('Prescription generated');
     } catch (error) {
       console.error('Error generating prescription:', error);
       toast.error('Error generating prescription template');
@@ -97,29 +105,126 @@ Department of General Medicine
   };
 
   const extractMedications = (text: string): string[] => {
-    const commonMedications = [
-      'Paracetamol', 'Ibuprofen', 'Aspirin', 'Amoxicillin',
-      'Azithromycin', 'Metformin', 'Omeprazole', 'Atorvastatin'
+    const medications: Set<string> = new Set();
+    
+    // Look for common medication patterns in doctor speech
+    const doctorLines = text.split('\n')
+      .filter(line => line.trim().startsWith('[Doctor]:'));
+    
+    // List of common medications to look for
+    const commonMedicationNames = [
+      'Paracetamol', 'Acetaminophen', 'Ibuprofen', 'Aspirin', 'Amoxicillin',
+      'Azithromycin', 'Metformin', 'Omeprazole', 'Atorvastatin', 'Lisinopril',
+      'Simvastatin', 'Metoprolol', 'Amlodipine', 'Albuterol', 'Cetirizine',
+      'Levothyroxine', 'Fluoxetine', 'Insulin', 'Warfarin', 'Hydrochlorothiazide',
+      'Cephalexin', 'Ciprofloxacin', 'Sertraline', 'Gabapentin', 'Prednisone'
     ];
     
-    return commonMedications
-      .filter(med => text.toLowerCase().includes(med.toLowerCase()))
-      .map(med => {
-        const dosages = ['500mg twice daily', '250mg once daily', '1 tablet three times daily'];
-        const randomDosage = dosages[Math.floor(Math.random() * dosages.length)];
-        return `${med} - ${randomDosage}`;
-      });
+    // Regex patterns for medication dosages
+    const dosagePatterns = [
+      /(\d+)\s*mg/i,
+      /(\d+)\s*ml/i,
+      /(\d+)\s*tablets?/i,
+      /(\d+)\s*capsules?/i,
+      /(\d+)\s*pills?/i, 
+      /(\d+)\s*times?/i,
+      /(\d+)\s*days?/i
+    ];
+    
+    // Find medication mentions with dosages in doctor lines
+    for (const line of doctorLines) {
+      for (const med of commonMedicationNames) {
+        const medLower = med.toLowerCase();
+        const lineLower = line.toLowerCase();
+        
+        if (lineLower.includes(medLower)) {
+          // Try to extract dosages
+          let dosageInfo = "";
+          
+          for (const pattern of dosagePatterns) {
+            const match = line.match(pattern);
+            if (match) {
+              dosageInfo += " " + match[0];
+            }
+          }
+          
+          // Check for frequency
+          const frequencyMatches = line.match(/(once|twice|thrice|three times|four times) (daily|a day|weekly|monthly)/i);
+          if (frequencyMatches) {
+            dosageInfo += " " + frequencyMatches[0];
+          }
+          
+          // If no specific dosage found, use a default
+          if (!dosageInfo) {
+            const defaultDosages = ['500mg twice daily', '250mg once daily', '1 tablet three times daily'];
+            dosageInfo = defaultDosages[Math.floor(Math.random() * defaultDosages.length)];
+          }
+          
+          medications.add(`${med} - ${dosageInfo.trim()}`);
+        }
+      }
+    }
+    
+    // If no medications were found through pattern matching, fallback to the basic approach
+    if (medications.size === 0) {
+      for (const med of commonMedicationNames) {
+        if (text.toLowerCase().includes(med.toLowerCase())) {
+          const dosages = ['500mg twice daily', '250mg once daily', '1 tablet three times daily'];
+          const randomDosage = dosages[Math.floor(Math.random() * dosages.length)];
+          medications.add(`${med} - ${randomDosage}`);
+          
+          // Limit to 3 medications in fallback mode
+          if (medications.size >= 3) break;
+        }
+      }
+    }
+    
+    return Array.from(medications);
   };
 
   const extractSymptoms = (text: string): string[] => {
+    const symptoms: Set<string> = new Set();
+    
+    // Look for symptoms in patient speech
+    const patientLines = text.split('\n')
+      .filter(line => line.trim().startsWith('[Patient]:'));
+    
     const commonSymptoms = [
       'fever', 'headache', 'pain', 'cough', 'cold', 
-      'nausea', 'dizziness', 'fatigue', 'weakness'
+      'nausea', 'dizziness', 'fatigue', 'weakness', 'sore throat',
+      'stomach ache', 'vomiting', 'diarrhea', 'chest pain', 'back pain',
+      'shortness of breath', 'difficulty breathing', 'rash', 'itching'
     ];
     
-    return commonSymptoms
-      .filter(symptom => text.toLowerCase().includes(symptom))
-      .map(symptom => symptom.charAt(0).toUpperCase() + symptom.slice(1));
+    // Look for mentions of symptoms in patient lines
+    for (const line of patientLines) {
+      const lineLower = line.toLowerCase();
+      
+      // Check for symptom patterns like "I have a headache" or "My head hurts"
+      for (const symptom of commonSymptoms) {
+        if (lineLower.includes(symptom)) {
+          symptoms.add(symptom.charAt(0).toUpperCase() + symptom.slice(1));
+        }
+      }
+      
+      // Check for pain patterns like "my stomach hurts" or "pain in my back"
+      const painMatches = line.match(/my (\w+) (hurts|aches|is painful|is sore)/i);
+      if (painMatches) {
+        const bodyPart = painMatches[1];
+        symptoms.add(`${bodyPart.charAt(0).toUpperCase() + bodyPart.slice(1)} pain`);
+      }
+    }
+    
+    // If no symptoms found through patient lines, check entire transcript
+    if (symptoms.size === 0) {
+      for (const symptom of commonSymptoms) {
+        if (text.toLowerCase().includes(symptom)) {
+          symptoms.add(symptom.charAt(0).toUpperCase() + symptom.slice(1));
+        }
+      }
+    }
+    
+    return Array.from(symptoms);
   };
 
   const handleEdit = () => {
@@ -137,8 +242,15 @@ Department of General Medicine
   };
 
   const handleGenerateAI = () => {
-    toast.success('Regenerating prescription with AI...');
-    generatePrescription(transcript);
+    if (classifiedTranscript) {
+      toast.success('Regenerating prescription with AI...');
+      generatePrescription(classifiedTranscript);
+    } else if (transcript) {
+      toast.success('Regenerating prescription with AI...');
+      generatePrescription(transcript);
+    } else {
+      toast.error('No transcript available for prescription generation');
+    }
   };
 
   const handlePrint = () => {
@@ -166,9 +278,6 @@ Department of General Medicine
     }
   };
 
-  // If we don't have speaker labels yet and recording is happening, show notice
-  const isPending = transcript.length > 0 && !shouldGeneratePrescription;
-
   return (
     <Card className="border-2 border-doctor-accent/30">
       <CardHeader className="pb-3">
@@ -179,7 +288,7 @@ Department of General Medicine
               variant="outline" 
               size="sm"
               onClick={handleGenerateAI}
-              disabled={!transcript.length || !shouldGeneratePrescription}
+              disabled={!transcript.length}
               className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
             >
               <MessageSquare className="h-4 w-4 mr-2" />
@@ -220,9 +329,7 @@ Department of General Medicine
           />
         ) : (
           <div className="bg-muted p-3 rounded-md min-h-[300px] font-mono text-sm whitespace-pre-wrap">
-            {isPending ? 
-              "Waiting for full transcript processing to generate prescription..." :
-              (prescription || "Prescription will be generated here...")}
+            {prescription || "Prescription will be generated automatically after transcript is processed..."}
           </div>
         )}
       </CardContent>

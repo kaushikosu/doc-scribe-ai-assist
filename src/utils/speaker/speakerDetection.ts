@@ -14,6 +14,10 @@ export function detectSpeaker(
 ): 'Doctor' | 'Patient' {
   const lowerText = text.toLowerCase().trim();
   
+  if (!text || text.trim().length === 0) {
+    return context.lastSpeaker || 'Doctor';
+  }
+  
   // Initialize scores with bias based on conversation turn count
   // This helps create more realistic back-and-forth dialogue patterns
   let doctorScore = context.turnCount % 2 === 0 ? 1 : 0; // Even turns slightly favor doctor
@@ -74,19 +78,19 @@ export function detectSpeaker(
   // Consider conversation flow context
   if (context.lastSpeaker === 'Doctor') {
     // If doctor spoke last, this is more likely a patient response
-    patientScore += 2; // Increased from 1 to 2
+    patientScore += 2;
     
     // If last utterance was a question, more likely patient is answering
     if (context.doctorAskedQuestion) {
-      patientScore += 3; // Increased from 2 to 3
+      patientScore += 3;
     }
   } else if (context.lastSpeaker === 'Patient') {
     // If patient spoke last, this is more likely a doctor response
-    doctorScore += 2; // Increased from 1 to 2
+    doctorScore += 2;
     
     // If patient was describing symptoms, doctor likely asking follow-up
     if (context.isPatientDescribingSymptoms) {
-      doctorScore += 3; // Increased from 2 to 3
+      doctorScore += 3;
     }
   }
   
@@ -122,16 +126,16 @@ export function detectSpeaker(
     lowerText.includes("mg") ||
     lowerText.includes("ml")
   )) {
-    doctorScore += 5;  // Increased from 4 to 5
+    doctorScore += 5;
   }
   
   // Analyze text length and complexity
   if (text.length > 100) {
     // Longer explanations are more likely from doctor
-    doctorScore += 2; // Increased from 1 to 2
+    doctorScore += 2;
   } else if (text.length < 15 && patientPatterns.responses.some(pattern => pattern.test(lowerText))) {
     // Very short response is likely patient
-    patientScore += 2; // Increased from 1 to 2
+    patientScore += 2;
   }
   
   // Special case: If text contains both "I" and medical terms, could be a doctor 
@@ -145,6 +149,68 @@ export function detectSpeaker(
   
   // Return the most likely speaker based on scoring
   return doctorScore > patientScore ? 'Doctor' : 'Patient';
+}
+
+// Helper function to classify entire transcript
+export function classifyTranscript(transcript: string): string {
+  // Split transcript into paragraphs
+  const paragraphs = transcript
+    .split(/\n+/)
+    .filter(p => p.trim().length > 0);
+  
+  if (paragraphs.length === 0) return '';
+  
+  // Initialize conversation context
+  let context: ConversationContext = {
+    isPatientDescribingSymptoms: false,
+    doctorAskedQuestion: false,
+    patientResponded: false,
+    isPrescribing: false,
+    isGreeting: false,
+    lastSpeaker: 'Doctor', // Starting assumption
+    isFirstInteraction: true,
+    turnCount: 0
+  };
+  
+  // Process each paragraph
+  let classified = '';
+  
+  paragraphs.forEach((paragraph, index) => {
+    // Skip already classified paragraphs
+    if (paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/)) {
+      classified += paragraph + '\n\n';
+      
+      // Update context based on existing classification
+      const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
+      if (speakerMatch && speakerMatch[1]) {
+        context.lastSpeaker = speakerMatch[1] as 'Doctor' | 'Patient';
+      }
+      
+      return;
+    }
+    
+    // Detect speaker for this paragraph
+    const speaker = detectSpeaker(paragraph, context);
+    
+    // Add speaker label to the paragraph
+    classified += `[${speaker}]: ${paragraph}\n\n`;
+    
+    // Update context for next iteration
+    context.lastSpeaker = speaker;
+    context.isFirstInteraction = false;
+    context.turnCount++;
+    
+    // Update other context flags based on content
+    context.doctorAskedQuestion = paragraph.includes('?') && speaker === 'Doctor';
+    context.isPatientDescribingSymptoms = 
+      speaker === 'Patient' && 
+      (/pain|hurt|feel|symptom|problem|issue/i.test(paragraph));
+    context.isPrescribing = 
+      speaker === 'Doctor' && 
+      (/prescribe|take|medicine|medication|treatment|therapy|dose/i.test(paragraph));
+  });
+  
+  return classified.trim();
 }
 
 // Re-export functions from other files to maintain backward compatibility
