@@ -27,6 +27,7 @@ const DashboardPage = () => {
   }, [transcript]);
   
   useEffect(() => {
+    // Only run this effect if recording has stopped and we have new transcript content
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
       setIsClassifying(true);
@@ -36,35 +37,35 @@ const DashboardPage = () => {
         duration: 3000,
       });
       
+      // Store current transcript value in a local variable to avoid stale closures
+      const currentTranscript = transcript;
+      
       // Wrap the timeout in a function to avoid stale closures
-      const processTranscript = () => {
-        if (transcript && transcript.trim().length > 0) {
-          try {
-            const classified = classifyTranscript(transcript);
+      const timeoutId = setTimeout(() => {
+        try {
+          if (currentTranscript && currentTranscript.trim().length > 0) {
+            const classified = classifyTranscript(currentTranscript);
             setClassifiedTranscript(classified);
-            setLastProcessedTranscript(transcript);
+            setLastProcessedTranscript(currentTranscript);
             setShowClassifiedView(true); // Show the classified view
             setPrescriptionEnabled(true); // Enable prescription generation
             console.log("Transcript auto-classified");
             toast.success("Transcript enhanced with speaker identification");
-          } catch (error) {
-            console.error("Error classifying transcript:", error);
-            toast.error("Failed to enhance transcript");
-            setPrescriptionEnabled(true); // Enable prescription even if classification fails
-          } finally {
-            setIsClassifying(false);
+          } else {
+            setPrescriptionEnabled(true); // Enable prescription if no transcript to classify
           }
-        } else {
+        } catch (error) {
+          console.error("Error classifying transcript:", error);
+          toast.error("Failed to enhance transcript");
+          setPrescriptionEnabled(true); // Enable prescription even if classification fails
+        } finally {
           setIsClassifying(false);
-          setPrescriptionEnabled(true); // Enable prescription if no transcript to classify
         }
-      };
-      
-      const timeoutId = setTimeout(processTranscript, 1200);
+      }, 1200);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isRecording, transcript, lastProcessedTranscript]); // Added lastProcessedTranscript to the dependency array
+  }, [isRecording, transcript, lastProcessedTranscript]);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
