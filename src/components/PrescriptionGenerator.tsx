@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Check, ClipboardCopy, Edit, FileText, MessageSquare, Printer, RefreshCw, RotateCw, Save } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/lib/toast';
+import { Edit, Save, Check, MessageSquare, Printer, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 
 interface PrescriptionGeneratorProps {
   transcript: string;
@@ -16,16 +15,14 @@ interface PrescriptionGeneratorProps {
   };
   classifiedTranscript?: string;
   isClassifying?: boolean;
-  isEnabled?: boolean;
 }
 
-const PrescriptionGenerator = ({
-  transcript,
+const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
+  transcript, 
   patientInfo,
-  classifiedTranscript = '',
-  isClassifying = false,
-  isEnabled = true,
-}: PrescriptionGeneratorProps) => {
+  classifiedTranscript,
+  isClassifying = false
+}) => {
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
@@ -34,34 +31,13 @@ const PrescriptionGenerator = ({
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  if (!isEnabled) {
-    return (
-      <Card className="border-2 border-doctor-primary/20 opacity-60">
-        <CardHeader className="pb-3 px-5">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-doctor-primary" />
-              <CardTitle className="text-lg text-doctor-primary">Prescription</CardTitle>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="p-6 flex flex-col items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <p className="mb-2">Prescription will be generated</p>
-              <p className="text-sm">after transcript processing completes</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   useEffect(() => {
+    // Generate prescription when classified transcript becomes available or changes
     if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
       console.log("Classified transcript changed, generating prescription");
       setIsGenerating(true);
       
+      // Add a slight delay for better visual feedback
       const timeoutId = setTimeout(() => {
         generatePrescription(classifiedTranscript);
         setLastProcessedTranscript(classifiedTranscript);
@@ -75,7 +51,7 @@ const PrescriptionGenerator = ({
   const generatePrescription = (transcriptText: string) => {
     try {
       if (!transcriptText.trim()) {
-        return;
+        return; // Don't generate for empty transcript
       }
       
       toast.info('Generating prescription...');
@@ -136,9 +112,11 @@ Department of General Medicine
   const extractMedications = (text: string): string[] => {
     const medications: Set<string> = new Set();
     
+    // Look for common medication patterns in doctor speech
     const doctorLines = text.split('\n')
       .filter(line => line.trim().startsWith('[Doctor]:'));
     
+    // List of common medications to look for
     const commonMedicationNames = [
       'Paracetamol', 'Acetaminophen', 'Ibuprofen', 'Aspirin', 'Amoxicillin',
       'Azithromycin', 'Metformin', 'Omeprazole', 'Atorvastatin', 'Lisinopril',
@@ -147,6 +125,7 @@ Department of General Medicine
       'Cephalexin', 'Ciprofloxacin', 'Sertraline', 'Gabapentin', 'Prednisone'
     ];
     
+    // Regex patterns for medication dosages
     const dosagePatterns = [
       /(\d+)\s*mg/i,
       /(\d+)\s*ml/i,
@@ -157,12 +136,14 @@ Department of General Medicine
       /(\d+)\s*days?/i
     ];
     
+    // Find medication mentions with dosages in doctor lines
     for (const line of doctorLines) {
       for (const med of commonMedicationNames) {
         const medLower = med.toLowerCase();
         const lineLower = line.toLowerCase();
         
         if (lineLower.includes(medLower)) {
+          // Try to extract dosages
           let dosageInfo = "";
           
           for (const pattern of dosagePatterns) {
@@ -172,11 +153,13 @@ Department of General Medicine
             }
           }
           
+          // Check for frequency
           const frequencyMatches = line.match(/(once|twice|thrice|three times|four times) (daily|a day|weekly|monthly)/i);
           if (frequencyMatches) {
             dosageInfo += " " + frequencyMatches[0];
           }
           
+          // If no specific dosage found, use a default
           if (!dosageInfo) {
             const defaultDosages = ['500mg twice daily', '250mg once daily', '1 tablet three times daily'];
             dosageInfo = defaultDosages[Math.floor(Math.random() * defaultDosages.length)];
@@ -187,6 +170,7 @@ Department of General Medicine
       }
     }
     
+    // If no medications were found through pattern matching, fallback to the basic approach
     if (medications.size === 0) {
       for (const med of commonMedicationNames) {
         if (text.toLowerCase().includes(med.toLowerCase())) {
@@ -194,6 +178,7 @@ Department of General Medicine
           const randomDosage = dosages[Math.floor(Math.random() * dosages.length)];
           medications.add(`${med} - ${randomDosage}`);
           
+          // Limit to 3 medications in fallback mode
           if (medications.size >= 3) break;
         }
       }
@@ -205,6 +190,7 @@ Department of General Medicine
   const extractSymptoms = (text: string): string[] => {
     const symptoms: Set<string> = new Set();
     
+    // Look for symptoms in patient speech
     const patientLines = text.split('\n')
       .filter(line => line.trim().startsWith('[Patient]:'));
     
@@ -215,15 +201,18 @@ Department of General Medicine
       'shortness of breath', 'difficulty breathing', 'rash', 'itching'
     ];
     
+    // Look for mentions of symptoms in patient lines
     for (const line of patientLines) {
       const lineLower = line.toLowerCase();
       
+      // Check for symptom patterns like "I have a headache" or "My head hurts"
       for (const symptom of commonSymptoms) {
         if (lineLower.includes(symptom)) {
           symptoms.add(symptom.charAt(0).toUpperCase() + symptom.slice(1));
         }
       }
       
+      // Check for pain patterns like "my stomach hurts" or "pain in my back"
       const painMatches = line.match(/my (\w+) (hurts|aches|is painful|is sore)/i);
       if (painMatches) {
         const bodyPart = painMatches[1];
@@ -231,6 +220,7 @@ Department of General Medicine
       }
     }
     
+    // If no symptoms found through patient lines, check entire transcript
     if (symptoms.size === 0) {
       for (const symptom of commonSymptoms) {
         if (text.toLowerCase().includes(symptom)) {
@@ -303,6 +293,7 @@ Department of General Medicine
     }
   };
   
+  // Determine if prescription actions should be disabled
   const isPrescriptionDisabled = isClassifying || isGenerating || !classifiedTranscript;
 
   return (

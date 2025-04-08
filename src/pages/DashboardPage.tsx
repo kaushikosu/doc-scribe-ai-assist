@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -18,148 +18,63 @@ const DashboardPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isClassifying, setIsClassifying] = useState(false);
-  const [showClassifiedView, setShowClassifiedView] = useState(false);
-  const [prescriptionEnabled, setPrescriptionEnabled] = useState(false);
-  
-  // Refs to track component mount state and timeouts
-  const isMountedRef = useRef(true);
-  const classificationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Set up mounted ref for safe async operations and proper cleanup
-  useEffect(() => {
-    // Initialize mount status
-    isMountedRef.current = true;
-    
-    // Cleanup function runs when component unmounts
-    return () => {
-      // Mark component as unmounted
-      isMountedRef.current = false;
-      
-      // Clear any pending timeouts
-      if (classificationTimeoutRef.current) {
-        clearTimeout(classificationTimeoutRef.current);
-        classificationTimeoutRef.current = null;
-      }
-    };
-  }, []);
-  
+  // Debug the transcript updates
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
-  // Handle transcript classification - simplified and made more robust
-  const handleTranscriptClassification = useCallback(() => {
-    // Skip processing if component is unmounted or transcript is empty
-    if (!isMountedRef.current || !transcript || transcript.trim() === '') {
-      return;
-    }
-    
-    try {
-      const classified = classifyTranscript(transcript);
-      
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
-        setClassifiedTranscript(classified);
-        setLastProcessedTranscript(transcript);
-        setShowClassifiedView(true);
-        setPrescriptionEnabled(true);
-        console.log("Transcript auto-classified");
-        toast.success("Transcript enhanced with speaker identification");
-      }
-    } catch (error) {
-      // Only show error if component is still mounted
-      if (isMountedRef.current) {
-        console.error("Error classifying transcript:", error);
-        toast.error("Failed to enhance transcript");
-        setPrescriptionEnabled(true);
-      }
-    } finally {
-      // Final state update only if component is still mounted
-      if (isMountedRef.current) {
-        setIsClassifying(false);
-      }
-    }
-  }, [transcript]);
-  
-  // Effect to trigger classification when recording stops with new content
+  // Auto-classify the transcript when recording stops
   useEffect(() => {
-    // Only run this effect if recording has stopped and we have new transcript content
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
+      setIsClassifying(true);
       
-      // Cancel any existing timeout
-      if (classificationTimeoutRef.current) {
-        clearTimeout(classificationTimeoutRef.current);
-        classificationTimeoutRef.current = null;
-      }
-      
-      // Update classification state
-      if (isMountedRef.current) {
-        setIsClassifying(true);
-        setPrescriptionEnabled(false);
-      }
-      
-      // Show toast notification only if component is mounted
-      if (isMountedRef.current) {
-        toast.info('Enhancing transcript with speaker identification...', {
-          duration: 3000,
-        });
-      }
-      
-      // Schedule classification with timeout, keeping reference for cleanup
-      classificationTimeoutRef.current = setTimeout(() => {
-        // Skip if component was unmounted during the timeout
-        if (isMountedRef.current) {
-          handleTranscriptClassification();
+      // Add a small delay to make sure we have the final transcript
+      const timeoutId = setTimeout(() => {
+        if (transcript && transcript.trim().length > 0) {
+          try {
+            const classified = classifyTranscript(transcript);
+            setClassifiedTranscript(classified);
+            setLastProcessedTranscript(transcript);
+            console.log("Transcript auto-classified");
+          } catch (error) {
+            console.error("Error classifying transcript:", error);
+            toast.error("Failed to classify transcript");
+          } finally {
+            setIsClassifying(false);
+          }
+        } else {
+          setIsClassifying(false);
         }
-        // Clear timeout reference
-        classificationTimeoutRef.current = null;
-      }, 1200);
+      }, 800);
       
-      // Cleanup function to clear timeout if effect runs again or component unmounts
-      return () => {
-        if (classificationTimeoutRef.current) {
-          clearTimeout(classificationTimeoutRef.current);
-          classificationTimeoutRef.current = null;
-        }
-      };
+      return () => clearTimeout(timeoutId);
     }
-  }, [isRecording, transcript, lastProcessedTranscript, handleTranscriptClassification]);
+  }, [isRecording, transcript]);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
-    if (newTranscript !== undefined && isMountedRef.current) {
+    if (newTranscript !== undefined) {
       setTranscript(newTranscript);
-      
-      if (isRecording && showClassifiedView) {
-        setShowClassifiedView(false);
-      }
     }
   };
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
-    if (isMountedRef.current) {
-      setPatientInfo(newPatientInfo);
-    }
+    setPatientInfo(newPatientInfo);
   };
   
   const handleRecordingStateChange = (recordingState: boolean) => {
-    if (isMountedRef.current) {
-      setIsRecording(recordingState);
-      
-      if (recordingState && showClassifiedView) {
-        setShowClassifiedView(false);
-      }
-      
-      if (!recordingState && transcript) {
-        toast.info('Processing transcript with enhanced speaker detection...');
-      }
+    setIsRecording(recordingState);
+    
+    // When recording starts, reset the classified transcript if needed
+    if (recordingState && classifiedTranscript) {
+      // Keep the classified transcript until we have a new one
     }
-  };
-  
-  const handleToggleView = () => {
-    if (classifiedTranscript && !isRecording && isMountedRef.current) {
-      setShowClassifiedView(!showClassifiedView);
+    
+    // When recording stops, show a toast notification
+    if (!recordingState && transcript) {
+      toast.info('Processing transcript...');
     }
   };
 
@@ -169,6 +84,7 @@ const DashboardPage = () => {
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
+          {/* Voice Recorder Column */}
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
@@ -193,11 +109,11 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>When you stop recording, the transcript will be enhanced automatically</span>
+                  <span>When you stop recording, the transcript will be classified automatically</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>A prescription will be generated based on the enhanced conversation</span>
+                  <span>A prescription will be automatically generated based on the conversation</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
@@ -207,16 +123,12 @@ const DashboardPage = () => {
             </Card>
           </div>
           
+          {/* Main Content Column */}
           <div className="md:col-span-8 space-y-6">
             <TranscriptEditor 
               transcript={transcript} 
               onTranscriptChange={setTranscript}
               isRecording={isRecording}
-              isClassifying={isClassifying}
-              classifiedTranscript={classifiedTranscript}
-              showClassifiedView={showClassifiedView}
-              onToggleView={handleToggleView}
-              setIsClassifying={setIsClassifying}
             />
             
             <PrescriptionGenerator 
@@ -224,7 +136,6 @@ const DashboardPage = () => {
               patientInfo={patientInfo}
               classifiedTranscript={classifiedTranscript}
               isClassifying={isClassifying}
-              isEnabled={prescriptionEnabled}
             />
           </div>
         </div>
