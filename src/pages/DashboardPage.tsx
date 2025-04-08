@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -26,46 +26,52 @@ const DashboardPage = () => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
+  // Separated transcript processing to a stable callback function
+  const processTranscript = useCallback((transcriptToProcess) => {
+    if (!transcriptToProcess || transcriptToProcess.trim().length === 0) {
+      setPrescriptionEnabled(true);
+      setIsClassifying(false);
+      return;
+    }
+    
+    try {
+      const classified = classifyTranscript(transcriptToProcess);
+      setClassifiedTranscript(classified);
+      setLastProcessedTranscript(transcriptToProcess);
+      setShowClassifiedView(true);
+      setPrescriptionEnabled(true);
+      console.log("Transcript auto-classified");
+      toast.success("Transcript enhanced with speaker identification");
+    } catch (error) {
+      console.error("Error classifying transcript:", error);
+      toast.error("Failed to enhance transcript");
+      setPrescriptionEnabled(true);
+    } finally {
+      setIsClassifying(false);
+    }
+  }, []);
+  
   useEffect(() => {
     // Only run this effect if recording has stopped and we have new transcript content
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
       setIsClassifying(true);
-      setPrescriptionEnabled(false); // Disable prescription until classification is done
+      setPrescriptionEnabled(false);
       
       toast.info('Enhancing transcript with speaker identification...', {
         duration: 3000,
       });
       
-      // Store current transcript value in a local variable to avoid stale closures
+      // Store the current transcript value for closure safety
       const currentTranscript = transcript;
       
-      // Wrap the timeout in a function to avoid stale closures
       const timeoutId = setTimeout(() => {
-        try {
-          if (currentTranscript && currentTranscript.trim().length > 0) {
-            const classified = classifyTranscript(currentTranscript);
-            setClassifiedTranscript(classified);
-            setLastProcessedTranscript(currentTranscript);
-            setShowClassifiedView(true); // Show the classified view
-            setPrescriptionEnabled(true); // Enable prescription generation
-            console.log("Transcript auto-classified");
-            toast.success("Transcript enhanced with speaker identification");
-          } else {
-            setPrescriptionEnabled(true); // Enable prescription if no transcript to classify
-          }
-        } catch (error) {
-          console.error("Error classifying transcript:", error);
-          toast.error("Failed to enhance transcript");
-          setPrescriptionEnabled(true); // Enable prescription even if classification fails
-        } finally {
-          setIsClassifying(false);
-        }
+        processTranscript(currentTranscript);
       }, 1200);
       
       return () => clearTimeout(timeoutId);
     }
-  }, [isRecording, transcript, lastProcessedTranscript]);
+  }, [isRecording, transcript, lastProcessedTranscript, processTranscript]);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
