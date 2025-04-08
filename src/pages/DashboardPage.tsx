@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -21,13 +21,29 @@ const DashboardPage = () => {
   const [isClassifying, setIsClassifying] = useState(false);
   const [showClassifiedView, setShowClassifiedView] = useState(false);
   const [prescriptionEnabled, setPrescriptionEnabled] = useState(false);
+  
+  // Refs to track component mount state and timeouts
+  const isMountedRef = useRef(true);
+  const classificationTimeoutRef = useRef(null);
 
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
+  // Set up mounted ref for safe async operations
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (classificationTimeoutRef.current) {
+        clearTimeout(classificationTimeoutRef.current);
+      }
+    };
+  }, []);
+  
   // Separated transcript processing to a stable callback function
   const processTranscript = useCallback((transcriptToProcess) => {
+    if (!isMountedRef.current) return;
+    
     if (!transcriptToProcess || transcriptToProcess.trim().length === 0) {
       setPrescriptionEnabled(true);
       setIsClassifying(false);
@@ -36,18 +52,28 @@ const DashboardPage = () => {
     
     try {
       const classified = classifyTranscript(transcriptToProcess);
-      setClassifiedTranscript(classified);
-      setLastProcessedTranscript(transcriptToProcess);
-      setShowClassifiedView(true);
-      setPrescriptionEnabled(true);
-      console.log("Transcript auto-classified");
-      toast.success("Transcript enhanced with speaker identification");
+      
+      // Ensure component is still mounted before updating state
+      if (isMountedRef.current) {
+        setClassifiedTranscript(classified);
+        setLastProcessedTranscript(transcriptToProcess);
+        setShowClassifiedView(true);
+        setPrescriptionEnabled(true);
+        console.log("Transcript auto-classified");
+        toast.success("Transcript enhanced with speaker identification");
+      }
     } catch (error) {
-      console.error("Error classifying transcript:", error);
-      toast.error("Failed to enhance transcript");
-      setPrescriptionEnabled(true);
+      // Only update state and show error if component is still mounted
+      if (isMountedRef.current) {
+        console.error("Error classifying transcript:", error);
+        toast.error("Failed to enhance transcript");
+        setPrescriptionEnabled(true);
+      }
     } finally {
-      setIsClassifying(false);
+      // Final state update only if component is still mounted
+      if (isMountedRef.current) {
+        setIsClassifying(false);
+      }
     }
   }, []);
   
@@ -55,6 +81,12 @@ const DashboardPage = () => {
     // Only run this effect if recording has stopped and we have new transcript content
     if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
       console.log("Recording stopped, auto-classifying transcript");
+      
+      // Cancel any existing timeout
+      if (classificationTimeoutRef.current) {
+        clearTimeout(classificationTimeoutRef.current);
+      }
+      
       setIsClassifying(true);
       setPrescriptionEnabled(false);
       
@@ -65,11 +97,21 @@ const DashboardPage = () => {
       // Store the current transcript value for closure safety
       const currentTranscript = transcript;
       
-      const timeoutId = setTimeout(() => {
-        processTranscript(currentTranscript);
+      // Store timeout reference for cleanup
+      classificationTimeoutRef.current = setTimeout(() => {
+        // Only process if component is still mounted
+        if (isMountedRef.current) {
+          processTranscript(currentTranscript);
+        }
+        classificationTimeoutRef.current = null;
       }, 1200);
       
-      return () => clearTimeout(timeoutId);
+      return () => {
+        if (classificationTimeoutRef.current) {
+          clearTimeout(classificationTimeoutRef.current);
+          classificationTimeoutRef.current = null;
+        }
+      };
     }
   }, [isRecording, transcript, lastProcessedTranscript, processTranscript]);
 
