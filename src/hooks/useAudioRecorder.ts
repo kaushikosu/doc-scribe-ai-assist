@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 
@@ -138,32 +137,6 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
     }
   }, [isRecording]);
   
-  // Add a reset function to clear audio blob and reset recording duration
-  const reset = useCallback(() => {
-    console.log("Resetting audio recorder state");
-    setAudioBlob(null);
-    setRecordingDuration(0);
-    audioChunksRef.current = [];
-    
-    // Make sure recording is stopped
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-    
-    // Clear any active timers
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    // Stop any active streams
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-  }, [isRecording]);
-  
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -174,7 +147,6 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
     isRecording,
     startRecording,
     stopRecording,
-    reset,
     audioBlob,
     recordingDuration,
     formattedDuration: formatDuration(recordingDuration)

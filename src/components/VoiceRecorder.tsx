@@ -1,45 +1,38 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Mic, MicOff, UserPlus, Globe, RotateCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
-import { usePatientIdentification } from '@/hooks/usePatientIdentification';
-import RecordingControls from '@/components/RecordingControls';
-import RecordingStatus from '@/components/RecordingStatus';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
-  onNewPatient?: () => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
   onPatientInfoUpdate,
-  onRecordingStateChange,
-  onNewPatient
+  onRecordingStateChange
 }) => {
   // State variables
+  const [transcript, setTranscript] = useState('');
   const [rawTranscript, setRawTranscript] = useState(''); 
-  const [pauseThreshold] = useState(1500); // 1.5 seconds
+  const [isNewSession, setIsNewSession] = useState(true);
+  const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
+  const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
+  const patientIdentifiedRef = useRef<boolean>(false);
+  const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Custom hooks
-  const { 
-    showPatientIdentified,
-    isNewSession,
-    attemptPatientIdentification,
-    resetPatientIdentification
-  } = usePatientIdentification({
-    onPatientIdentified: onPatientInfoUpdate
-  });
   
   // Log when transcript changes - useful for debugging
   useEffect(() => {
@@ -82,12 +75,40 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }, 50); // Small delay for better responsiveness
   };
 
+  // Try to extract patient name from greeting patterns
+  const extractPatientName = (text: string): string | null => {
+    // Common greeting patterns
+    const patterns = [
+      /(?:namaste|hello|hi|hey)\s+([A-Z][a-z]{2,})/i,
+      /(?:patient|patient's) name is\s+([A-Z][a-z]{2,})/i,
+      /(?:this is|i am|i'm)\s+([A-Z][a-z]{2,})/i,
+      /Mr\.|Mrs\.|Ms\.|Dr\.\s+([A-Z][a-z]{2,})/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    // Fallback: try to find any capitalized word after greeting
+    const simpleMatch = text.match(/(?:namaste|hello|hi|hey)\s+(\w+)/i);
+    if (simpleMatch && simpleMatch[1]) {
+      return simpleMatch[1].charAt(0).toUpperCase() + simpleMatch[1].slice(1);
+    }
+    
+    return null;
+  };
+
   // Initialize Web Speech Recognition
   const { 
     isRecording: webSpeechIsRecording, 
     detectedLanguage,
     startRecording, 
     stopRecording,
+    toggleRecording: webToggleRecording,
+    getAccumulatedTranscript,
     resetTranscript
   } = useSpeechRecognition({
     onResult: handleSpeechResult,
@@ -138,7 +159,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       });
       
       // Check for patient identification in initial conversations
-      if (isNewSession) {
+      if (isNewSession && !patientIdentifiedRef.current) {
         attemptPatientIdentification(result);
       }
     } else {
@@ -151,29 +172,88 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       onTranscriptUpdate(updatedTranscript);
     }
   }
+  
+  // Multiple attempts to identify patient name
+  function attemptPatientIdentification(text: string) {
+    console.log("Checking for patient name in:", text);
+    
+    // Try to extract patient name
+    patientNameScanAttempts.current += 1;
+    const extractedName = extractPatientName(text);
+    
+    if (extractedName) {
+      const currentTime = new Date().toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      const identifiedPatient = {
+        name: extractedName,
+        time: currentTime
+      };
+      
+      console.log("Patient identified through extraction:", identifiedPatient);
+      onPatientInfoUpdate(identifiedPatient);
+      setIsNewSession(false);
+      patientIdentifiedRef.current = true;
+      
+      // Show success notification
+      setShowPatientIdentified(true);
+      setTimeout(() => {
+        setShowPatientIdentified(false);
+      }, 3000);
+      
+      toast.success(`Patient identified: ${extractedName}`);
+      isFirstInteractionRef.current = false;
+      return;
+    }
+    
+    // After several attempts, try capitalized words
+    if (patientNameScanAttempts.current > 3) {
+      const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
+      if (capitalizedWords && capitalizedWords.length > 0) {
+        const possibleName = capitalizedWords[0];
+        const currentTime = new Date().toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        
+        const suggestedPatient = {
+          name: possibleName,
+          time: currentTime
+        };
+        
+        console.log("Suggested patient from capitalized words:", suggestedPatient);
+        onPatientInfoUpdate(suggestedPatient);
+        setIsNewSession(false);
+        patientIdentifiedRef.current = true;
+        
+        // Show notification
+        setShowPatientIdentified(true);
+        setTimeout(() => {
+          setShowPatientIdentified(false);
+        }, 3000);
+        
+        toast.success(`Patient identified: ${possibleName}`);
+        isFirstInteractionRef.current = false;
+      }
+    }
+  }
 
   // Start a new session
   const startNewSession = () => {
-    // Stop recording if it's active
-    if (isRecording) {
-      stopRecording();
-    }
-    
-    // Reset all local state
     resetTranscript();
+    setTranscript('');
     setRawTranscript('');
     onTranscriptUpdate('');
-    resetPatientIdentification();
-    currentTranscriptRef.current = '';
+    setIsNewSession(true);
     isFirstInteractionRef.current = true;
+    patientIdentifiedRef.current = false;
+    patientNameScanAttempts.current = 0;
+    currentTranscriptRef.current = '';
+    setShowPatientIdentified(false);
     
-    // Call the parent's onNewPatient handler if provided
-    if (onNewPatient) {
-      console.log("Calling parent onNewPatient handler");
-      onNewPatient();
-    } else {
-      toast.success('Ready for new patient');
-    }
+    toast.success('Ready for new patient');
   };
 
   // Handle stopping recording
@@ -203,26 +283,120 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
+  // Get connection status display info
+  const getConnectionStatusInfo = () => {
+    if (processingTranscript) {
+      return {
+        color: "bg-blue-500",
+        text: "Processing",
+        subtext: "Processing transcript...",
+        icon: <RotateCw className="h-4 w-4 animate-spin" />
+      };
+    }
+
+    if (isRecording) {
+      return {
+        color: "bg-green-500",
+        text: "Recording",
+        subtext: `Using ${detectedLanguage} language`,
+        icon: <Globe className="h-4 w-4" />
+      };
+    } else {
+      return {
+        color: "bg-slate-400",
+        text: "Ready",
+        subtext: "Press record to start",
+        icon: <Globe className="h-4 w-4" />
+      };
+    }
+  };
+
+  const statusInfo = getConnectionStatusInfo();
+
   // Component UI with improved feedback on connection status
   return (
     <div className="space-y-4">
       <Card className="border-2 border-doctor-primary/30 shadow-md">
         <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
           <div className="flex flex-col items-center gap-4">
-            <RecordingControls 
-              isRecording={isRecording}
-              isProcessing={processingTranscript}
-              onToggleRecording={handleToggleRecording}
-              onNewPatient={startNewSession}
-            />
+            <div className="flex space-x-4">
+              <Button 
+                onClick={handleToggleRecording}
+                className={cn(
+                  "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all",
+                  isRecording 
+                    ? "bg-destructive hover:bg-destructive/90" 
+                    : "bg-doctor-primary hover:bg-doctor-primary/90"
+                )}
+                disabled={processingTranscript}
+              >
+                {isRecording ? (
+                  <MicOff className="h-8 w-8" />
+                ) : (
+                  <Mic className="h-8 w-8" />
+                )}
+              </Button>
+              
+              <Button
+                onClick={startNewSession}
+                className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
+                disabled={isRecording || processingTranscript}
+              >
+                <UserPlus className="h-8 w-8" />
+              </Button>
+            </div>
             
-            <RecordingStatus 
-              isRecording={isRecording}
-              isProcessing={processingTranscript}
-              detectedLanguage={detectedLanguage}
-              isNewSession={isNewSession}
-              showPatientIdentified={showPatientIdentified}
-            />
+            <div className="text-center">
+              {isRecording ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full animate-pulse bg-destructive"></span>
+                    <span className="font-medium">Recording</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Using Web Speech Recognition ({detectedLanguage})
+                  </div>
+                </div>
+              ) : processingTranscript ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
+                    <span className="font-medium">Processing</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Processing transcript...
+                  </div>
+                </div>
+              ) : (
+                <span className="text-muted-foreground">
+                  {isNewSession ? 
+                    "Start with 'Hello [patient name]' or 'Hi [patient name]'" : 
+                    "Press to resume recording"
+                  }
+                </span>
+              )}
+            </div>
+            
+            {/* Patient identified animation - only shows temporarily */}
+            {showPatientIdentified && (
+              <div className="animate-fade-in text-sm font-medium text-doctor-accent">
+                Patient identified!
+              </div>
+            )}
+            
+            {/* Connection status indicator */}
+            <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-gray-50">
+              <div className={cn("h-3 w-3 rounded-full", statusInfo.color)}></div>
+              <div className="flex flex-col">
+                <div className="text-sm font-medium flex items-center gap-1">
+                  {statusInfo.icon}
+                  <span>{statusInfo.text}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {statusInfo.subtext}
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
