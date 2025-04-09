@@ -20,6 +20,7 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [isClassifying, setIsClassifying] = useState(false); // Add this missing state variable
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
