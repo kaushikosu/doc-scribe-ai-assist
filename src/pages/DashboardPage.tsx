@@ -11,6 +11,7 @@ import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
 import { useTranscriptProcessor } from '@/hooks/useTranscriptProcessor';
 import { useDiarization } from '@/hooks/useDiarization';
 import HelpSidebar from '@/components/HelpSidebar';
+import { toast } from '@/lib/toast';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -20,12 +21,13 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [isClassifying, setIsClassifying] = useState(false);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   
   // Custom hooks
   const {
-    isClassifying,
+    isClassifying: isClassifyingTranscript,
     handleTranscriptClassification
   } = useTranscriptProcessor({
     onTranscriptClassified: setClassifiedTranscript
@@ -156,7 +158,7 @@ const DashboardPage = () => {
               transcript={transcript} 
               patientInfo={patientInfo}
               classifiedTranscript={classifiedTranscript}
-              isClassifying={isClassifying}
+              isClassifying={isClassifyingTranscript}
             />
           </div>
         </div>
