@@ -4,6 +4,9 @@ import { toast } from "@/lib/toast";
 // Google Cloud Speech API base URL
 const GOOGLE_SPEECH_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
 
+// Maximum recommended size for direct API upload (approximately 1MB)
+const MAX_RECOMMENDED_AUDIO_SIZE = 900000; // 900KB to stay under Google's ~1MB limit
+
 // Configuration for speech recognition
 interface RecognitionConfig {
   encoding: string;
@@ -38,12 +41,23 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      resolve(base64String);
+      try {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      } catch (error) {
+        reject(new Error("Failed to extract base64 data: " + error));
+      }
     };
-    reader.onerror = reject;
+    reader.onerror = (error) => {
+      reject(new Error("FileReader error: " + error));
+    };
     reader.readAsDataURL(blob);
   });
+};
+
+// Check if audio size might be too large for direct API processing
+const shouldSplitAudio = (audioSize: number): boolean => {
+  return audioSize > MAX_RECOMMENDED_AUDIO_SIZE;
 };
 
 // Process audio blob directly - used for chunk-based processing
@@ -51,9 +65,27 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
   try {
     console.log(`Processing audio blob: ${audioData.size} bytes`);
     
-    if (!audioData || !apiKey || audioData.size < 50) {
-      console.log("Invalid audio data or API key or audio too small");
+    if (!audioData || !apiKey) {
+      console.log("Invalid audio data or API key");
+      return [{
+        transcript: "Error: Missing audio data or API key",
+        confidence: 0,
+        isFinal: true,
+        error: "Missing audio data or API key"
+      }];
+    }
+    
+    // Skip very small audio chunks that likely don't contain speech
+    if (audioData.size < 50) {
+      console.log("Audio too small, skipping");
       return [];
+    }
+    
+    // Check if audio might be too large for direct API processing
+    if (shouldSplitAudio(audioData.size)) {
+      console.warn(`Audio size (${audioData.size} bytes) exceeds recommended limit of ${MAX_RECOMMENDED_AUDIO_SIZE} bytes`);
+      console.log("Consider using diarizedTranscription.ts for large audio files");
+      // Continue with processing anyway, but log warning
     }
     
     const base64Audio = await blobToBase64(audioData);
@@ -93,9 +125,18 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
       console.error("Google Speech API error response:", errorData);
       const errorMessage = errorData.error?.message || 'Unknown error';
       
+      // Log the error with more details
+      console.error(`API error (${response.status}): ${errorMessage}`);
+      console.error("Request config:", JSON.stringify({
+        ...request,
+        audio: { content: "base64_content_truncated" } // Don't log the entire content
+      }));
+      
       // Don't show toast for "no speech" - this is a normal case
       if (!errorMessage.includes("no speech") && !errorMessage.includes("No speech")) {
         toast.error(`Speech API error: ${errorMessage}`);
+      } else {
+        console.log("No speech detected in audio, suppressing error toast");
       }
       
       return [{

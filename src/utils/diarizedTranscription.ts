@@ -7,11 +7,13 @@ const SYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
 const LONG_RUNNING_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:longrunningrecognize";
 
 // Maximum size for direct API upload (approximately 1MB)
-const MAX_AUDIO_SIZE = 1000000; // 1MB in bytes
+const MAX_AUDIO_SIZE = 950000; // 950KB (keeping under the 1MB limit with some buffer)
 // Maximum duration for each audio segment (30 seconds)
 const MAX_SEGMENT_DURATION = 30; // in seconds
 // Maximum size for segments we process through the sync API
-const MAX_SEGMENT_SIZE = 900000; // 900KB (keeping under the 1MB limit with some buffer)
+const MAX_SEGMENT_SIZE = 900000; // 900KB for individual segments
+// Minimum segment size to process (to avoid empty segments)
+const MIN_SEGMENT_SIZE = 10000; // 10KB
 
 interface DiarizedTranscriptionOptions {
   apiKey: string;
@@ -141,6 +143,8 @@ async function processStandardAudio({
       }
     };
     
+    console.log("Sending request to Google Speech API");
+    
     // Send the recognition request
     const response = await fetch(`${SYNC_API_URL}?key=${apiKey}`, {
       method: 'POST',
@@ -166,6 +170,8 @@ async function processStandardAudio({
     }
     
     const data = await response.json();
+    console.log("Google Speech API response:", JSON.stringify(data, null, 2));
+    
     const result = processGoogleSpeechResponse(data);
     
     audioPart.status = 'completed';
@@ -221,6 +227,12 @@ async function processLargeAudio({
       // Estimated duration based on segment size ratio
       const estimatedDuration = estimateDuration(segmentBlob.size);
       
+      // Skip segments that are too small (likely silence or padding)
+      if (segmentBlob.size < MIN_SEGMENT_SIZE) {
+        console.log(`Skipping segment ${i+1} (${segmentBlob.size} bytes): Too small`);
+        continue;
+      }
+      
       const audioPart: AudioPart = {
         id: i + 1,
         blob: segmentBlob,
@@ -231,6 +243,8 @@ async function processLargeAudio({
       
       audioParts.push(audioPart);
     }
+    
+    console.log(`Created ${audioParts.length} segments for processing`);
     
     // Process segments in sequence to maintain order
     for (let i = 0; i < audioParts.length; i++) {
@@ -244,6 +258,7 @@ async function processLargeAudio({
       try {
         // Convert audio blob to base64
         const base64Audio = await blobToBase64(part.blob);
+        console.log(`Processing part ${part.id} (${part.size} bytes)`);
         
         // Configure request with diarization settings
         const request = {
@@ -288,6 +303,8 @@ async function processLargeAudio({
         }
         
         const data = await response.json();
+        console.log(`Part ${part.id} API response:`, data);
+        
         const result = processGoogleSpeechResponse(data);
         
         part.status = 'completed';
@@ -296,6 +313,9 @@ async function processLargeAudio({
         // Add to combined transcript
         if (result.transcript) {
           combinedTranscript += (combinedTranscript ? " " : "") + result.transcript;
+          console.log(`Added ${result.transcript.length} characters to transcript from part ${part.id}`);
+        } else {
+          console.log(`No transcript in part ${part.id}`);
         }
         
         // Add words from this segment to the combined result
@@ -308,8 +328,11 @@ async function processLargeAudio({
             endTime: word.endTime + timeOffset
           }));
           
+          console.log(`Added ${adjustedWords.length} words from part ${part.id}`);
           allWords.push(...adjustedWords);
           totalSpeakerCount = Math.max(totalSpeakerCount, result.speakerCount);
+        } else {
+          console.log(`No words with speaker tags in part ${part.id}`);
         }
         
         if (onPartComplete) {
@@ -329,6 +352,10 @@ async function processLargeAudio({
     // Check if we got any successful transcriptions
     const successfulParts = audioParts.filter(part => part.status === 'completed' && part.transcript);
     const errorParts = audioParts.filter(part => part.status === 'error');
+    
+    console.log(`Processing summary: ${successfulParts.length} successful parts, ${errorParts.length} error parts`);
+    console.log(`Total transcript length: ${combinedTranscript.length} characters`);
+    console.log(`Total words with speaker tags: ${allWords.length}`);
     
     // Return appropriate result based on processing success
     if (successfulParts.length === 0 && errorParts.length > 0) {
@@ -367,7 +394,18 @@ function estimateDuration(byteSize: number): number {
 
 // Process the response from Google Speech API
 function processGoogleSpeechResponse(data: any): DiarizedTranscription {
-  console.log("Google diarized speech response:", data);
+  // Deep debug logging for the entire response
+  try {
+    console.log("Google diarized speech response structure:", 
+      JSON.stringify({
+        resultsCount: data.results?.length || 0,
+        hasAlternatives: data.results?.[0]?.alternatives?.length > 0,
+        hasWords: data.results?.[0]?.alternatives?.[0]?.words?.length > 0,
+      }, null, 2)
+    );
+  } catch (e) {
+    console.log("Error stringifying response structure:", e);
+  }
     
   // Process response to extract diarized words
   if (!data.results || data.results.length === 0) {
@@ -393,18 +431,21 @@ function processGoogleSpeechResponse(data: any): DiarizedTranscription {
       // Process words with speaker tags if available
       if (result.alternatives[0].words) {
         result.alternatives[0].words.forEach((word: any) => {
+          const startTime = parseFloat(word.startTime?.seconds || 0) + parseFloat(word.startTime?.nanos || 0) / 1e9;
+          const endTime = parseFloat(word.endTime?.seconds || 0) + parseFloat(word.endTime?.nanos || 0) / 1e9;
+          
           words.push({
             word: word.word,
             speakerTag: word.speakerTag || 0,
-            startTime: parseFloat(word.startTime?.seconds || 0) + parseFloat(word.startTime?.nanos || 0) / 1e9,
-            endTime: parseFloat(word.endTime?.seconds || 0) + parseFloat(word.endTime?.nanos || 0) / 1e9
+            startTime: startTime,
+            endTime: endTime
           });
         });
       }
     }
   });
   
-  console.log(`Processed ${words.length} words with speaker tags`);
+  console.log(`Processed ${words.length} words with speaker tags from ${data.results.length} result sections`);
   
   // Count actual speakers detected
   const uniqueSpeakers = new Set<number>();
@@ -414,7 +455,21 @@ function processGoogleSpeechResponse(data: any): DiarizedTranscription {
     }
   });
   
+  // Log each unique speaker and their word count
+  if (uniqueSpeakers.size > 0) {
+    const speakerWordCounts: Record<number, number> = {};
+    words.forEach(word => {
+      if (word.speakerTag > 0) {
+        speakerWordCounts[word.speakerTag] = (speakerWordCounts[word.speakerTag] || 0) + 1;
+      }
+    });
+    console.log("Speaker statistics:", speakerWordCounts);
+  } else {
+    console.log("No speaker tags found in response");
+  }
+  
   console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
+  console.log(`Final transcript length: ${fullTranscript.length} characters`);
   
   return {
     transcript: fullTranscript.trim(),

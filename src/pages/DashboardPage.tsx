@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -11,6 +10,8 @@ import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import DiarizedTranscriptView, { AudioPart } from '@/components/DiarizedTranscriptView';
 import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DiarizedTranscriptionTester from '@/components/DiarizedTranscriptionTester';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -25,6 +26,7 @@ const DashboardPage = () => {
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   const [audioParts, setAudioParts] = useState<AudioPart[]>([]);
+  const [showTester, setShowTester] = useState(false);
   
   const lastProcessedTranscriptRef = useRef('');
   const mountedRef = useRef(true);
@@ -114,7 +116,6 @@ const DashboardPage = () => {
     }, 800);
   }, [transcript]);
 
-  // Handle audio part status updates
   const handlePartProcessing = (part: AudioPart) => {
     if (!mountedRef.current) return;
     
@@ -207,6 +208,19 @@ const DashboardPage = () => {
           toast.error("Diarization error: " + result.error);
         } else if (result.words.length === 0) {
           toast.warning("No speech detected in the audio");
+          
+          const completedParts = result.audioParts?.filter(p => p.status === 'completed') || [];
+          const errorParts = result.audioParts?.filter(p => p.status === 'error') || [];
+          
+          console.log("Diarization completed without speech detection:");
+          console.log(`- Total parts: ${result.audioParts?.length || 0}`);
+          console.log(`- Completed parts: ${completedParts.length}`);
+          console.log(`- Error parts: ${errorParts.length}`);
+          
+          const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
+          if (partsWithTranscripts.length > 0) {
+            console.log(`- ${partsWithTranscripts.length} parts have transcripts but no diarized words`);
+          }
         } else {
           toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
         }
@@ -251,7 +265,6 @@ const DashboardPage = () => {
   const handleNewPatient = () => {
     console.log("New patient session initiated, resetting all states");
     
-    // Reset all state variables
     setTranscript('');
     setClassifiedTranscript('');
     setPatientInfo({ name: '', time: '' });
@@ -267,7 +280,6 @@ const DashboardPage = () => {
       timeoutIdRef.current = null;
     }
     
-    // Ensure audio recording is stopped and reset
     if (isAudioRecording) {
       stopAudioRecording();
     }
@@ -290,35 +302,46 @@ const DashboardPage = () => {
               onNewPatient={handleNewPatient}
             />
             
-            <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
-              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
-              <ol className="space-y-3 text-sm">
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                  <span>Click the microphone button to start recording</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Say "Hi [patient name]" to begin a new session</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>When you stop recording, the transcript will be classified automatically</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>A prescription will be automatically generated based on the conversation</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
-                  <span>Press the "New Patient" button for the next consultation</span>
-                </li>
-              </ol>
-            </Card>
+            <Tabs defaultValue="instructions">
+              <TabsList className="grid grid-cols-2">
+                <TabsTrigger value="instructions">Instructions</TabsTrigger>
+                <TabsTrigger value="testing">Testing Tools</TabsTrigger>
+              </TabsList>
+              <TabsContent value="instructions">
+                <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
+                  <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
+                  <ol className="space-y-3 text-sm">
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
+                      <span>Click the microphone button to start recording</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
+                      <span>Say "Hi [patient name]" to begin a new session</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
+                      <span>Speak naturally about the patient's condition, symptoms, and medications</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
+                      <span>When you stop recording, the transcript will be classified automatically</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
+                      <span>A prescription will be automatically generated based on the conversation</span>
+                    </li>
+                    <li className="flex gap-2 items-start">
+                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
+                      <span>Press the "New Patient" button for the next consultation</span>
+                    </li>
+                  </ol>
+                </Card>
+              </TabsContent>
+              <TabsContent value="testing">
+                <DiarizedTranscriptionTester apiKey={googleApiKey} />
+              </TabsContent>
+            </Tabs>
           </div>
           
           <div className="md:col-span-8 space-y-6">
