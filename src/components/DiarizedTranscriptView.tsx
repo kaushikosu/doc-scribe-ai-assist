@@ -7,6 +7,7 @@ import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface DiarizedTranscriptViewProps {
   diarizedData: DiarizedTranscription | null;
@@ -14,6 +15,17 @@ interface DiarizedTranscriptViewProps {
   recordingDuration?: string;
   isRecording?: boolean;
   audioBlob?: Blob | null;
+  audioParts?: AudioPart[];
+}
+
+export interface AudioPart {
+  id: number;
+  blob: Blob;
+  size: number;
+  duration: number;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  transcript?: string;
+  error?: string;
 }
 
 const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
@@ -21,7 +33,8 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   isProcessing,
   recordingDuration = "0:00",
   isRecording = false,
-  audioBlob = null
+  audioBlob = null,
+  audioParts = []
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   
@@ -44,19 +57,19 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     setShowMappedRoles(prev => !prev);
   };
   
-  const handleDownloadRecording = () => {
-    if (!audioBlob) {
+  const handleDownloadRecording = (blob: Blob, filename?: string) => {
+    if (!blob) {
       toast.error("No recording available to download");
       return;
     }
     
     // Create a URL for the blob
-    const url = URL.createObjectURL(audioBlob);
+    const url = URL.createObjectURL(blob);
     
     // Create a link element to trigger the download
     const a = document.createElement('a');
     a.href = url;
-    a.download = `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+    a.download = filename || `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
     document.body.appendChild(a);
     a.click();
     
@@ -144,6 +157,34 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     });
   };
 
+  const formatByteSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  const formatDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Get status icon for audio part
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <FileAudio className="h-4 w-4 text-muted-foreground" />;
+      case 'processing':
+        return <RotateCw className="h-4 w-4 text-amber-500 animate-spin" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <FileAudio className="h-4 w-4 text-red-500" />;
+      default:
+        return <FileAudio className="h-4 w-4" />;
+    }
+  };
+
   const statusMessage = getStatusMessage();
 
   return (
@@ -160,7 +201,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDownloadRecording}
+              onClick={() => handleDownloadRecording(audioBlob)}
               className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
             >
               <Download className="h-3.5 w-3.5 mr-1" />
@@ -205,7 +246,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleDownloadRecording}
+                      onClick={() => handleDownloadRecording(audioBlob)}
                       className="text-doctor-secondary border-doctor-secondary"
                     >
                       <Download className="h-4 w-4 mr-1" />
@@ -226,7 +267,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleDownloadRecording}
+                    onClick={() => handleDownloadRecording(audioBlob)}
                     className="text-doctor-secondary border-doctor-secondary"
                   >
                     <Download className="h-4 w-4 mr-1" />
@@ -237,11 +278,67 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             </div>
           </div>
         ) : (
-          <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
-            <div className="p-3 w-full bg-muted rounded-md">
-              {renderFormattedTranscript()}
-            </div>
-          </ScrollArea>
+          <div className="flex flex-col">
+            {/* Audio parts section */}
+            {audioParts.length > 0 && (
+              <div className="border-b border-gray-200 p-2">
+                <Accordion type="single" collapsible className="w-full">
+                  <AccordionItem value="audio-parts">
+                    <AccordionTrigger className="py-2 text-sm font-medium">
+                      Recording Parts ({audioParts.length})
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 text-sm">
+                        {audioParts.map((part) => (
+                          <div key={part.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(part.status)}
+                              <span>Part {part.id}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({formatByteSize(part.size)}, {formatDuration(part.duration)})
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              {part.status === 'processing' && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                  Processing...
+                                </span>
+                              )}
+                              {part.status === 'completed' && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                  Transcribed
+                                </span>
+                              )}
+                              {part.status === 'error' && (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                                  Failed
+                                </span>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadRecording(part.blob, `recording-part-${part.id}.webm`)}
+                                className="h-6 px-2"
+                              >
+                                <Download className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            )}
+
+            {/* Transcript display */}
+            <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
+              <div className="p-3 w-full bg-muted rounded-md">
+                {renderFormattedTranscript()}
+              </div>
+            </ScrollArea>
+          </div>
         )}
       </CardContent>
     </Card>

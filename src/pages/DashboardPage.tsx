@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -8,7 +9,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { classifyTranscript } from '@/utils/speaker';
 import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
+import DiarizedTranscriptView, { AudioPart } from '@/components/DiarizedTranscriptView';
 import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
 
 const DashboardPage = () => {
@@ -23,6 +24,7 @@ const DashboardPage = () => {
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
+  const [audioParts, setAudioParts] = useState<AudioPart[]>([]);
   
   const lastProcessedTranscriptRef = useRef('');
   const mountedRef = useRef(true);
@@ -74,6 +76,7 @@ const DashboardPage = () => {
       stopAudioRecording();
       if (!transcript) {
         setDiarizedTranscription(null);
+        setAudioParts([]);
       }
     }
   }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
@@ -110,6 +113,59 @@ const DashboardPage = () => {
       }
     }, 800);
   }, [transcript]);
+
+  // Handle audio part status updates
+  const handlePartProcessing = (part: AudioPart) => {
+    if (!mountedRef.current) return;
+    
+    console.log(`Audio part ${part.id} processing started`);
+    setAudioParts(current => {
+      const existingPartIndex = current.findIndex(p => p.id === part.id);
+      if (existingPartIndex >= 0) {
+        const updated = [...current];
+        updated[existingPartIndex] = {...part};
+        return updated;
+      } else {
+        return [...current, part];
+      }
+    });
+  };
+  
+  const handlePartComplete = (part: AudioPart) => {
+    if (!mountedRef.current) return;
+    
+    console.log(`Audio part ${part.id} processing completed`);
+    setAudioParts(current => {
+      const existingPartIndex = current.findIndex(p => p.id === part.id);
+      if (existingPartIndex >= 0) {
+        const updated = [...current];
+        updated[existingPartIndex] = {...part};
+        return updated;
+      } else {
+        return [...current, part];
+      }
+    });
+    
+    toast.success(`Part ${part.id} transcription completed`);
+  };
+  
+  const handlePartError = (part: AudioPart) => {
+    if (!mountedRef.current) return;
+    
+    console.log(`Audio part ${part.id} processing failed: ${part.error}`);
+    setAudioParts(current => {
+      const existingPartIndex = current.findIndex(p => p.id === part.id);
+      if (existingPartIndex >= 0) {
+        const updated = [...current];
+        updated[existingPartIndex] = {...part};
+        return updated;
+      } else {
+        return [...current, part];
+      }
+    });
+    
+    toast.error(`Part ${part.id} transcription failed: ${part.error}`);
+  };
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!googleApiKey) {
@@ -126,18 +182,26 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization:", audioBlob.size, "bytes");
     setIsDiarizing(true);
+    setAudioParts([]); // Reset audio parts
     toast.info("Processing full audio for diarized transcription...");
     
     try {
       const result = await getDiarizedTranscription({
         apiKey: googleApiKey,
         audioBlob,
-        speakerCount: 2
+        speakerCount: 2,
+        onPartProcessing: handlePartProcessing,
+        onPartComplete: handlePartComplete,
+        onPartError: handlePartError
       });
       
       if (mountedRef.current) {
         console.log("Diarization complete:", result);
         setDiarizedTranscription(result);
+        
+        if (result.audioParts) {
+          setAudioParts(result.audioParts);
+        }
         
         if (result.error) {
           toast.error("Diarization error: " + result.error);
@@ -193,6 +257,7 @@ const DashboardPage = () => {
     setIsClassifying(false);
     setIsDiarizing(false);
     setDiarizedTranscription(null);
+    setAudioParts([]);
     
     lastProcessedTranscriptRef.current = '';
     
@@ -267,6 +332,7 @@ const DashboardPage = () => {
               recordingDuration={formattedDuration}
               isRecording={isAudioRecording}
               audioBlob={audioBlob}
+              audioParts={audioParts}
             />
             
             <PrescriptionGenerator 

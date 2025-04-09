@@ -1,17 +1,23 @@
 
 import { toast } from "@/lib/toast";
+import { AudioPart } from "@/components/DiarizedTranscriptView";
 
 // Update to handle long audio files properly
 const SYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
 
 // Maximum size for direct API upload (approximately 1MB)
 const MAX_AUDIO_SIZE = 1000000; // 1MB in bytes
+// Maximum duration for each audio segment (30 seconds)
+const MAX_SEGMENT_DURATION = 30; // in seconds
 
 interface DiarizedTranscriptionOptions {
   apiKey: string;
   audioBlob: Blob;
   speakerCount?: number;
   languageCode?: string;
+  onPartProcessing?: (part: AudioPart) => void;
+  onPartComplete?: (part: AudioPart) => void;
+  onPartError?: (part: AudioPart) => void;
 }
 
 export interface DiarizedWord {
@@ -26,13 +32,17 @@ export interface DiarizedTranscription {
   words: DiarizedWord[];
   speakerCount: number;
   error?: string;
+  audioParts?: AudioPart[];
 }
 
 export async function getDiarizedTranscription({
   apiKey,
   audioBlob,
   speakerCount = 2,
-  languageCode = 'en-US'
+  languageCode = 'en-US',
+  onPartProcessing,
+  onPartComplete,
+  onPartError
 }: DiarizedTranscriptionOptions): Promise<DiarizedTranscription> {
   try {
     if (!apiKey) {
@@ -51,11 +61,27 @@ export async function getDiarizedTranscription({
     // Check if audio is too large for direct processing
     if (audioBlob.size > MAX_AUDIO_SIZE) {
       console.log(`Audio size (${audioBlob.size} bytes) exceeds direct processing limit (${MAX_AUDIO_SIZE} bytes)`);
-      return await processLargeAudio({apiKey, audioBlob, speakerCount, languageCode});
+      return await processLargeAudio({
+        apiKey, 
+        audioBlob, 
+        speakerCount, 
+        languageCode,
+        onPartProcessing,
+        onPartComplete,
+        onPartError
+      });
     }
     
     // For smaller files, use the original approach
-    return await processStandardAudio({apiKey, audioBlob, speakerCount, languageCode});
+    return await processStandardAudio({
+      apiKey, 
+      audioBlob, 
+      speakerCount, 
+      languageCode,
+      onPartProcessing,
+      onPartComplete,
+      onPartError
+    });
   } catch (error: any) {
     console.error("Error in diarized transcription:", error);
     toast.error("Failed to process diarized transcription: " + error.message);
@@ -70,9 +96,27 @@ export async function getDiarizedTranscription({
 
 // Process audio files that are within the size limit
 async function processStandardAudio({
-  apiKey, audioBlob, speakerCount, languageCode
+  apiKey, 
+  audioBlob, 
+  speakerCount, 
+  languageCode,
+  onPartProcessing,
+  onPartComplete,
+  onPartError
 }: DiarizedTranscriptionOptions): Promise<DiarizedTranscription> {
   try {
+    const audioPart: AudioPart = {
+      id: 1,
+      blob: audioBlob,
+      size: audioBlob.size,
+      duration: 0, // Unknown duration for single parts
+      status: 'processing'
+    };
+    
+    if (onPartProcessing) {
+      onPartProcessing(audioPart);
+    }
+    
     // Convert audio blob to base64
     const base64Audio = await blobToBase64(audioBlob);
     console.log("Audio converted to base64, length:", base64Audio.length);
@@ -107,11 +151,31 @@ async function processStandardAudio({
       const errorData = await response.json();
       console.error("Google Speech API error response:", errorData);
       const errorMessage = errorData.error?.message || 'Unknown error';
+      
+      audioPart.status = 'error';
+      audioPart.error = errorMessage;
+      
+      if (onPartError) {
+        onPartError(audioPart);
+      }
+      
       throw new Error(`Speech API error: ${errorMessage}`);
     }
     
     const data = await response.json();
-    return processGoogleSpeechResponse(data);
+    const result = processGoogleSpeechResponse(data);
+    
+    audioPart.status = 'completed';
+    audioPart.transcript = result.transcript;
+    
+    if (onPartComplete) {
+      onPartComplete(audioPart);
+    }
+    
+    // Add the audio part to the result
+    result.audioParts = [audioPart];
+    
+    return result;
   } catch (error: any) {
     console.error("Error in standard audio processing:", error);
     throw error;
@@ -120,27 +184,111 @@ async function processStandardAudio({
 
 // Handle larger audio files by splitting into segments
 async function processLargeAudio({
-  apiKey, audioBlob, speakerCount, languageCode
+  apiKey, 
+  audioBlob, 
+  speakerCount, 
+  languageCode,
+  onPartProcessing,
+  onPartComplete,
+  onPartError
 }: DiarizedTranscriptionOptions): Promise<DiarizedTranscription> {
-  // For large audio, we need to split it into smaller segments and process each
   try {
-    // Split audio into 30-second segments (this is an approximation)
-    // In a real implementation, we would use Web Audio API to properly split the audio
-    // For now, we'll trim the audio to a manageable size
+    toast.info("Audio is being split into smaller segments for processing");
     
-    // Get the first 30 seconds of audio (approximation)
-    const trimmedBlob = audioBlob.slice(0, MAX_AUDIO_SIZE);
-    console.log(`Trimmed audio blob to ${trimmedBlob.size} bytes for processing`);
+    // For now, we'll create segments by slicing the blob by size
+    // In a real implementation, we would use Web Audio API to properly split by time
+    const totalSize = audioBlob.size;
+    const segmentSize = MAX_AUDIO_SIZE * 0.9; // Leave some margin
+    const segmentCount = Math.ceil(totalSize / segmentSize);
     
-    toast.info("Audio too large for direct processing. Using a shortened version for transcription.");
+    console.log(`Splitting ${totalSize} byte audio into ${segmentCount} parts`);
     
-    // Process the trimmed audio
-    return await processStandardAudio({
-      apiKey,
-      audioBlob: trimmedBlob,
-      speakerCount,
-      languageCode
-    });
+    // Create audio parts
+    const audioParts: AudioPart[] = [];
+    const allWords: DiarizedWord[] = [];
+    let totalSpeakerCount = 0;
+    
+    // Process each segment
+    for (let i = 0; i < segmentCount; i++) {
+      const start = i * segmentSize;
+      const end = Math.min(start + segmentSize, totalSize);
+      const segmentBlob = audioBlob.slice(start, end);
+      
+      // Estimated duration based on segment size ratio
+      const estimatedDuration = (MAX_SEGMENT_DURATION * segmentBlob.size) / MAX_AUDIO_SIZE;
+      
+      const audioPart: AudioPart = {
+        id: i + 1,
+        blob: segmentBlob,
+        size: segmentBlob.size,
+        duration: estimatedDuration,
+        status: 'pending'
+      };
+      
+      audioParts.push(audioPart);
+    }
+    
+    // Process segments in sequence to maintain order
+    for (let i = 0; i < audioParts.length; i++) {
+      const part = audioParts[i];
+      part.status = 'processing';
+      
+      if (onPartProcessing) {
+        onPartProcessing(part);
+      }
+      
+      try {
+        // Process this segment
+        const result = await processStandardAudio({
+          apiKey,
+          audioBlob: part.blob, 
+          speakerCount, 
+          languageCode
+        });
+        
+        part.status = 'completed';
+        part.transcript = result.transcript;
+        
+        // Add words from this segment to the combined result
+        if (result.words.length > 0) {
+          // Adjust timing for words based on segment position
+          const timeOffset = i * MAX_SEGMENT_DURATION;
+          const adjustedWords = result.words.map(word => ({
+            ...word,
+            startTime: word.startTime + timeOffset,
+            endTime: word.endTime + timeOffset
+          }));
+          
+          allWords.push(...adjustedWords);
+          totalSpeakerCount = Math.max(totalSpeakerCount, result.speakerCount);
+        }
+        
+        if (onPartComplete) {
+          onPartComplete(part);
+        }
+      } catch (error: any) {
+        console.error(`Error processing segment ${i+1}:`, error);
+        part.status = 'error';
+        part.error = error.message;
+        
+        if (onPartError) {
+          onPartError(part);
+        }
+      }
+    }
+    
+    // Create the combined result
+    const combinedTranscript = audioParts
+      .filter(part => part.transcript)
+      .map(part => part.transcript)
+      .join(" ");
+    
+    return {
+      transcript: combinedTranscript,
+      words: allWords,
+      speakerCount: totalSpeakerCount,
+      audioParts: audioParts
+    };
   } catch (error: any) {
     console.error("Error processing large audio:", error);
     throw new Error("Audio file too large: " + error.message);
