@@ -39,6 +39,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     console.log("VoiceRecorder raw transcript:", rawTranscript);
     
     if (rawTranscript) {
+      currentTranscriptRef.current = rawTranscript;
       updateTranscriptDebounced(rawTranscript);
     }
   }, [rawTranscript]);
@@ -116,11 +117,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setIsRecording(webSpeechIsRecording);
     setProcessingTranscript(processingStatus === 'processing');
     
-    // When processing is complete, update the UI
     if (processingStatus === 'idle' && processingTranscript) {
       setProcessingTranscript(false);
     }
-  }, [webSpeechIsRecording, processingStatus]);
+  }, [webSpeechIsRecording, processingStatus, processingTranscript]);
 
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
@@ -141,13 +141,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     
     if (isFinal) {
       setRawTranscript(prev => {
-        if (prev === '') {
-          return result;
-        } else if (prev.endsWith('\n\n')) {
-          return prev + result;
-        } else {
-          return prev + '\n\n' + result;
-        }
+        const updatedTranscript = prev === '' ? result : 
+          prev.endsWith('\n\n') ? prev + result : prev + '\n\n' + result;
+        currentTranscriptRef.current = updatedTranscript;
+        return updatedTranscript;
       });
       
       if (isNewSession && !patientIdentifiedRef.current) {
@@ -232,12 +229,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     resetTranscript();
     setTranscript('');
     setRawTranscript('');
+    currentTranscriptRef.current = '';
     onTranscriptUpdate('');
     setIsNewSession(true);
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
     patientNameScanAttempts.current = 0;
-    currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
     setProcessingTranscript(false);
     setIdle(); // Reset the processing status

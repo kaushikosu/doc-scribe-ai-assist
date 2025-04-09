@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,6 +38,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   const [expandedParts, setExpandedParts] = useState<boolean>(true);
+  const [showDebug, setShowDebug] = useState(false);
   
   // Format the diarized transcript
   const formattedTranscript = React.useMemo(() => {
@@ -47,10 +48,19 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     return showMappedRoles ? mapSpeakerRoles(rawTranscript) : rawTranscript;
   }, [diarizedData, showMappedRoles]);
 
+  // Get parts with transcripts
+  const partsWithTranscripts = React.useMemo(() => {
+    return audioParts.filter(part => part.status === 'completed' && part.transcript);
+  }, [audioParts]);
+
   const handleCopyTranscript = () => {
     if (formattedTranscript) {
       navigator.clipboard.writeText(formattedTranscript);
       toast.success('Diarized transcript copied to clipboard');
+    } else if (partsWithTranscripts.length > 0) {
+      const combinedTranscript = partsWithTranscripts.map(p => p.transcript).join("\n\n");
+      navigator.clipboard.writeText(combinedTranscript);
+      toast.success('Raw transcript copied to clipboard');
     }
   };
 
@@ -99,7 +109,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       };
     }
     
-    if (audioBlob && !isProcessing && !diarizedData) {
+    if (audioBlob && !isProcessing && !formattedTranscript && partsWithTranscripts.length === 0) {
       return {
         title: "Recording available",
         description: "Audio captured and ready for transcription",
@@ -107,7 +117,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       };
     }
     
-    if (!audioBlob && !diarizedData) {
+    if (!audioBlob && !formattedTranscript && partsWithTranscripts.length === 0) {
       return {
         title: "Waiting for recording",
         description: "Record a conversation to see diarized transcript",
@@ -117,12 +127,10 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     
     if (diarizedData && diarizedData.words.length === 0 && !diarizedData.error) {
       // Check if we have any successful parts with transcripts
-      const hasSuccessfulParts = audioParts.some(part => part.status === 'completed' && part.transcript);
-      
-      if (hasSuccessfulParts) {
+      if (partsWithTranscripts.length > 0) {
         return {
           title: "Processing complete",
-          description: "Some audio parts processed successfully",
+          description: `${partsWithTranscripts.length} audio parts processed successfully`,
           icon: <CheckCircle className="h-8 w-8 text-green-500" />
         };
       }
@@ -139,54 +147,51 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
 
   // Render diarized transcript with speaker formatting
   const renderFormattedTranscript = () => {
-    if (!formattedTranscript) {
-      // Check if any audio parts have transcripts
-      const partTranscripts = audioParts
-        .filter(part => part.status === 'completed' && part.transcript)
-        .map(part => part.transcript)
-        .join("\n\n")
-        .trim();
-
-      if (partTranscripts) {
-        return (
-          <div className="text-gray-800">
-            <div className="mb-2 text-sm text-muted-foreground italic">
-              Speaker diarization not available, showing raw transcripts:
-            </div>
-            {partTranscripts.split("\n\n").map((paragraph, idx) => (
-              <div key={idx} className="mb-3 pb-2 border-b border-gray-100">{paragraph}</div>
-            ))}
-          </div>
-        );
-      }
+    if (formattedTranscript) {
+      const paragraphs = formattedTranscript.split('\n\n');
       
-      return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
+      return paragraphs.map((paragraph, index) => {
+        // Identify speaker label
+        const match = paragraph.match(/^\[(Doctor|Patient|Speaker \d+)\]:/);
+        
+        if (match) {
+          const speakerLabel = match[1];
+          const content = paragraph.substring(paragraph.indexOf(':') + 1).trim();
+          
+          const labelClass = 
+            speakerLabel === 'Doctor' ? 'text-doctor-primary font-semibold' : 
+            speakerLabel === 'Patient' ? 'text-doctor-accent font-semibold' : 
+            'text-gray-600 font-semibold';
+          
+          return (
+            <div key={index} className="mb-3 pb-2 border-b border-gray-100">
+              <span className={labelClass}>[{speakerLabel}]:</span> {content}
+            </div>
+          );
+        }
+        
+        return <div key={index} className="mb-3">{paragraph}</div>;
+      });
     }
 
-    const paragraphs = formattedTranscript.split('\n\n');
-    
-    return paragraphs.map((paragraph, index) => {
-      // Identify speaker label
-      const match = paragraph.match(/^\[(Doctor|Patient|Speaker \d+)\]:/);
-      
-      if (match) {
-        const speakerLabel = match[1];
-        const content = paragraph.substring(paragraph.indexOf(':') + 1).trim();
-        
-        const labelClass = 
-          speakerLabel === 'Doctor' ? 'text-doctor-primary font-semibold' : 
-          speakerLabel === 'Patient' ? 'text-doctor-accent font-semibold' : 
-          'text-gray-600 font-semibold';
-        
-        return (
-          <div key={index} className="mb-3 pb-2 border-b border-gray-100">
-            <span className={labelClass}>[{speakerLabel}]:</span> {content}
+    // Check if any audio parts have transcripts
+    if (partsWithTranscripts.length > 0) {
+      return (
+        <div className="text-gray-800">
+          <div className="mb-2 text-sm text-muted-foreground italic">
+            Speaker diarization not available, showing raw transcripts:
           </div>
-        );
-      }
-      
-      return <div key={index} className="mb-3">{paragraph}</div>;
-    });
+          {partsWithTranscripts.map((part, idx) => (
+            <div key={idx} className="mb-3 pb-2 border-b border-gray-100">
+              <div className="text-xs text-muted-foreground mb-1">Part {part.id}:</div>
+              {part.transcript}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    
+    return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
   };
 
   const formatByteSize = (bytes: number) => {
@@ -227,9 +232,9 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const completedParts = countCompletedParts();
   const hasProcessingParts = audioParts.some(part => part.status === 'processing');
   const hasErrorParts = audioParts.some(part => part.status === 'error');
-  
-  // Check if we have any transcripts in audio parts
-  const hasAnyTranscript = audioParts.some(part => part.status === 'completed' && part.transcript);
+
+  // Whether to show the transcript section
+  const shouldShowTranscript = formattedTranscript || partsWithTranscripts.length > 0;
 
   return (
     <Card className="border-2 border-doctor-accent/30">
@@ -241,6 +246,17 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
           </CardTitle>
         </div>
         <div className="flex gap-1">
+          {showDebug && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => console.log({diarizedData, audioParts, formattedTranscript})}
+              className="h-7 text-gray-500 border-gray-300"
+            >
+              Debug
+            </Button>
+          )}
+          
           {audioBlob && (
             <Button
               variant="outline"
@@ -252,16 +268,18 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
               Download
             </Button>
           )}
-          {(diarizedData?.words.length > 0 || hasAnyTranscript) && (
+          {shouldShowTranscript && (
             <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={toggleRoleMapping}
-                className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
-              >
-                {showMappedRoles ? 'Show Speaker Numbers' : 'Show Doctor/Patient'}
-              </Button>
+              {formattedTranscript && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={toggleRoleMapping}
+                  className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
+                >
+                  {showMappedRoles ? 'Show Speaker Numbers' : 'Show Doctor/Patient'}
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 size="sm"
@@ -276,7 +294,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {statusMessage ? (
+        {statusMessage && !shouldShowTranscript ? (
           <div className="p-3 min-h-[120px]">
             <div className="flex flex-col items-center justify-center gap-2 py-8">
               {statusMessage.icon}
@@ -398,12 +416,30 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             )}
 
             {/* Transcript display */}
-            {(formattedTranscript || hasAnyTranscript) && (
+            {shouldShowTranscript ? (
               <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
                 <div className="p-3">
                   {renderFormattedTranscript()}
                 </div>
               </ScrollArea>
+            ) : isProcessing ? (
+              <div className="p-3 min-h-[120px]">
+                <div className="flex flex-col items-center justify-center gap-2 py-8">
+                  <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
+                  <div className="text-center">
+                    <p className="font-medium text-doctor-accent">Processing audio</p>
+                    <p className="text-muted-foreground text-sm">
+                      Converting speech to text...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 min-h-[120px] flex items-center justify-center">
+                <div className="text-muted-foreground text-center italic">
+                  No diarized transcript available yet
+                </div>
+              </div>
             )}
           </div>
         )}

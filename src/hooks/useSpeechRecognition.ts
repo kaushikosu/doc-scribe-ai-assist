@@ -22,7 +22,6 @@ const useSpeechRecognition = ({
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
   const apiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   
-  // We need to add these missing properties to match what VoiceRecorder expects
   const {
     isRecording,
     processingStatus,
@@ -46,10 +45,10 @@ const useSpeechRecognition = ({
   return {
     isRecording,
     detectedLanguage,
-    processingStatus, // Add the missing property
+    processingStatus,
     startRecording,
     stopRecording,
-    setIdle, // Add the missing property
+    setIdle,
     toggleRecording,
     getAccumulatedTranscript,
     resetTranscript
