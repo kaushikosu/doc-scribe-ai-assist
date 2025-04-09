@@ -1,13 +1,17 @@
+
 import { toast } from "@/lib/toast";
 import { AudioPart } from "@/components/DiarizedTranscriptView";
 
-// Update to handle long audio files properly
+// Update to use long-running API for larger files
 const SYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
+const LONG_RUNNING_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:longrunningrecognize";
 
 // Maximum size for direct API upload (approximately 1MB)
 const MAX_AUDIO_SIZE = 1000000; // 1MB in bytes
 // Maximum duration for each audio segment (30 seconds)
 const MAX_SEGMENT_DURATION = 30; // in seconds
+// Maximum size for segments we process through the sync API
+const MAX_SEGMENT_SIZE = 900000; // 900KB (keeping under the 1MB limit with some buffer)
 
 interface DiarizedTranscriptionOptions {
   apiKey: string;
@@ -57,7 +61,7 @@ export async function getDiarizedTranscription({
       throw new Error("No audio data available for diarization");
     }
 
-    // Check if audio is too large for direct processing
+    // For large files, we'll split into smaller segments
     if (audioBlob.size > MAX_AUDIO_SIZE) {
       console.log(`Audio size (${audioBlob.size} bytes) exceeds direct processing limit (${MAX_AUDIO_SIZE} bytes)`);
       return await processLargeAudio({
@@ -197,7 +201,7 @@ async function processLargeAudio({
     // For now, we'll create segments by slicing the blob by size
     // In a real implementation, we would use Web Audio API to properly split by time
     const totalSize = audioBlob.size;
-    const segmentSize = MAX_AUDIO_SIZE * 0.9; // Leave some margin
+    const segmentSize = MAX_SEGMENT_SIZE; // Using our defined max segment size
     const segmentCount = Math.ceil(totalSize / segmentSize);
     
     console.log(`Splitting ${totalSize} byte audio into ${segmentCount} parts`);
@@ -206,6 +210,7 @@ async function processLargeAudio({
     const audioParts: AudioPart[] = [];
     const allWords: DiarizedWord[] = [];
     let totalSpeakerCount = 0;
+    let combinedTranscript = "";
     
     // Process each segment
     for (let i = 0; i < segmentCount; i++) {
@@ -237,16 +242,61 @@ async function processLargeAudio({
       }
       
       try {
-        // Process this segment
-        const result = await processStandardAudio({
-          apiKey,
-          audioBlob: part.blob, 
-          speakerCount, 
-          languageCode
+        // Convert audio blob to base64
+        const base64Audio = await blobToBase64(part.blob);
+        
+        // Configure request with diarization settings
+        const request = {
+          config: {
+            encoding: "WEBM_OPUS",
+            sampleRateHertz: 48000,
+            languageCode,
+            enableAutomaticPunctuation: true,
+            enableSpeakerDiarization: true,
+            diarizationSpeakerCount: speakerCount,
+            model: "latest_short",
+            useEnhanced: true
+          },
+          audio: {
+            content: base64Audio
+          }
+        };
+        
+        // Send the recognition request
+        const response = await fetch(`${SYNC_API_URL}?key=${apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(request)
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Error processing part ${i+1}:`, errorData);
+          const errorMessage = errorData.error?.message || 'Unknown error';
+          
+          part.status = 'error';
+          part.error = errorMessage;
+          
+          if (onPartError) {
+            onPartError(part);
+          }
+          
+          // Continue with next part instead of failing the whole process
+          continue;
+        }
+        
+        const data = await response.json();
+        const result = processGoogleSpeechResponse(data);
         
         part.status = 'completed';
         part.transcript = result.transcript;
+        
+        // Add to combined transcript
+        if (result.transcript) {
+          combinedTranscript += (combinedTranscript ? " " : "") + result.transcript;
+        }
         
         // Add words from this segment to the combined result
         if (result.words.length > 0) {
@@ -276,21 +326,32 @@ async function processLargeAudio({
       }
     }
     
-    // Create the combined result
-    const combinedTranscript = audioParts
-      .filter(part => part.transcript)
-      .map(part => part.transcript)
-      .join(" ");
+    // Check if we got any successful transcriptions
+    const successfulParts = audioParts.filter(part => part.status === 'completed' && part.transcript);
+    const errorParts = audioParts.filter(part => part.status === 'error');
+    
+    // Return appropriate result based on processing success
+    if (successfulParts.length === 0 && errorParts.length > 0) {
+      // All parts failed, return error
+      const firstErrorMessage = errorParts[0]?.error || "All audio segments failed to process";
+      return {
+        transcript: "",
+        words: [],
+        speakerCount: 0,
+        error: `Failed to transcribe audio: ${firstErrorMessage}`,
+        audioParts: audioParts
+      };
+    }
     
     return {
       transcript: combinedTranscript,
       words: allWords,
-      speakerCount: totalSpeakerCount || audioParts.length > 0 ? 2 : 0, // Ensure we have at least 2 speakers if we have parts
+      speakerCount: totalSpeakerCount || (combinedTranscript ? 2 : 0), // Default to 2 speakers if we have transcript but no tags
       audioParts: audioParts
     };
   } catch (error: any) {
     console.error("Error processing large audio:", error);
-    throw new Error("Audio file too large: " + error.message);
+    throw new Error("Error processing audio: " + error.message);
   }
 }
 
@@ -314,8 +375,7 @@ function processGoogleSpeechResponse(data: any): DiarizedTranscription {
     return {
       transcript: "",
       words: [],
-      speakerCount: 0,
-      error: "No transcription results returned"
+      speakerCount: 0
     };
   }
   

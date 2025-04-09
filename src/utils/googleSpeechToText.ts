@@ -14,6 +14,7 @@ interface RecognitionConfig {
   diarizationSpeakerCount?: number;
   model?: string;
   useEnhanced?: boolean;
+  maxAlternatives?: number;
 }
 
 interface SpeechRecognitionRequest {
@@ -66,8 +67,9 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
       enableAutomaticPunctuation: true,
       enableSpeakerDiarization: true, // Enable speaker diarization
       diarizationSpeakerCount: 2,     // Expecting 2 speakers (doctor & patient)
-      model: "default", // Using default model for better compatibility
-      useEnhanced: true
+      model: "latest_short", // Use latest_short for better compatibility with short segments
+      useEnhanced: true,
+      maxAlternatives: 1
     };
     
     const request: SpeechRecognitionRequest = {
@@ -90,7 +92,12 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
       const errorData = await response.json();
       console.error("Google Speech API error response:", errorData);
       const errorMessage = errorData.error?.message || 'Unknown error';
-      toast.error(`Speech API error: ${errorMessage}`);
+      
+      // Don't show toast for "no speech" - this is a normal case
+      if (!errorMessage.includes("no speech") && !errorMessage.includes("No speech")) {
+        toast.error(`Speech API error: ${errorMessage}`);
+      }
+      
       return [{
         transcript: `Error: ${errorMessage}`,
         confidence: 0,
@@ -167,7 +174,12 @@ export const processMediaStream = async (audioData: Blob, apiKey: string): Promi
     return results;
   } catch (error: any) {
     console.error('Error processing audio:', error);
-    toast.error('Failed to process audio. Please try again.');
+    
+    // Only show toast for serious errors, not "no speech detected" which is normal
+    if (!error.message?.includes("no speech") && !error.message?.includes("No speech")) {
+      toast.error('Failed to process audio. Please try again.');
+    }
+    
     return [{
       transcript: "Error: Failed to process audio",
       confidence: 0,

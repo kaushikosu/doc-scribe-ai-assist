@@ -116,6 +116,17 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     }
     
     if (diarizedData && diarizedData.words.length === 0 && !diarizedData.error) {
+      // Check if we have any successful parts with transcripts
+      const hasSuccessfulParts = audioParts.some(part => part.status === 'completed' && part.transcript);
+      
+      if (hasSuccessfulParts) {
+        return {
+          title: "Processing complete",
+          description: "Some audio parts processed successfully",
+          icon: <CheckCircle className="h-8 w-8 text-green-500" />
+        };
+      }
+      
       return {
         title: "Processing complete",
         description: "No speech detected in the recording",
@@ -129,6 +140,26 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   // Render diarized transcript with speaker formatting
   const renderFormattedTranscript = () => {
     if (!formattedTranscript) {
+      // Check if any audio parts have transcripts
+      const partTranscripts = audioParts
+        .filter(part => part.status === 'completed' && part.transcript)
+        .map(part => part.transcript)
+        .join("\n\n")
+        .trim();
+
+      if (partTranscripts) {
+        return (
+          <div className="text-gray-800">
+            <div className="mb-2 text-sm text-muted-foreground italic">
+              Speaker diarization not available, showing raw transcripts:
+            </div>
+            {partTranscripts.split("\n\n").map((paragraph, idx) => (
+              <div key={idx} className="mb-3 pb-2 border-b border-gray-100">{paragraph}</div>
+            ))}
+          </div>
+        );
+      }
+      
       return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
     }
 
@@ -196,6 +227,9 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const completedParts = countCompletedParts();
   const hasProcessingParts = audioParts.some(part => part.status === 'processing');
   const hasErrorParts = audioParts.some(part => part.status === 'error');
+  
+  // Check if we have any transcripts in audio parts
+  const hasAnyTranscript = audioParts.some(part => part.status === 'completed' && part.transcript);
 
   return (
     <Card className="border-2 border-doctor-accent/30">
@@ -218,7 +252,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
               Download
             </Button>
           )}
-          {diarizedData && diarizedData.words.length > 0 && (
+          {(diarizedData?.words.length > 0 || hasAnyTranscript) && (
             <>
               <Button 
                 variant="outline" 
@@ -336,7 +370,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                               {part.status === 'completed' && (
                                 <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded flex items-center gap-1">
                                   <CheckCircle className="h-2.5 w-2.5" />
-                                  Transcribed
+                                  {part.transcript ? 'Transcribed' : 'No speech detected'}
                                 </span>
                               )}
                               {part.status === 'error' && (
@@ -364,7 +398,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             )}
 
             {/* Transcript display */}
-            {formattedTranscript && (
+            {(formattedTranscript || hasAnyTranscript) && (
               <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
                 <div className="p-3">
                   {renderFormattedTranscript()}
