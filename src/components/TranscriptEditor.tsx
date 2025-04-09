@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +32,13 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   useEffect(() => {
     setEditableTranscript(transcript);
+    
+    // Reset classified transcript view when transcript is empty
+    if (!transcript) {
+      setClassifiedText("");
+      setShowClassified(false);
+      setLastProcessedTranscript("");
+    }
     
     // Scroll to bottom immediately when transcript updates
     if (scrollAreaRef.current && contentRef.current) {
