@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
@@ -13,13 +13,15 @@ interface DiarizedTranscriptViewProps {
   isProcessing: boolean;
   recordingDuration?: string;
   isRecording?: boolean;
+  audioBlob?: Blob | null;
 }
 
 const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   diarizedData,
   isProcessing,
   recordingDuration = "0:00",
-  isRecording = false
+  isRecording = false,
+  audioBlob = null
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   
@@ -41,6 +43,29 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const toggleRoleMapping = () => {
     setShowMappedRoles(prev => !prev);
   };
+  
+  const handleDownloadRecording = () => {
+    if (!audioBlob) {
+      toast.error("No recording available to download");
+      return;
+    }
+    
+    // Create a URL for the blob
+    const url = URL.createObjectURL(audioBlob);
+    
+    // Create a link element to trigger the download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Recording download started');
+  };
 
   // Get the appropriate status message
   const getStatusMessage = () => {
@@ -60,7 +85,15 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       };
     }
     
-    if (!diarizedData) {
+    if (audioBlob && !isProcessing && !diarizedData) {
+      return {
+        title: "Recording available",
+        description: "Audio captured and ready for transcription",
+        icon: <FileAudio className="h-8 w-8 text-doctor-accent" />
+      };
+    }
+    
+    if (!audioBlob && !diarizedData) {
       return {
         title: "Waiting for recording",
         description: "Record a conversation to see diarized transcript",
@@ -117,12 +150,23 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     <Card className="border-2 border-doctor-accent/30">
       <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-accent/10 to-transparent flex flex-row justify-between items-center">
         <div className="flex items-center gap-1.5">
-          <FileAudio className="h-4 w-4 text-doctor-accent" />
+          <FileText className="h-4 w-4 text-doctor-accent" />
           <CardTitle className="text-base text-doctor-accent font-medium">
             Diarized Transcript {recordingDuration && `(${recordingDuration})`}
           </CardTitle>
         </div>
         <div className="flex gap-1">
+          {audioBlob && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadRecording}
+              className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Download
+            </Button>
+          )}
           {diarizedData && diarizedData.words.length > 0 && (
             <>
               <Button 
@@ -156,6 +200,19 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                 <p className="text-muted-foreground text-sm">
                   {statusMessage.description}
                 </p>
+                {audioBlob && statusMessage.title === "Recording available" && (
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadRecording}
+                      className="text-doctor-secondary border-doctor-secondary"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download Recording
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

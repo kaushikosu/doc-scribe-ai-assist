@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 
@@ -34,7 +33,9 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
     try {
       console.log("Starting audio recording for diarization...");
       audioChunksRef.current = [];
-      setAudioBlob(null);
+      
+      // Don't reset audioBlob on start - keep the previous recording available until we have a new one
+      // This allows the download button to remain available between recordings
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {

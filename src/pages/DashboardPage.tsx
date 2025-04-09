@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -13,7 +12,6 @@ import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
 import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
 
 const DashboardPage = () => {
-  // Transcript and classification state
   const [transcript, setTranscript] = useState('');
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
@@ -23,19 +21,15 @@ const DashboardPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
   
-  // Diarization state
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   
-  // Refs to prevent memory leaks and control component lifecycle
   const lastProcessedTranscriptRef = useRef('');
   const mountedRef = useRef(true);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Get API key from environment variables
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   
-  // Audio recorder hook for full conversation recording
   const {
     isRecording: isAudioRecording,
     recordingDuration,
@@ -50,7 +44,6 @@ const DashboardPage = () => {
     }
   });
   
-  // Clean up on component unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
@@ -60,12 +53,10 @@ const DashboardPage = () => {
     };
   }, []);
 
-  // Debug transcript updates
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
-  // Auto-classify the transcript when recording stops
   useEffect(() => {
     if (!isRecording && transcript && transcript !== lastProcessedTranscriptRef.current) {
       console.log("Recording stopped, auto-classifying transcript");
@@ -73,24 +64,19 @@ const DashboardPage = () => {
     }
   }, [isRecording, transcript]);
   
-  // Start/stop full audio recording based on isRecording state
   useEffect(() => {
     if (isRecording && !isAudioRecording) {
-      // Start full audio recording when speech recognition starts
       console.log("Starting full audio recording for diarization");
       startAudioRecording();
     } else if (!isRecording && isAudioRecording) {
-      // Stop and process full audio recording when speech recognition stops
       console.log("Stopping full audio recording and processing for diarization");
       stopAudioRecording();
-      // Reset diarized transcription when starting a new recording
       if (!transcript) {
         setDiarizedTranscription(null);
       }
     }
   }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
 
-  // Handle transcript classification
   const handleTranscriptClassification = useCallback(() => {
     if (!transcript || transcript.trim().length === 0 || transcript === lastProcessedTranscriptRef.current) {
       return;
@@ -98,7 +84,6 @@ const DashboardPage = () => {
     
     setIsClassifying(true);
     
-    // Add a small delay to make sure we have the final transcript
     if (timeoutIdRef.current) {
       clearTimeout(timeoutIdRef.current);
     }
@@ -125,7 +110,6 @@ const DashboardPage = () => {
     }, 800);
   }, [transcript]);
   
-  // Process audio for diarized transcription
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!googleApiKey) {
       console.error("Google Speech API key is missing");
@@ -147,7 +131,7 @@ const DashboardPage = () => {
       const result = await getDiarizedTranscription({
         apiKey: googleApiKey,
         audioBlob,
-        speakerCount: 2 // Assuming doctor and patient
+        speakerCount: 2
       });
       
       if (mountedRef.current) {
@@ -179,7 +163,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Handle transcript update from voice recorder
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
@@ -187,22 +170,17 @@ const DashboardPage = () => {
     }
   };
 
-  // Handle patient info update
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
     setPatientInfo(newPatientInfo);
   };
   
-  // Handle recording state changes
   const handleRecordingStateChange = (recordingState: boolean) => {
     console.log("Recording state changed to:", recordingState);
     setIsRecording(recordingState);
     
-    // When recording starts, reset the diarized transcription if needed
     if (recordingState) {
-      // Keep existing diarized transcription until we have a new one
     }
     
-    // When recording stops, show a toast notification
     if (!recordingState && transcript) {
       toast.info('Processing transcript...');
     }
@@ -214,7 +192,6 @@ const DashboardPage = () => {
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
-          {/* Voice Recorder Column */}
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
@@ -253,7 +230,6 @@ const DashboardPage = () => {
             </Card>
           </div>
           
-          {/* Main Content Column */}
           <div className="md:col-span-8 space-y-6">
             <TranscriptEditor 
               transcript={transcript} 
@@ -261,12 +237,12 @@ const DashboardPage = () => {
               isRecording={isRecording}
             />
             
-            {/* Diarized Transcript View */}
             <DiarizedTranscriptView 
               diarizedData={diarizedTranscription}
               isProcessing={isDiarizing}
               recordingDuration={formattedDuration}
               isRecording={isAudioRecording}
+              audioBlob={audioBlob}
             />
             
             <PrescriptionGenerator 
