@@ -12,12 +12,14 @@ interface DiarizedTranscriptViewProps {
   diarizedData: DiarizedTranscription | null;
   isProcessing: boolean;
   recordingDuration?: string;
+  isRecording?: boolean;
 }
 
 const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   diarizedData,
   isProcessing,
-  recordingDuration = "0:00"
+  recordingDuration = "0:00",
+  isRecording = false
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   
@@ -38,6 +40,35 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
 
   const toggleRoleMapping = () => {
     setShowMappedRoles(prev => !prev);
+  };
+
+  // Get the appropriate status message
+  const getStatusMessage = () => {
+    if (isRecording) {
+      return {
+        title: "Recording audio",
+        description: "Recording conversation for later diarization...",
+        icon: <Mic className="h-8 w-8 text-doctor-accent animate-pulse" />
+      };
+    }
+    
+    if (isProcessing) {
+      return {
+        title: "Processing full audio",
+        description: "Identifying speakers with Google diarization...",
+        icon: <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
+      };
+    }
+    
+    if (!diarizedData) {
+      return {
+        title: "Waiting for recording",
+        description: "Record a conversation to see diarized transcript",
+        icon: <FileAudio className="h-8 w-8 text-muted-foreground" />
+      };
+    }
+    
+    return null;
   };
 
   // Render diarized transcript with speaker formatting
@@ -71,6 +102,8 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       return <div key={index} className="mb-3">{paragraph}</div>;
     });
   };
+
+  const statusMessage = getStatusMessage();
 
   return (
     <Card className="border-2 border-doctor-accent/30">
@@ -106,14 +139,14 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {isProcessing ? (
+        {statusMessage ? (
           <div className="p-3 min-h-[120px]">
             <div className="flex flex-col items-center justify-center gap-2 py-8">
-              <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
+              {statusMessage.icon}
               <div className="text-center">
-                <p className="font-medium text-doctor-accent">Processing full audio</p>
+                <p className="font-medium text-doctor-accent">{statusMessage.title}</p>
                 <p className="text-muted-foreground text-sm">
-                  Identifying speakers with Google diarization...
+                  {statusMessage.description}
                 </p>
               </div>
             </div>

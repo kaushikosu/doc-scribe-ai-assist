@@ -32,6 +32,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
   
   const startRecording = useCallback(async () => {
     try {
+      console.log("Starting audio recording for diarization...");
       audioChunksRef.current = [];
       setAudioBlob(null);
       
@@ -43,6 +44,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
         } 
       });
       
+      console.log("Audio stream obtained successfully");
       streamRef.current = stream;
       
       const mediaRecorder = new MediaRecorder(stream, {
@@ -53,6 +55,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
+          console.log(`Audio chunk received: ${event.data.size} bytes`);
           audioChunksRef.current.push(event.data);
         }
       };
@@ -60,10 +63,13 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       mediaRecorder.onstop = () => {
         if (!mountedRef.current) return;
         
+        console.log(`Recording stopped, processing ${audioChunksRef.current.length} audio chunks`);
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log(`Created audio blob: ${audioBlob.size} bytes`);
         setAudioBlob(audioBlob);
         
         if (onRecordingComplete) {
+          console.log("Calling onRecordingComplete callback");
           onRecordingComplete(audioBlob);
         }
         
@@ -76,6 +82,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       
       // Start recording
       mediaRecorder.start(1000); // Collect data every second
+      console.log("MediaRecorder started successfully");
       setIsRecording(true);
       setRecordingDuration(0);
       
@@ -97,14 +104,21 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
   }, [onRecordingComplete]);
   
   const stopRecording = useCallback(() => {
+    console.log("Stopping audio recording");
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
     
     if (mediaRecorderRef.current && isRecording) {
+      console.log("Calling stop() on MediaRecorder");
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+    } else {
+      console.warn("Attempted to stop recording, but MediaRecorder wasn't active", {
+        isRecording,
+        mediaRecorderState: mediaRecorderRef.current?.state || 'null'
+      });
     }
   }, [isRecording]);
   

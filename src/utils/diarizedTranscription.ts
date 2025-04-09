@@ -32,13 +32,21 @@ export async function getDiarizedTranscription({
 }: DiarizedTranscriptionOptions): Promise<DiarizedTranscription> {
   try {
     if (!apiKey) {
+      console.error("No API key provided for diarization");
       throw new Error("API key is required");
     }
     
-    console.log("Processing audio for diarization:", audioBlob.size, "bytes");
+    console.log(`Processing audio for diarization: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+    
+    // Validate audio blob
+    if (audioBlob.size === 0) {
+      console.error("Empty audio blob provided");
+      throw new Error("No audio data available for diarization");
+    }
     
     // Convert audio blob to base64
     const base64Audio = await blobToBase64(audioBlob);
+    console.log("Audio converted to base64, length:", base64Audio.length);
     
     // Configure request with diarization settings
     const request = {
@@ -57,7 +65,7 @@ export async function getDiarizedTranscription({
       }
     };
     
-    console.log("Sending full audio for diarized transcription...");
+    console.log("Sending request to Google Speech API with config:", JSON.stringify(request.config));
     
     // Send request to Google Cloud Speech-to-Text API
     const response = await fetch(`${API_URL}?key=${apiKey}`, {
@@ -68,10 +76,12 @@ export async function getDiarizedTranscription({
       body: JSON.stringify(request)
     });
     
+    console.log("Google Speech API response status:", response.status);
+    
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Google Speech API error response:", errorData);
-      const errorMessage = errorData.error?.message || 'Unknown error';
+      const errorMessage = errorData.error?.message || `API error: ${response.status}`;
       throw new Error(`Speech API error: ${errorMessage}`);
     }
     
@@ -80,6 +90,7 @@ export async function getDiarizedTranscription({
     
     // Process response to extract diarized words
     if (!data.results || data.results.length === 0) {
+      console.warn("No transcription results returned from API");
       return {
         transcript: "",
         words: [],
@@ -113,6 +124,8 @@ export async function getDiarizedTranscription({
       }
     });
     
+    console.log(`Processed ${words.length} words with speaker tags`);
+    
     // Count actual speakers detected
     const uniqueSpeakers = new Set<number>();
     words.forEach(word => {
@@ -120,6 +133,8 @@ export async function getDiarizedTranscription({
         uniqueSpeakers.add(word.speakerTag);
       }
     });
+    
+    console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
     
     return {
       transcript: fullTranscript.trim(),
@@ -144,10 +159,16 @@ function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      resolve(base64String);
+      try {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      } catch (error) {
+        reject(new Error("Failed to convert audio to base64: " + error));
+      }
     };
-    reader.onerror = reject;
+    reader.onerror = (error) => {
+      reject(new Error("FileReader error: " + error));
+    };
     reader.readAsDataURL(blob);
   });
 }

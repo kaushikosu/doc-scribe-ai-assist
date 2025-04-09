@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -76,12 +77,18 @@ const DashboardPage = () => {
   useEffect(() => {
     if (isRecording && !isAudioRecording) {
       // Start full audio recording when speech recognition starts
+      console.log("Starting full audio recording for diarization");
       startAudioRecording();
     } else if (!isRecording && isAudioRecording) {
       // Stop and process full audio recording when speech recognition stops
+      console.log("Stopping full audio recording and processing for diarization");
       stopAudioRecording();
+      // Reset diarized transcription when starting a new recording
+      if (!transcript) {
+        setDiarizedTranscription(null);
+      }
     }
-  }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording]);
+  }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
 
   // Handle transcript classification
   const handleTranscriptClassification = useCallback(() => {
@@ -121,10 +128,18 @@ const DashboardPage = () => {
   // Process audio for diarized transcription
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!googleApiKey) {
+      console.error("Google Speech API key is missing");
       toast.error("Google Speech API key is not configured");
       return;
     }
     
+    if (!audioBlob || audioBlob.size === 0) {
+      console.error("No audio data to process");
+      toast.error("No audio recorded for diarization");
+      return;
+    }
+    
+    console.log("Processing audio blob for diarization:", audioBlob.size, "bytes");
     setIsDiarizing(true);
     toast.info("Processing full audio for diarized transcription...");
     
@@ -136,6 +151,7 @@ const DashboardPage = () => {
       });
       
       if (mountedRef.current) {
+        console.log("Diarization complete:", result);
         setDiarizedTranscription(result);
         
         if (result.error) {
@@ -163,6 +179,7 @@ const DashboardPage = () => {
     }
   };
 
+  // Handle transcript update from voice recorder
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
@@ -170,11 +187,14 @@ const DashboardPage = () => {
     }
   };
 
+  // Handle patient info update
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
     setPatientInfo(newPatientInfo);
   };
   
+  // Handle recording state changes
   const handleRecordingStateChange = (recordingState: boolean) => {
+    console.log("Recording state changed to:", recordingState);
     setIsRecording(recordingState);
     
     // When recording starts, reset the diarized transcription if needed
@@ -246,6 +266,7 @@ const DashboardPage = () => {
               diarizedData={diarizedTranscription}
               isProcessing={isDiarizing}
               recordingDuration={formattedDuration}
+              isRecording={isAudioRecording}
             />
             
             <PrescriptionGenerator 
