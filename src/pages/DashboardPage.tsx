@@ -251,6 +251,7 @@ const DashboardPage = () => {
   const handleNewPatient = () => {
     console.log("New patient session initiated, resetting all states");
     
+    // Reset all state variables
     setTranscript('');
     setClassifiedTranscript('');
     setPatientInfo({ name: '', time: '' });
@@ -266,6 +267,7 @@ const DashboardPage = () => {
       timeoutIdRef.current = null;
     }
     
+    // Ensure audio recording is stopped and reset
     if (isAudioRecording) {
       stopAudioRecording();
     }

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
@@ -37,6 +37,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   audioParts = []
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
+  const [expandedParts, setExpandedParts] = useState<boolean>(true);
   
   // Format the diarized transcript
   const formattedTranscript = React.useMemo(() => {
@@ -93,7 +94,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     if (isProcessing) {
       return {
         title: "Processing audio",
-        description: "Identifying speakers with Google diarization...",
+        description: `Processing ${audioParts.length > 0 ? audioParts.length + ' audio parts' : 'audio'} for diarization...`,
         icon: <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
       };
     }
@@ -179,13 +180,22 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       case 'completed':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'error':
-        return <FileAudio className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
       default:
         return <FileAudio className="h-4 w-4" />;
     }
   };
 
   const statusMessage = getStatusMessage();
+  
+  const countCompletedParts = () => {
+    return audioParts.filter(part => part.status === 'completed').length;
+  };
+
+  const totalParts = audioParts.length;
+  const completedParts = countCompletedParts();
+  const hasProcessingParts = audioParts.some(part => part.status === 'processing');
+  const hasErrorParts = audioParts.some(part => part.status === 'error');
 
   return (
     <Card className="border-2 border-doctor-accent/30">
@@ -241,6 +251,13 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                 <p className="text-muted-foreground text-sm">
                   {statusMessage.description}
                 </p>
+                {isProcessing && totalParts > 0 && (
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    {completedParts} of {totalParts} parts processed
+                    {hasProcessingParts && " (processing...)"}
+                    {hasErrorParts && " (with errors)"}
+                  </p>
+                )}
                 {audioBlob && statusMessage.title === "Recording available" && (
                   <div className="mt-3">
                     <Button
@@ -282,15 +299,26 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             {/* Audio parts section */}
             {audioParts.length > 0 && (
               <div className="border-b border-gray-200 p-2">
-                <Accordion type="single" collapsible className="w-full">
+                <Accordion 
+                  type="single" 
+                  collapsible 
+                  className="w-full"
+                  defaultValue="audio-parts" 
+                  value={expandedParts ? "audio-parts" : undefined}
+                  onValueChange={(val) => setExpandedParts(val === "audio-parts")}
+                >
                   <AccordionItem value="audio-parts">
                     <AccordionTrigger className="py-2 text-sm font-medium">
-                      Recording Parts ({audioParts.length})
+                      Recording Parts ({audioParts.length}) - {completedParts} completed
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-2 text-sm">
                         {audioParts.map((part) => (
-                          <div key={part.id} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                          <div key={part.id} className={`flex items-center justify-between p-2 rounded-md ${
+                            part.status === 'completed' ? 'bg-green-50' : 
+                            part.status === 'processing' ? 'bg-amber-50' : 
+                            part.status === 'error' ? 'bg-red-50' : 'bg-muted'
+                          }`}>
                             <div className="flex items-center gap-2">
                               {getStatusIcon(part.status)}
                               <span>Part {part.id}</span>
@@ -300,17 +328,20 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                             </div>
                             <div className="flex gap-2">
                               {part.status === 'processing' && (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <RotateCw className="h-2.5 w-2.5 animate-spin" />
                                   Processing...
                                 </span>
                               )}
                               {part.status === 'completed' && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <CheckCircle className="h-2.5 w-2.5" />
                                   Transcribed
                                 </span>
                               )}
                               {part.status === 'error' && (
-                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded flex items-center gap-1" title={part.error}>
+                                  <AlertCircle className="h-2.5 w-2.5" />
                                   Failed
                                 </span>
                               )}
@@ -333,11 +364,13 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             )}
 
             {/* Transcript display */}
-            <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
-              <div className="p-3 w-full bg-muted rounded-md">
-                {renderFormattedTranscript()}
-              </div>
-            </ScrollArea>
+            {formattedTranscript && (
+              <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
+                <div className="p-3">
+                  {renderFormattedTranscript()}
+                </div>
+              </ScrollArea>
+            )}
           </div>
         )}
       </CardContent>

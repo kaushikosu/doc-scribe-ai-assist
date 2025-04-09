@@ -1,4 +1,3 @@
-
 import { toast } from "@/lib/toast";
 import { AudioPart } from "@/components/DiarizedTranscriptView";
 
@@ -109,7 +108,7 @@ async function processStandardAudio({
       id: 1,
       blob: audioBlob,
       size: audioBlob.size,
-      duration: 0, // Unknown duration for single parts
+      duration: estimateDuration(audioBlob.size),
       status: 'processing'
     };
     
@@ -215,7 +214,7 @@ async function processLargeAudio({
       const segmentBlob = audioBlob.slice(start, end);
       
       // Estimated duration based on segment size ratio
-      const estimatedDuration = (MAX_SEGMENT_DURATION * segmentBlob.size) / MAX_AUDIO_SIZE;
+      const estimatedDuration = estimateDuration(segmentBlob.size);
       
       const audioPart: AudioPart = {
         id: i + 1,
@@ -286,13 +285,23 @@ async function processLargeAudio({
     return {
       transcript: combinedTranscript,
       words: allWords,
-      speakerCount: totalSpeakerCount,
+      speakerCount: totalSpeakerCount || audioParts.length > 0 ? 2 : 0, // Ensure we have at least 2 speakers if we have parts
       audioParts: audioParts
     };
   } catch (error: any) {
     console.error("Error processing large audio:", error);
     throw new Error("Audio file too large: " + error.message);
   }
+}
+
+// Helper to estimate duration from audio size
+function estimateDuration(byteSize: number): number {
+  // Very rough estimate: ~12KB per second for WEBM OPUS at 48kHz
+  const bytesPerSecond = 12 * 1024;
+  const estimatedSeconds = byteSize / bytesPerSecond;
+  
+  // Ensure minimum of 1 second
+  return Math.max(1, Math.round(estimatedSeconds));
 }
 
 // Process the response from Google Speech API
@@ -350,7 +359,7 @@ function processGoogleSpeechResponse(data: any): DiarizedTranscription {
   return {
     transcript: fullTranscript.trim(),
     words,
-    speakerCount: uniqueSpeakers.size
+    speakerCount: uniqueSpeakers.size || (fullTranscript ? 2 : 0) // Default to 2 speakers if we have transcript but no tags
   };
 }
 
