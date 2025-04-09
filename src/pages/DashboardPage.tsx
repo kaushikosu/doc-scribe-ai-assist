@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -7,8 +7,12 @@ import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
 import { classifyTranscript } from '@/utils/speaker';
 import { toast } from '@/lib/toast';
+import useAudioRecorder from '@/hooks/useAudioRecorder';
+import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
+import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
 
 const DashboardPage = () => {
+  // Transcript and classification state
   const [transcript, setTranscript] = useState('');
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
@@ -16,42 +20,148 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
-  const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isClassifying, setIsClassifying] = useState(false);
+  
+  // Diarization state
+  const [isDiarizing, setIsDiarizing] = useState(false);
+  const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
+  
+  // Refs to prevent memory leaks and control component lifecycle
+  const lastProcessedTranscriptRef = useRef('');
+  const mountedRef = useRef(true);
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Get API key from environment variables
+  const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
+  
+  // Audio recorder hook for full conversation recording
+  const {
+    isRecording: isAudioRecording,
+    recordingDuration,
+    formattedDuration,
+    startRecording: startAudioRecording,
+    stopRecording: stopAudioRecording,
+    audioBlob
+  } = useAudioRecorder({
+    onRecordingComplete: (blob) => {
+      console.log("Full audio recording complete:", blob.size, "bytes");
+      processDiarizedTranscription(blob);
+    }
+  });
+  
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+      }
+    };
+  }, []);
 
-  // Debug the transcript updates
+  // Debug transcript updates
   useEffect(() => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
   // Auto-classify the transcript when recording stops
   useEffect(() => {
-    if (!isRecording && transcript && transcript !== lastProcessedTranscript) {
+    if (!isRecording && transcript && transcript !== lastProcessedTranscriptRef.current) {
       console.log("Recording stopped, auto-classifying transcript");
-      setIsClassifying(true);
-      
-      // Add a small delay to make sure we have the final transcript
-      const timeoutId = setTimeout(() => {
-        if (transcript && transcript.trim().length > 0) {
-          try {
-            const classified = classifyTranscript(transcript);
-            setClassifiedTranscript(classified);
-            setLastProcessedTranscript(transcript);
-            console.log("Transcript auto-classified");
-          } catch (error) {
-            console.error("Error classifying transcript:", error);
-            toast.error("Failed to classify transcript");
-          } finally {
-            setIsClassifying(false);
-          }
-        } else {
-          setIsClassifying(false);
-        }
-      }, 800);
-      
-      return () => clearTimeout(timeoutId);
+      handleTranscriptClassification();
     }
   }, [isRecording, transcript]);
+  
+  // Start/stop full audio recording based on isRecording state
+  useEffect(() => {
+    if (isRecording && !isAudioRecording) {
+      // Start full audio recording when speech recognition starts
+      startAudioRecording();
+    } else if (!isRecording && isAudioRecording) {
+      // Stop and process full audio recording when speech recognition stops
+      stopAudioRecording();
+    }
+  }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording]);
+
+  // Handle transcript classification
+  const handleTranscriptClassification = useCallback(() => {
+    if (!transcript || transcript.trim().length === 0 || transcript === lastProcessedTranscriptRef.current) {
+      return;
+    }
+    
+    setIsClassifying(true);
+    
+    // Add a small delay to make sure we have the final transcript
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+    }
+    
+    timeoutIdRef.current = setTimeout(() => {
+      if (!mountedRef.current) return;
+      
+      try {
+        const classified = classifyTranscript(transcript);
+        lastProcessedTranscriptRef.current = transcript;
+        
+        if (mountedRef.current) {
+          setClassifiedTranscript(classified);
+          setIsClassifying(false);
+          console.log("Transcript classified successfully");
+        }
+      } catch (error) {
+        console.error("Error classifying transcript:", error);
+        if (mountedRef.current) {
+          setIsClassifying(false);
+          toast.error("Failed to classify transcript");
+        }
+      }
+    }, 800);
+  }, [transcript]);
+  
+  // Process audio for diarized transcription
+  const processDiarizedTranscription = async (audioBlob: Blob) => {
+    if (!googleApiKey) {
+      toast.error("Google Speech API key is not configured");
+      return;
+    }
+    
+    setIsDiarizing(true);
+    toast.info("Processing full audio for diarized transcription...");
+    
+    try {
+      const result = await getDiarizedTranscription({
+        apiKey: googleApiKey,
+        audioBlob,
+        speakerCount: 2 // Assuming doctor and patient
+      });
+      
+      if (mountedRef.current) {
+        setDiarizedTranscription(result);
+        
+        if (result.error) {
+          toast.error("Diarization error: " + result.error);
+        } else if (result.words.length === 0) {
+          toast.warning("No speech detected in the audio");
+        } else {
+          toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
+        }
+        
+        setIsDiarizing(false);
+      }
+    } catch (error: any) {
+      console.error("Error in diarized transcription:", error);
+      if (mountedRef.current) {
+        setIsDiarizing(false);
+        setDiarizedTranscription({
+          transcript: "",
+          words: [],
+          speakerCount: 0,
+          error: error.message
+        });
+        toast.error("Failed to process diarized transcription");
+      }
+    }
+  };
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
@@ -67,9 +177,9 @@ const DashboardPage = () => {
   const handleRecordingStateChange = (recordingState: boolean) => {
     setIsRecording(recordingState);
     
-    // When recording starts, reset the classified transcript if needed
-    if (recordingState && classifiedTranscript) {
-      // Keep the classified transcript until we have a new one
+    // When recording starts, reset the diarized transcription if needed
+    if (recordingState) {
+      // Keep existing diarized transcription until we have a new one
     }
     
     // When recording stops, show a toast notification
@@ -129,6 +239,13 @@ const DashboardPage = () => {
               transcript={transcript} 
               onTranscriptChange={setTranscript}
               isRecording={isRecording}
+            />
+            
+            {/* Diarized Transcript View */}
+            <DiarizedTranscriptView 
+              diarizedData={diarizedTranscription}
+              isProcessing={isDiarizing}
+              recordingDuration={formattedDuration}
             />
             
             <PrescriptionGenerator 
