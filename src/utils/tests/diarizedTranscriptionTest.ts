@@ -13,6 +13,7 @@ interface TestConfig {
   onComplete?: (result: DiarizedTranscription) => void;
   onError?: (error: Error) => void;
   onProgress?: (progress: number) => void;
+  onPartStatusUpdate?: (parts: AudioPart[]) => void;
 }
 
 /**
@@ -50,7 +51,8 @@ export const runDiarizedTranscriptionTest = async (config: TestConfig): Promise<
     speakerCount = 2,
     onComplete,
     onError,
-    onProgress
+    onProgress,
+    onPartStatusUpdate
   } = config;
 
   if (!apiKey) {
@@ -83,15 +85,47 @@ export const runDiarizedTranscriptionTest = async (config: TestConfig): Promise<
       speakerCount,
       onPartProcessing: (part) => {
         console.log(`[Test] Processing part ${part.id}: ${part.size} bytes, status: ${part.status}`);
-        parts.push(part);
+        
+        // Update or add the part to our tracking array
+        const existingIndex = parts.findIndex(p => p.id === part.id);
+        if (existingIndex >= 0) {
+          parts[existingIndex] = part;
+        } else {
+          parts.push(part);
+        }
+        
+        if (onPartStatusUpdate) {
+          onPartStatusUpdate([...parts]);
+        }
+        
         const processedParts = parts.filter(p => p.status !== 'pending').length;
         if (onProgress) onProgress(processedParts / parts.length);
       },
       onPartComplete: (part) => {
         console.log(`[Test] Part ${part.id} completed: ${part.transcript ? 'Has transcript' : 'No transcript'}`);
+        
+        // Update the part status in our tracking array
+        const existingIndex = parts.findIndex(p => p.id === part.id);
+        if (existingIndex >= 0) {
+          parts[existingIndex] = part;
+        }
+        
+        if (onPartStatusUpdate) {
+          onPartStatusUpdate([...parts]);
+        }
       },
       onPartError: (part) => {
         console.error(`[Test] Error in part ${part.id}: ${part.error}`);
+        
+        // Update the part status in our tracking array
+        const existingIndex = parts.findIndex(p => p.id === part.id);
+        if (existingIndex >= 0) {
+          parts[existingIndex] = part;
+        }
+        
+        if (onPartStatusUpdate) {
+          onPartStatusUpdate([...parts]);
+        }
       }
     });
 

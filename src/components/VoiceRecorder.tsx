@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe, RotateCw } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Globe, RotateCw, Loader } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useSpeechRecognition from '@/hooks/useSpeechRecognition';
@@ -11,13 +12,15 @@ interface VoiceRecorderProps {
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
   onNewPatient?: () => void;
+  onProcessingStateChange?: (isProcessing: boolean) => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
   onPatientInfoUpdate,
   onRecordingStateChange,
-  onNewPatient
+  onNewPatient,
+  onProcessingStateChange
 }) => {
   const [transcript, setTranscript] = useState('');
   const [rawTranscript, setRawTranscript] = useState(''); 
@@ -46,6 +49,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       onRecordingStateChange(isRecording);
     }
   }, [isRecording, onRecordingStateChange]);
+  
+  useEffect(() => {
+    if (onProcessingStateChange) {
+      onProcessingStateChange(processingTranscript);
+    }
+  }, [processingTranscript, onProcessingStateChange]);
 
   const handleSilence = () => {
     setRawTranscript(prev => {
@@ -91,8 +100,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const { 
     isRecording: webSpeechIsRecording, 
     detectedLanguage,
+    processingStatus,
     startRecording, 
     stopRecording,
+    setIdle,
     toggleRecording: webToggleRecording,
     getAccumulatedTranscript,
     resetTranscript
@@ -104,7 +115,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   
   useEffect(() => {
     setIsRecording(webSpeechIsRecording);
-  }, [webSpeechIsRecording]);
+    setProcessingTranscript(processingStatus === 'processing');
+    
+    // When processing is complete, update the UI
+    if (processingStatus === 'idle' && processingTranscript) {
+      setProcessingTranscript(false);
+    }
+  }, [webSpeechIsRecording, processingStatus]);
 
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
@@ -223,6 +240,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     patientNameScanAttempts.current = 0;
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
+    setProcessingTranscript(false);
+    setIdle(); // Reset the processing status
     
     onPatientInfoUpdate({
       name: '',
@@ -341,7 +360,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
                     <span className="font-medium">Processing</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader className="h-3 w-3 animate-spin" />
                     Processing transcript...
                   </div>
                 </div>
