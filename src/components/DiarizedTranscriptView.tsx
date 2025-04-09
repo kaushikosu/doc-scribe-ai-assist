@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -42,11 +41,11 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   
-  // Create audio URL when audio blob changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (audioBlob) {
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
+      
       return () => {
         URL.revokeObjectURL(url);
       };
@@ -54,7 +53,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     return undefined;
   }, [audioBlob]);
 
-  // Handle play/pause
   const togglePlayback = () => {
     if (audioRef.current) {
       if (isPlaying) {
@@ -66,7 +64,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     }
   };
   
-  // Format the diarized transcript
   const formattedTranscript = React.useMemo(() => {
     if (!diarizedData || !diarizedData.words.length) return '';
     
@@ -91,24 +88,20 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       return;
     }
     
-    // Create a URL for the blob
     const url = URL.createObjectURL(blob);
     
-    // Create a link element to trigger the download
     const a = document.createElement('a');
     a.href = url;
     a.download = filename || `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
     document.body.appendChild(a);
     a.click();
     
-    // Clean up
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
     toast.success('Recording download started');
   };
 
-  // Get the appropriate status message
   const getStatusMessage = () => {
     if (isRecording) {
       return {
@@ -143,7 +136,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     }
     
     if (diarizedData && diarizedData.words.length === 0 && !diarizedData.error) {
-      // Check if we have any successful parts with transcripts
       const hasSuccessfulParts = audioParts.some(part => part.status === 'completed' && part.transcript);
       
       if (hasSuccessfulParts) {
@@ -164,16 +156,14 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     return null;
   };
 
-  // Render diarized transcript with speaker formatting
   const renderFormattedTranscript = () => {
     if (!formattedTranscript) {
-      // Check if any audio parts have transcripts
       const partTranscripts = audioParts
         .filter(part => part.status === 'completed' && part.transcript)
         .map(part => part.transcript)
         .join("\n\n")
         .trim();
-
+      
       if (partTranscripts) {
         return (
           <div className="text-gray-800">
@@ -193,7 +183,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     const paragraphs = formattedTranscript.split('\n\n');
     
     return paragraphs.map((paragraph, index) => {
-      // Identify speaker label
       const match = paragraph.match(/^\[(Doctor|Patient|Speaker \d+)\]:/);
       
       if (match) {
@@ -228,7 +217,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Get status icon for audio part
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending':
@@ -255,7 +243,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const hasProcessingParts = audioParts.some(part => part.status === 'processing');
   const hasErrorParts = audioParts.some(part => part.status === 'error');
   
-  // Check if we have any transcripts in audio parts
   const hasAnyTranscript = audioParts.some(part => part.status === 'completed' && part.transcript);
 
   return (
@@ -303,8 +290,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {/* Audio player section - NEW */}
-        {audioBlob && audioUrl && (
+        {audioBlob && (
           <div className="p-3 border-b border-gray-200 bg-slate-50">
             <div className="flex items-center gap-3">
               <Button
@@ -318,7 +304,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
               <div className="flex-1">
                 <audio
                   ref={audioRef}
-                  src={audioUrl}
+                  src={audioUrl || ''}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
                   onEnded={() => setIsPlaying(false)}
@@ -387,7 +373,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
           </div>
         ) : (
           <div className="flex flex-col">
-            {/* Audio parts section - Updated to show more details */}
             {audioParts.length > 0 && (
               <div className="border-b border-gray-200 p-2">
                 <Accordion 
@@ -454,7 +439,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
               </div>
             )}
 
-            {/* Transcript display */}
             {(formattedTranscript || hasAnyTranscript) && (
               <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
                 <div className="p-3">

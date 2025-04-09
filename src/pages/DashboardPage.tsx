@@ -290,7 +290,8 @@ const DashboardPage = () => {
         const allCompletedParts = audioParts
           .filter(p => p.status === 'completed' && p.transcript)
           .map(p => p.transcript)
-          .join('\n\n');
+          .join('\n\n')
+          .trim();
         
         if (allCompletedParts) {
           setDiarizedTranscription({
