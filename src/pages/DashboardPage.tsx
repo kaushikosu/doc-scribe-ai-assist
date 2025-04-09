@@ -8,11 +8,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { classifyTranscript } from '@/utils/speaker';
 import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import DiarizedTranscriptView, { AudioPart } from '@/components/DiarizedTranscriptView';
+import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
 import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import DiarizedTranscriptionTester from '@/components/DiarizedTranscriptionTester';
-import { splitAudioIntoChunks, estimateAudioDuration } from '@/utils/googleSpeechToText';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -22,18 +19,14 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
-  const [isProcessingTranscript, setIsProcessingTranscript] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
-  const [audioParts, setAudioParts] = useState<AudioPart[]>([]);
-  const [showTester, setShowTester] = useState(false);
   
   const lastProcessedTranscriptRef = useRef('');
   const mountedRef = useRef(true);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
-  const isProcessingRef = useRef<boolean>(false);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   
@@ -43,14 +36,11 @@ const DashboardPage = () => {
     formattedDuration,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
-    audioBlob,
-    resetRecording
+    audioBlob
   } = useAudioRecorder({
     onRecordingComplete: (blob) => {
       console.log("Full audio recording complete:", blob.size, "bytes");
-      if (blob.size > 0) {
-        processDiarizedTranscription(blob);
-      }
+      processDiarizedTranscription(blob);
     }
   });
   
@@ -83,39 +73,9 @@ const DashboardPage = () => {
       stopAudioRecording();
       if (!transcript) {
         setDiarizedTranscription(null);
-        setAudioParts([]);
       }
     }
   }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
-
-  useEffect(() => {
-    if (isDiarizing && audioParts.length > 0) {
-      const allPartsCompleted = audioParts.every(
-        part => part.status === 'completed' || part.status === 'error'
-      );
-      
-      if (allPartsCompleted) {
-        console.log("All audio parts have been processed, updating status");
-        const successfulParts = audioParts.filter(
-          part => part.status === 'completed' && part.transcript
-        );
-        
-        if (successfulParts.length > 0) {
-          toast.success(`Audio processing complete (${successfulParts.length} parts with speech)`);
-        } else {
-          toast.info("Audio processing complete, no speech detected");
-        }
-        
-        setTimeout(() => {
-          if (mountedRef.current) {
-            setIsDiarizing(false);
-            setIsProcessingTranscript(false);
-            isProcessingRef.current = false;
-          }
-        }, 1000);
-      }
-    }
-  }, [audioParts, isDiarizing]);
 
   const handleTranscriptClassification = useCallback(() => {
     if (!transcript || transcript.trim().length === 0 || transcript === lastProcessedTranscriptRef.current) {
@@ -149,62 +109,6 @@ const DashboardPage = () => {
       }
     }, 800);
   }, [transcript]);
-
-  const handlePartProcessing = (part: AudioPart) => {
-    if (!mountedRef.current) return;
-    
-    console.log(`Audio part ${part.id} processing started`);
-    setAudioParts(current => {
-      const existingPartIndex = current.findIndex(p => p.id === part.id);
-      if (existingPartIndex >= 0) {
-        const updated = [...current];
-        updated[existingPartIndex] = {...part};
-        return updated;
-      } else {
-        return [...current, part];
-      }
-    });
-  };
-  
-  const handlePartComplete = (part: AudioPart) => {
-    if (!mountedRef.current) return;
-    
-    console.log(`Audio part ${part.id} processing completed`);
-    setAudioParts(current => {
-      const existingPartIndex = current.findIndex(p => p.id === part.id);
-      if (existingPartIndex >= 0) {
-        const updated = [...current];
-        updated[existingPartIndex] = {...part};
-        return updated;
-      } else {
-        return [...current, part];
-      }
-    });
-    
-    if (part.transcript) {
-      toast.success(`Part ${part.id} transcription completed`);
-    } else {
-      toast.info(`Part ${part.id} processed (no speech detected)`);
-    }
-  };
-  
-  const handlePartError = (part: AudioPart) => {
-    if (!mountedRef.current) return;
-    
-    console.log(`Audio part ${part.id} processing failed: ${part.error}`);
-    setAudioParts(current => {
-      const existingPartIndex = current.findIndex(p => p.id === part.id);
-      if (existingPartIndex >= 0) {
-        const updated = [...current];
-        updated[existingPartIndex] = {...part};
-        return updated;
-      } else {
-        return [...current, part];
-      }
-    });
-    
-    toast.error(`Part ${part.id} transcription failed: ${part.error}`);
-  };
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!googleApiKey) {
@@ -221,147 +125,33 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setIsProcessingTranscript(true);
-    isProcessingRef.current = true;
-    setAudioParts([]); // Reset audio parts
     toast.info("Processing full audio for diarized transcription...");
     
     try {
-      const audioChunks = await splitAudioIntoChunks(audioBlob);
-      console.log(`Split audio into ${audioChunks.length} chunks for processing`);
+      const result = await getDiarizedTranscription({
+        apiKey: googleApiKey,
+        audioBlob,
+        speakerCount: 2
+      });
       
-      const initialParts: AudioPart[] = audioChunks.map((chunk, index) => ({
-        id: index + 1,
-        blob: chunk,
-        size: chunk.size,
-        duration: estimateAudioDuration(chunk) / 1000,
-        status: 'pending'
-      }));
-      
-      setAudioParts(initialParts);
-      
-      if (audioChunks.length > 1) {
-        toast.info(`Processing ${audioChunks.length} audio parts for transcription...`);
+      if (mountedRef.current) {
+        console.log("Diarization complete:", result);
+        setDiarizedTranscription(result);
         
-        for (let i = 0; i < audioChunks.length; i++) {
-          const partId = i + 1;
-          setAudioParts(current => {
-            return current.map(p => 
-              p.id === partId ? { ...p, status: 'processing' } : p
-            );
-          });
-          
-          try {
-            const partResult = await getDiarizedTranscription({
-              apiKey: googleApiKey,
-              audioBlob: audioChunks[i],
-              speakerCount: 2,
-              onPartProcessing: () => {},
-              onPartComplete: () => {},
-              onPartError: () => {}
-            });
-            
-            setAudioParts(current => {
-              return current.map(p => 
-                p.id === partId ? { 
-                  ...p, 
-                  status: 'completed',
-                  transcript: partResult.transcript || '',
-                  error: partResult.error
-                } : p
-              );
-            });
-            
-            console.log(`Part ${partId} completed with ${partResult.words.length} words`);
-          } catch (error: any) {
-            console.error(`Error processing part ${partId}:`, error);
-            setAudioParts(current => {
-              return current.map(p => 
-                p.id === partId ? { 
-                  ...p, 
-                  status: 'error',
-                  error: error.message || 'Unknown error' 
-                } : p
-              );
-            });
-          }
-        }
-        
-        const allCompletedParts = audioParts
-          .filter(p => p.status === 'completed' && p.transcript)
-          .map(p => p.transcript)
-          .join('\n\n')
-          .trim();
-        
-        if (allCompletedParts) {
-          setDiarizedTranscription({
-            transcript: allCompletedParts,
-            words: [],
-            speakerCount: 2
-          });
-          
-          toast.success('Combined transcription from all parts completed');
+        if (result.error) {
+          toast.error("Diarization error: " + result.error);
+        } else if (result.words.length === 0) {
+          toast.warning("No speech detected in the audio");
         } else {
-          setDiarizedTranscription({
-            transcript: '',
-            words: [],
-            speakerCount: 0,
-            error: 'No speech detected in any audio parts'
-          });
-          
-          toast.warning('No speech detected in any audio parts');
+          toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
         }
-      } else {
-        const result = await getDiarizedTranscription({
-          apiKey: googleApiKey,
-          audioBlob,
-          speakerCount: 2,
-          onPartProcessing: handlePartProcessing,
-          onPartComplete: handlePartComplete,
-          onPartError: handlePartError
-        });
         
-        if (mountedRef.current) {
-          console.log("Diarization complete:", result);
-          setDiarizedTranscription(result);
-          
-          if (result.audioParts) {
-            setAudioParts(result.audioParts);
-          }
-          
-          if (result.error) {
-            toast.error("Diarization error: " + result.error);
-          } else if (result.words.length === 0) {
-            toast.warning("No speech detected in the audio");
-            
-            const completedParts = result.audioParts?.filter(p => p.status === 'completed') || [];
-            const errorParts = result.audioParts?.filter(p => p.status === 'error') || [];
-            
-            console.log("Diarization completed without speech detection:");
-            console.log(`- Total parts: ${result.audioParts?.length || 0}`);
-            console.log(`- Completed parts: ${completedParts.length}`);
-            console.log(`- Error parts: ${errorParts.length}`);
-            
-            const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
-            if (partsWithTranscripts.length > 0) {
-              console.log(`- ${partsWithTranscripts.length} parts have transcripts but no diarized words`);
-            }
-          } else {
-            toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
-          }
-        }
+        setIsDiarizing(false);
       }
-      
-      setTimeout(() => {
-        if (mountedRef.current) {
-          setIsDiarizing(false);
-          setIsProcessingTranscript(false);
-          isProcessingRef.current = false;
-        }
-      }, 1000);
     } catch (error: any) {
       console.error("Error in diarized transcription:", error);
       if (mountedRef.current) {
+        setIsDiarizing(false);
         setDiarizedTranscription({
           transcript: "",
           words: [],
@@ -369,10 +159,6 @@ const DashboardPage = () => {
           error: error.message
         });
         toast.error("Failed to process diarized transcription");
-        
-        setIsDiarizing(false);
-        setIsProcessingTranscript(false);
-        isProcessingRef.current = false;
       }
     }
   };
@@ -380,12 +166,7 @@ const DashboardPage = () => {
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
-      const filteredTranscript = newTranscript
-        .replace(/Processing\.\.\./g, '')
-        .replace(/Listening\.\.\./g, '')
-        .trim();
-        
-      setTranscript(filteredTranscript);
+      setTranscript(newTranscript);
     }
   };
 
@@ -397,42 +178,12 @@ const DashboardPage = () => {
     console.log("Recording state changed to:", recordingState);
     setIsRecording(recordingState);
     
+    if (recordingState) {
+    }
+    
     if (!recordingState && transcript) {
       toast.info('Processing transcript...');
     }
-  };
-  
-  const handleProcessingStateChange = (processingState: boolean) => {
-    console.log("Processing state changed to:", processingState);
-    setIsProcessingTranscript(processingState);
-  };
-  
-  const handleNewPatient = () => {
-    console.log("New patient session initiated, resetting all states");
-    
-    setTranscript('');
-    setClassifiedTranscript('');
-    setPatientInfo({ name: '', time: '' });
-    setIsClassifying(false);
-    setIsDiarizing(false);
-    setIsProcessingTranscript(false);
-    isProcessingRef.current = false;
-    setDiarizedTranscription(null);
-    setAudioParts([]);
-    
-    lastProcessedTranscriptRef.current = '';
-    
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current);
-      timeoutIdRef.current = null;
-    }
-    
-    if (isAudioRecording) {
-      stopAudioRecording();
-    }
-    resetRecording();
-    
-    toast.success("Ready for a new patient session");
   };
 
   return (
@@ -446,50 +197,37 @@ const DashboardPage = () => {
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
-              onProcessingStateChange={handleProcessingStateChange}
-              onNewPatient={handleNewPatient}
             />
             
-            <Tabs defaultValue="instructions">
-              <TabsList className="grid grid-cols-2">
-                <TabsTrigger value="instructions">Instructions</TabsTrigger>
-                <TabsTrigger value="testing">Testing Tools</TabsTrigger>
-              </TabsList>
-              <TabsContent value="instructions">
-                <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
-                  <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
-                  <ol className="space-y-3 text-sm">
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                      <span>Click the microphone button to start recording</span>
-                    </li>
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                      <span>Say "Hi [patient name]" to begin a new session</span>
-                    </li>
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                      <span>Speak naturally about the patient's condition, symptoms, and medications</span>
-                    </li>
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                      <span>When you stop recording, the transcript will be classified automatically</span>
-                    </li>
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                      <span>A prescription will be automatically generated based on the conversation</span>
-                    </li>
-                    <li className="flex gap-2 items-start">
-                      <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
-                      <span>Press the "New Patient" button for the next consultation</span>
-                    </li>
-                  </ol>
-                </Card>
-              </TabsContent>
-              <TabsContent value="testing">
-                <DiarizedTranscriptionTester apiKey={googleApiKey} />
-              </TabsContent>
-            </Tabs>
+            <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
+              <h2 className="font-semibold text-doctor-primary mb-4 text-lg">How to use DocScribe</h2>
+              <ol className="space-y-3 text-sm">
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
+                  <span>Click the microphone button to start recording</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
+                  <span>Say "Hi [patient name]" to begin a new session</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
+                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
+                  <span>When you stop recording, the transcript will be classified automatically</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
+                  <span>A prescription will be automatically generated based on the conversation</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
+                  <span>Press the "New Patient" button for the next consultation</span>
+                </li>
+              </ol>
+            </Card>
           </div>
           
           <div className="md:col-span-8 space-y-6">
@@ -501,11 +239,10 @@ const DashboardPage = () => {
             
             <DiarizedTranscriptView 
               diarizedData={diarizedTranscription}
-              isProcessing={isDiarizing || isProcessingTranscript}
+              isProcessing={isDiarizing}
               recordingDuration={formattedDuration}
               isRecording={isAudioRecording}
               audioBlob={audioBlob}
-              audioParts={audioParts}
             />
             
             <PrescriptionGenerator 

@@ -1,16 +1,11 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 
 interface UseAudioRecorderProps {
   onRecordingComplete?: (audioBlob: Blob) => void;
-  maxDuration?: number; // Maximum recording duration in seconds
 }
 
-const useAudioRecorder = ({ 
-  onRecordingComplete,
-  maxDuration = 120 // Default to 2 minutes max to avoid exceeding Google's limits
-}: UseAudioRecorderProps = {}) => {
+const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -113,18 +108,7 @@ const useAudioRecorder = ({
       
       timerRef.current = window.setInterval(() => {
         if (mountedRef.current) {
-          setRecordingDuration(prev => {
-            const newDuration = prev + 1;
-            
-            // Auto-stop if we reach the maximum duration
-            if (maxDuration > 0 && newDuration >= maxDuration) {
-              console.log(`Max recording duration (${maxDuration}s) reached, auto-stopping...`);
-              stopRecording();
-              toast.info(`Recording automatically stopped after ${maxDuration} seconds`);
-            }
-            
-            return newDuration;
-          });
+          setRecordingDuration(prev => prev + 1);
         }
       }, 1000);
       
@@ -132,7 +116,7 @@ const useAudioRecorder = ({
       console.error('Failed to start recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
     }
-  }, [onRecordingComplete, maxDuration]);
+  }, [onRecordingComplete]);
   
   const stopRecording = useCallback(() => {
     console.log("Stopping audio recording");
@@ -153,37 +137,6 @@ const useAudioRecorder = ({
     }
   }, [isRecording]);
   
-  // New function to completely reset the recording state
-  const resetRecording = useCallback(() => {
-    console.log("Resetting audio recorder state");
-    
-    // Stop any active recording
-    if (isRecording && mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-    }
-    
-    // Stop and clear any active media streams
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    // Clear timer
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    // Reset all state
-    setIsRecording(false);
-    setRecordingDuration(0);
-    setAudioBlob(null);
-    audioChunksRef.current = [];
-    mediaRecorderRef.current = null;
-    
-    console.log("Audio recorder state has been reset");
-  }, [isRecording]);
-  
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -194,7 +147,6 @@ const useAudioRecorder = ({
     isRecording,
     startRecording,
     stopRecording,
-    resetRecording,
     audioBlob,
     recordingDuration,
     formattedDuration: formatDuration(recordingDuration)

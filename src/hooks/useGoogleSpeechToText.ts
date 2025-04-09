@@ -29,7 +29,6 @@ const useGoogleSpeechToText = ({
 }: UseGoogleSpeechToTextProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
-  const [processingStatus, setProcessingStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
   
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const lastSpeechTimeRef = useRef<number>(Date.now());
@@ -71,7 +70,6 @@ const useGoogleSpeechToText = ({
     }
     
     try {
-      setProcessingStatus('recording');
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
@@ -92,13 +90,6 @@ const useGoogleSpeechToText = ({
       // Enable diarization in the Google Speech API call
       const cleanupFn = streamMediaToGoogleSpeech(stream, apiKey, (result) => {
         if (result.error) {
-          // Check if it's a size limitation error
-          if (result.error.includes("too long") || result.error.includes("LongRunningRecognize")) {
-            console.log("Stream chunk too large for sync API, will use LongRunningRecognize for final processing");
-            // Don't show error, as we'll handle this in the final processing
-            return;
-          }
-          
           console.error('Stream processing error:', result.error);
           return;
         }
@@ -128,7 +119,6 @@ const useGoogleSpeechToText = ({
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
-      setProcessingStatus('idle');
     }
   };
 
@@ -160,26 +150,8 @@ const useGoogleSpeechToText = ({
     
     setIsRecording(false);
     processingRef.current = false;
-    
-    // Set status to processing after recording stops
-    if (processingStatus === 'recording') {
-      setProcessingStatus('processing');
-      
-      // Reset to idle after a short delay if processing doesn't complete
-      setTimeout(() => {
-        setProcessingStatus(prevStatus => 
-          prevStatus === 'processing' ? 'idle' : prevStatus
-        );
-      }, 10000); // 10-second timeout
-    }
-    
-    console.log("Recording stopped, processing status:", processingStatus);
-    toast.success('Recording stopped and being processed...');
-  };
-  
-  // Explicitly set the status to idle (useful when processing completes)
-  const setIdle = () => {
-    setProcessingStatus('idle');
+    console.log("Recording stopped");
+    toast.success('Recording stopped');
   };
 
   useEffect(() => {
@@ -191,10 +163,8 @@ const useGoogleSpeechToText = ({
   return {
     isRecording,
     detectedLanguage,
-    processingStatus,
     startRecording,
     stopRecording,
-    setIdle,
     toggleRecording: () => {
       if (isRecording) {
         stopRecording();
