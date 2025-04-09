@@ -64,12 +64,26 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
         if (!mountedRef.current) return;
         
         console.log(`Recording stopped, processing ${audioChunksRef.current.length} audio chunks`);
+        
+        if (audioChunksRef.current.length === 0) {
+          console.warn("No audio chunks recorded");
+          toast.error("No audio was recorded");
+          return;
+        }
+        
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         console.log(`Created audio blob: ${audioBlob.size} bytes`);
+        
+        if (audioBlob.size < 100) {
+          console.warn("Audio blob is too small, likely empty");
+          toast.error("Recorded audio is too short or empty");
+          return;
+        }
+        
         setAudioBlob(audioBlob);
         
         if (onRecordingComplete) {
-          console.log("Calling onRecordingComplete callback");
+          console.log("Calling onRecordingComplete callback with audio blob");
           onRecordingComplete(audioBlob);
         }
         

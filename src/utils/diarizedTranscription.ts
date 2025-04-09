@@ -1,7 +1,9 @@
 
 import { toast } from "@/lib/toast";
 
-const API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
+// Update to use the proper endpoint for long audio files
+const SYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
+const ASYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:longrunningrecognize";
 
 interface DiarizedTranscriptionOptions {
   apiKey: string;
@@ -65,10 +67,10 @@ export async function getDiarizedTranscription({
       }
     };
     
-    console.log("Sending request to Google Speech API with config:", JSON.stringify(request.config));
+    console.log("Using LongRunningRecognize endpoint for diarization");
     
-    // Send request to Google Cloud Speech-to-Text API
-    const response = await fetch(`${API_URL}?key=${apiKey}`, {
+    // Step 1: Start the asynchronous operation
+    const startResponse = await fetch(`${ASYNC_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -76,16 +78,65 @@ export async function getDiarizedTranscription({
       body: JSON.stringify(request)
     });
     
-    console.log("Google Speech API response status:", response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Google Speech API error response:", errorData);
-      const errorMessage = errorData.error?.message || `API error: ${response.status}`;
+    if (!startResponse.ok) {
+      const errorData = await startResponse.json();
+      console.error("Google Speech API error starting operation:", errorData);
+      const errorMessage = errorData.error?.message || `API error: ${startResponse.status}`;
       throw new Error(`Speech API error: ${errorMessage}`);
     }
     
-    const data = await response.json();
+    // Get operation name from response
+    const operationData = await startResponse.json();
+    if (!operationData.name) {
+      throw new Error("No operation name returned from API");
+    }
+    
+    const operationName = operationData.name;
+    console.log(`LongRunningRecognize operation started: ${operationName}`);
+    
+    // Step 2: Poll for operation completion
+    const maxAttempts = 30;
+    let attempts = 0;
+    let operationComplete = false;
+    let operationResult = null;
+    
+    while (!operationComplete && attempts < maxAttempts) {
+      attempts++;
+      console.log(`Checking operation status (attempt ${attempts}/${maxAttempts})...`);
+      
+      // Wait 2 seconds between polling attempts
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check operation status
+      const checkResponse = await fetch(`https://speech.googleapis.com/v1p1beta1/operations/${operationName}?key=${apiKey}`);
+      
+      if (!checkResponse.ok) {
+        const errorData = await checkResponse.json();
+        console.error("Error checking operation status:", errorData);
+        continue;
+      }
+      
+      const checkData = await checkResponse.json();
+      
+      // Operation complete
+      if (checkData.done === true) {
+        console.log("Operation completed successfully");
+        operationComplete = true;
+        operationResult = checkData;
+      }
+    }
+    
+    // If we timed out
+    if (!operationComplete) {
+      throw new Error(`Operation timed out after ${maxAttempts} attempts`);
+    }
+    
+    // Process results
+    if (!operationResult || !operationResult.response || !operationResult.response.results) {
+      throw new Error("No results returned from completed operation");
+    }
+    
+    const data = operationResult.response;
     console.log("Google diarized speech response:", data);
     
     // Process response to extract diarized words

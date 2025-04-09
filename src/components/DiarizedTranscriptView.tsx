@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
@@ -65,6 +65,14 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         title: "Waiting for recording",
         description: "Record a conversation to see diarized transcript",
         icon: <FileAudio className="h-8 w-8 text-muted-foreground" />
+      };
+    }
+    
+    if (diarizedData && diarizedData.words.length === 0 && !diarizedData.error) {
+      return {
+        title: "Processing complete",
+        description: "No speech detected in the recording",
+        icon: <CheckCircle className="h-8 w-8 text-yellow-500" />
       };
     }
     
