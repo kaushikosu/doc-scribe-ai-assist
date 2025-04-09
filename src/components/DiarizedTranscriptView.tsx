@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader, AlertCircle } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader, AlertCircle, Play, Pause } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
@@ -38,6 +38,33 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   const [expandedParts, setExpandedParts] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  
+  // Create audio URL when audio blob changes
+  React.useEffect(() => {
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+    return undefined;
+  }, [audioBlob]);
+
+  // Handle play/pause
+  const togglePlayback = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
   
   // Format the diarized transcript
   const formattedTranscript = React.useMemo(() => {
@@ -276,6 +303,36 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         </div>
       </CardHeader>
       <CardContent className="p-0">
+        {/* Audio player section - NEW */}
+        {audioBlob && audioUrl && (
+          <div className="p-3 border-b border-gray-200 bg-slate-50">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-8 h-8 rounded-full p-0 text-doctor-primary"
+                onClick={togglePlayback}
+              >
+                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+              <div className="flex-1">
+                <audio
+                  ref={audioRef}
+                  src={audioUrl}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  controls
+                  className="w-full h-8"
+                />
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {audioBlob && `${formatByteSize(audioBlob.size)}`}
+              </div>
+            </div>
+          </div>
+        )}
+        
         {statusMessage ? (
           <div className="p-3 min-h-[120px]">
             <div className="flex flex-col items-center justify-center gap-2 py-8">
@@ -330,7 +387,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
           </div>
         ) : (
           <div className="flex flex-col">
-            {/* Audio parts section */}
+            {/* Audio parts section - Updated to show more details */}
             {audioParts.length > 0 && (
               <div className="border-b border-gray-200 p-2">
                 <Accordion 

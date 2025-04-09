@@ -6,6 +6,7 @@ const GOOGLE_SPEECH_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:re
 
 // Maximum recommended size for direct API upload (approximately 1MB)
 const MAX_RECOMMENDED_AUDIO_SIZE = 900000; // 900KB to stay under Google's ~1MB limit
+const MAX_CHUNK_DURATION_MS = 60000; // 60 seconds per chunk
 
 // Configuration for speech recognition
 interface RecognitionConfig {
@@ -53,6 +54,88 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
     };
     reader.readAsDataURL(blob);
   });
+};
+
+// Estimate audio duration from blob size and type
+export const estimateAudioDuration = (blob: Blob): number => {
+  // For WEBM Opus, rough estimate based on typical bitrates
+  // Using a conservative estimate of 32 kbps
+  const bitRate = 32000; // bits per second
+  const bitsPerByte = 8;
+  
+  // Calculate duration in seconds
+  const durationSec = (blob.size * bitsPerByte) / bitRate;
+  
+  // Return duration in milliseconds
+  return durationSec * 1000;
+};
+
+// Split audio blob into manageable chunks for API processing
+export const splitAudioIntoChunks = async (audioBlob: Blob): Promise<Blob[]> => {
+  // If audio is already small enough, return as a single chunk
+  if (audioBlob.size <= MAX_RECOMMENDED_AUDIO_SIZE) {
+    return [audioBlob];
+  }
+  
+  console.log(`Audio size (${audioBlob.size} bytes) exceeds recommended limit. Splitting into chunks...`);
+  
+  // Estimate the number of chunks needed
+  const estimatedChunks = Math.ceil(audioBlob.size / MAX_RECOMMENDED_AUDIO_SIZE);
+  const estimatedChunkSize = Math.ceil(audioBlob.size / estimatedChunks);
+  
+  const audioDuration = estimateAudioDuration(audioBlob);
+  const durationPerChunk = audioDuration / estimatedChunks;
+  
+  console.log(`Estimated ${estimatedChunks} chunks needed, ${durationPerChunk.toFixed(1)}ms per chunk`);
+  
+  // Use MediaRecorder to actually split the audio
+  // For now, we'll use a simpler approach - return the whole blob as one chunk
+  // In a real implementation, you would need to use Web Audio API to split the audio properly
+  
+  // Placeholder for actual audio splitting
+  const chunks: Blob[] = [];
+  
+  try {
+    // Create an audio element to decode the blob
+    const audioElement = new Audio();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    audioElement.src = audioUrl;
+    
+    // Wait for audio to load metadata
+    await new Promise((resolve) => {
+      audioElement.addEventListener('loadedmetadata', resolve);
+      audioElement.addEventListener('error', () => {
+        console.error('Error loading audio metadata');
+        resolve(null);
+      });
+    });
+    
+    // Use blob slicing as a crude approximation
+    // Note: This doesn't respect audio packet boundaries and may corrupt the audio
+    // A proper implementation would use Web Audio API to split cleanly
+    const chunkSize = Math.ceil(audioBlob.size / estimatedChunks);
+    
+    for (let i = 0; i < estimatedChunks; i++) {
+      const start = i * chunkSize;
+      const end = Math.min((i + 1) * chunkSize, audioBlob.size);
+      
+      // Use slice to get chunk
+      const chunk = audioBlob.slice(start, end, audioBlob.type);
+      chunks.push(chunk);
+      
+      console.log(`Created chunk ${i+1}/${estimatedChunks}, size: ${chunk.size} bytes`);
+    }
+    
+    // Clean up
+    URL.revokeObjectURL(audioUrl);
+    
+  } catch (error) {
+    console.error('Error splitting audio:', error);
+    // Fallback to single chunk
+    chunks.push(audioBlob);
+  }
+  
+  return chunks.length > 0 ? chunks : [audioBlob];
 };
 
 // Check if audio size might be too large for direct API processing

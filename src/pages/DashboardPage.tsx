@@ -12,6 +12,7 @@ import DiarizedTranscriptView, { AudioPart } from '@/components/DiarizedTranscri
 import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DiarizedTranscriptionTester from '@/components/DiarizedTranscriptionTester';
+import { splitAudioIntoChunks, estimateAudioDuration } from '@/utils/googleSpeechToText';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -226,52 +227,137 @@ const DashboardPage = () => {
     toast.info("Processing full audio for diarized transcription...");
     
     try {
-      const result = await getDiarizedTranscription({
-        apiKey: googleApiKey,
-        audioBlob,
-        speakerCount: 2,
-        onPartProcessing: handlePartProcessing,
-        onPartComplete: handlePartComplete,
-        onPartError: handlePartError
-      });
+      const audioChunks = await splitAudioIntoChunks(audioBlob);
+      console.log(`Split audio into ${audioChunks.length} chunks for processing`);
       
-      if (mountedRef.current) {
-        console.log("Diarization complete:", result);
-        setDiarizedTranscription(result);
+      const initialParts: AudioPart[] = audioChunks.map((chunk, index) => ({
+        id: index + 1,
+        blob: chunk,
+        size: chunk.size,
+        duration: estimateAudioDuration(chunk) / 1000,
+        status: 'pending'
+      }));
+      
+      setAudioParts(initialParts);
+      
+      if (audioChunks.length > 1) {
+        toast.info(`Processing ${audioChunks.length} audio parts for transcription...`);
         
-        if (result.audioParts) {
-          setAudioParts(result.audioParts);
+        for (let i = 0; i < audioChunks.length; i++) {
+          const partId = i + 1;
+          setAudioParts(current => {
+            return current.map(p => 
+              p.id === partId ? { ...p, status: 'processing' } : p
+            );
+          });
+          
+          try {
+            const partResult = await getDiarizedTranscription({
+              apiKey: googleApiKey,
+              audioBlob: audioChunks[i],
+              speakerCount: 2,
+              onPartProcessing: () => {},
+              onPartComplete: () => {},
+              onPartError: () => {}
+            });
+            
+            setAudioParts(current => {
+              return current.map(p => 
+                p.id === partId ? { 
+                  ...p, 
+                  status: 'completed',
+                  transcript: partResult.transcript || '',
+                  error: partResult.error
+                } : p
+              );
+            });
+            
+            console.log(`Part ${partId} completed with ${partResult.words.length} words`);
+          } catch (error: any) {
+            console.error(`Error processing part ${partId}:`, error);
+            setAudioParts(current => {
+              return current.map(p => 
+                p.id === partId ? { 
+                  ...p, 
+                  status: 'error',
+                  error: error.message || 'Unknown error' 
+                } : p
+              );
+            });
+          }
         }
         
-        if (result.error) {
-          toast.error("Diarization error: " + result.error);
-        } else if (result.words.length === 0) {
-          toast.warning("No speech detected in the audio");
+        const allCompletedParts = audioParts
+          .filter(p => p.status === 'completed' && p.transcript)
+          .map(p => p.transcript)
+          .join('\n\n');
+        
+        if (allCompletedParts) {
+          setDiarizedTranscription({
+            transcript: allCompletedParts,
+            words: [],
+            speakerCount: 2
+          });
           
-          const completedParts = result.audioParts?.filter(p => p.status === 'completed') || [];
-          const errorParts = result.audioParts?.filter(p => p.status === 'error') || [];
-          
-          console.log("Diarization completed without speech detection:");
-          console.log(`- Total parts: ${result.audioParts?.length || 0}`);
-          console.log(`- Completed parts: ${completedParts.length}`);
-          console.log(`- Error parts: ${errorParts.length}`);
-          
-          const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
-          if (partsWithTranscripts.length > 0) {
-            console.log(`- ${partsWithTranscripts.length} parts have transcripts but no diarized words`);
-          }
+          toast.success('Combined transcription from all parts completed');
         } else {
-          toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
+          setDiarizedTranscription({
+            transcript: '',
+            words: [],
+            speakerCount: 0,
+            error: 'No speech detected in any audio parts'
+          });
+          
+          toast.warning('No speech detected in any audio parts');
         }
+      } else {
+        const result = await getDiarizedTranscription({
+          apiKey: googleApiKey,
+          audioBlob,
+          speakerCount: 2,
+          onPartProcessing: handlePartProcessing,
+          onPartComplete: handlePartComplete,
+          onPartError: handlePartError
+        });
         
-        setTimeout(() => {
-          if (mountedRef.current) {
-            setIsDiarizing(false);
-            setIsProcessingTranscript(false);
-            isProcessingRef.current = false;
+        if (mountedRef.current) {
+          console.log("Diarization complete:", result);
+          setDiarizedTranscription(result);
+          
+          if (result.audioParts) {
+            setAudioParts(result.audioParts);
           }
-        }, 1000);
+          
+          if (result.error) {
+            toast.error("Diarization error: " + result.error);
+          } else if (result.words.length === 0) {
+            toast.warning("No speech detected in the audio");
+            
+            const completedParts = result.audioParts?.filter(p => p.status === 'completed') || [];
+            const errorParts = result.audioParts?.filter(p => p.status === 'error') || [];
+            
+            console.log("Diarization completed without speech detection:");
+            console.log(`- Total parts: ${result.audioParts?.length || 0}`);
+            console.log(`- Completed parts: ${completedParts.length}`);
+            console.log(`- Error parts: ${errorParts.length}`);
+            
+            const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
+            if (partsWithTranscripts.length > 0) {
+              console.log(`- ${partsWithTranscripts.length} parts have transcripts but no diarized words`);
+            }
+          } else {
+            toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
+          }
+        }
       }
+      
+      setTimeout(() => {
+        if (mountedRef.current) {
+          setIsDiarizing(false);
+          setIsProcessingTranscript(false);
+          isProcessingRef.current = false;
+        }
+      }, 1000);
     } catch (error: any) {
       console.error("Error in diarized transcription:", error);
       if (mountedRef.current) {
@@ -293,7 +379,12 @@ const DashboardPage = () => {
   const handleTranscriptUpdate = (newTranscript: string) => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
-      setTranscript(newTranscript);
+      const filteredTranscript = newTranscript
+        .replace(/Processing\.\.\./g, '')
+        .replace(/Listening\.\.\./g, '')
+        .trim();
+        
+      setTranscript(filteredTranscript);
     }
   };
 

@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 import { detectLanguage } from '@/utils/speaker';
@@ -24,6 +25,7 @@ const useSpeechRecognition = ({
 }: UseSpeechRecognitionProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en-IN");
+  const [processingStatus, setProcessingStatus] = useState<'idle' | 'recording' | 'processing'>('idle');
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -63,6 +65,7 @@ const useSpeechRecognition = ({
       sessionIdRef.current = Date.now().toString();
       processedResultsMapRef.current.clear();
       accumulatedTranscriptRef.current = '';
+      setProcessingStatus('recording');
       
       // Request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -146,6 +149,7 @@ const useSpeechRecognition = ({
           } else {
             toast.error('Error with speech recognition. Please try again.');
             setIsRecording(false);
+            setProcessingStatus('idle');
           }
         };
         
@@ -159,6 +163,7 @@ const useSpeechRecognition = ({
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
+      setProcessingStatus('idle');
     }
   };
 
@@ -182,7 +187,21 @@ const useSpeechRecognition = ({
     }
     
     setIsRecording(false);
+    setProcessingStatus('processing');
+    
+    // Reset to idle after a short delay if processing doesn't complete
+    setTimeout(() => {
+      setProcessingStatus(prevStatus => 
+        prevStatus === 'processing' ? 'idle' : prevStatus
+      );
+    }, 10000); // 10-second timeout
+    
     toast.success('Recording stopped');
+  };
+  
+  // Explicitly set the status to idle (useful when processing completes)
+  const setIdle = () => {
+    setProcessingStatus('idle');
   };
 
   // Cleanup on unmount
@@ -195,8 +214,10 @@ const useSpeechRecognition = ({
   return {
     isRecording,
     detectedLanguage,
+    processingStatus,
     startRecording,
     stopRecording,
+    setIdle,
     toggleRecording: () => {
       if (isRecording) {
         stopRecording();
