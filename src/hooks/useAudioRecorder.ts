@@ -1,11 +1,16 @@
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from '@/lib/toast';
 
 interface UseAudioRecorderProps {
   onRecordingComplete?: (audioBlob: Blob) => void;
+  maxDuration?: number; // Maximum recording duration in seconds
 }
 
-const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) => {
+const useAudioRecorder = ({ 
+  onRecordingComplete,
+  maxDuration = 120 // Default to 2 minutes max to avoid exceeding Google's limits
+}: UseAudioRecorderProps = {}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -108,7 +113,18 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       
       timerRef.current = window.setInterval(() => {
         if (mountedRef.current) {
-          setRecordingDuration(prev => prev + 1);
+          setRecordingDuration(prev => {
+            const newDuration = prev + 1;
+            
+            // Auto-stop if we reach the maximum duration
+            if (maxDuration > 0 && newDuration >= maxDuration) {
+              console.log(`Max recording duration (${maxDuration}s) reached, auto-stopping...`);
+              stopRecording();
+              toast.info(`Recording automatically stopped after ${maxDuration} seconds`);
+            }
+            
+            return newDuration;
+          });
         }
       }, 1000);
       
@@ -116,7 +132,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       console.error('Failed to start recording:', error);
       toast.error('Failed to access microphone. Please check permissions.');
     }
-  }, [onRecordingComplete]);
+  }, [onRecordingComplete, maxDuration]);
   
   const stopRecording = useCallback(() => {
     console.log("Stopping audio recording");

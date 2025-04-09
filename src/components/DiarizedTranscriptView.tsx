@@ -79,7 +79,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     
     if (isProcessing) {
       return {
-        title: "Processing full audio",
+        title: "Processing audio",
         description: "Identifying speakers with Google diarization...",
         icon: <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
       };
@@ -221,6 +221,19 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
             <div className="p-4 rounded-md bg-red-50 text-red-800 my-4">
               <p className="font-medium">Error processing diarized transcript</p>
               <p className="text-sm">{diarizedData.error}</p>
+              {audioBlob && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadRecording}
+                    className="text-doctor-secondary border-doctor-secondary"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    Download Recording
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
