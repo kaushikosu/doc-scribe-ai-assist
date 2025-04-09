@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,73 +10,62 @@ interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
+  onNewPatient?: () => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
   onPatientInfoUpdate,
-  onRecordingStateChange
+  onRecordingStateChange,
+  onNewPatient
 }) => {
-  // State variables
   const [transcript, setTranscript] = useState('');
   const [rawTranscript, setRawTranscript] = useState(''); 
   const [isNewSession, setIsNewSession] = useState(true);
-  const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
+  const [pauseThreshold, setPauseThreshold] = useState(1500);
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   
-  // Refs
   const currentTranscriptRef = useRef<string>('');
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Log when transcript changes - useful for debugging
   useEffect(() => {
     console.log("VoiceRecorder raw transcript:", rawTranscript);
     
-    // Ensure full transcript is passed to parent component
     if (rawTranscript) {
       updateTranscriptDebounced(rawTranscript);
     }
   }, [rawTranscript]);
 
-  // Notify parent about recording state changes
   useEffect(() => {
     if (onRecordingStateChange) {
       onRecordingStateChange(isRecording);
     }
   }, [isRecording, onRecordingStateChange]);
 
-  // Handle silence - add a line break to separate utterances
   const handleSilence = () => {
-    // Add line break to help separate different speech segments
     setRawTranscript(prev => {
       if (prev.endsWith('\n\n')) return prev;
       return prev + "\n\n";
     });
   };
 
-  // Improved transcript update function with better real-time performance
   const updateTranscriptDebounced = (newTranscript: string) => {
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
     }
     
-    // Update immediately for better real-time feel
     onTranscriptUpdate(newTranscript);
-    
-    // Also schedule a debounced update to catch any pending changes
     transcriptUpdateTimeoutRef.current = setTimeout(() => {
       onTranscriptUpdate(newTranscript);
-    }, 50); // Small delay for better responsiveness
+    }, 50);
   };
 
-  // Try to extract patient name from greeting patterns
   const extractPatientName = (text: string): string | null => {
-    // Common greeting patterns
     const patterns = [
       /(?:namaste|hello|hi|hey)\s+([A-Z][a-z]{2,})/i,
       /(?:patient|patient's) name is\s+([A-Z][a-z]{2,})/i,
@@ -92,7 +80,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       }
     }
     
-    // Fallback: try to find any capitalized word after greeting
     const simpleMatch = text.match(/(?:namaste|hello|hi|hey)\s+(\w+)/i);
     if (simpleMatch && simpleMatch[1]) {
       return simpleMatch[1].charAt(0).toUpperCase() + simpleMatch[1].slice(1);
@@ -101,7 +88,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     return null;
   };
 
-  // Initialize Web Speech Recognition
   const { 
     isRecording: webSpeechIsRecording, 
     detectedLanguage,
@@ -116,18 +102,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     pauseThreshold
   });
   
-  // Update local recording state when web speech recording state changes
   useEffect(() => {
     setIsRecording(webSpeechIsRecording);
   }, [webSpeechIsRecording]);
 
-  // Improved speech result handler with better real-time updates
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number
   }) {
-    // For diagnostic purposes
     console.log("Received speech result:", { result, isFinal, resultIndex });
     
     if (!result) {
@@ -135,49 +118,37 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // Check for specific error messages
     if (result.startsWith('Error:')) {
       console.error("Error in speech recognition:", result);
       return;
     }
     
     if (isFinal) {
-      // Add the new text to the raw transcript - ensure it's on a new line if needed
       setRawTranscript(prev => {
-        // If we're starting a new utterance and the previous doesn't end with a newline, add one
-        let newRawTranscript;
         if (prev === '') {
-          newRawTranscript = result;
+          return result;
         } else if (prev.endsWith('\n\n')) {
-          newRawTranscript = prev + result;
+          return prev + result;
         } else {
-          newRawTranscript = prev + '\n\n' + result;
+          return prev + '\n\n' + result;
         }
-        
-        currentTranscriptRef.current = newRawTranscript;
-        return newRawTranscript;
       });
       
-      // Check for patient identification in initial conversations
       if (isNewSession && !patientIdentifiedRef.current) {
         attemptPatientIdentification(result);
       }
     } else {
-      // For non-final results, show them as temporary text in real-time
       const updatedTranscript = currentTranscriptRef.current + 
         (currentTranscriptRef.current && !currentTranscriptRef.current.endsWith('\n\n') ? '\n\n' : '') + 
-        result + '...'; // Show ellipsis for non-final results
+        result + '...';
       
-      // Update both the reference and the parent component
       onTranscriptUpdate(updatedTranscript);
     }
   }
-  
-  // Multiple attempts to identify patient name
+
   function attemptPatientIdentification(text: string) {
     console.log("Checking for patient name in:", text);
     
-    // Try to extract patient name
     patientNameScanAttempts.current += 1;
     const extractedName = extractPatientName(text);
     
@@ -197,7 +168,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setIsNewSession(false);
       patientIdentifiedRef.current = true;
       
-      // Show success notification
       setShowPatientIdentified(true);
       setTimeout(() => {
         setShowPatientIdentified(false);
@@ -208,7 +178,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    // After several attempts, try capitalized words
     if (patientNameScanAttempts.current > 3) {
       const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
       if (capitalizedWords && capitalizedWords.length > 0) {
@@ -228,7 +197,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         setIsNewSession(false);
         patientIdentifiedRef.current = true;
         
-        // Show notification
         setShowPatientIdentified(true);
         setTimeout(() => {
           setShowPatientIdentified(false);
@@ -240,8 +208,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }
 
-  // Start a new session
   const startNewSession = () => {
+    if (isRecording) {
+      stopRecording();
+    }
+    
     resetTranscript();
     setTranscript('');
     setRawTranscript('');
@@ -253,27 +224,36 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
     
-    toast.success('Ready for new patient');
-  };
-
-  // Handle stopping recording
-  const handleStopRecording = () => {
-    // Clear any pending transcript timeouts
+    onPatientInfoUpdate({
+      name: '',
+      time: ''
+    });
+    
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
       transcriptUpdateTimeoutRef.current = null;
     }
     
-    // Stop recording
+    if (onNewPatient) {
+      onNewPatient();
+    }
+    
+    toast.success('Ready for new patient');
+  };
+
+  const handleStopRecording = () => {
+    if (transcriptUpdateTimeoutRef.current) {
+      clearTimeout(transcriptUpdateTimeoutRef.current);
+      transcriptUpdateTimeoutRef.current = null;
+    }
+    
     stopRecording();
   };
 
-  // Handle toggling recording
   const handleToggleRecording = () => {
     if (isRecording) {
       handleStopRecording();
     } else {
-      // Reset raw transcript for new session
       if (isNewSession) {
         setRawTranscript('');
         currentTranscriptRef.current = '';
@@ -283,7 +263,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Get connection status display info
   const getConnectionStatusInfo = () => {
     if (processingTranscript) {
       return {
@@ -313,7 +292,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   const statusInfo = getConnectionStatusInfo();
 
-  // Component UI with improved feedback on connection status
   return (
     <div className="space-y-4">
       <Card className="border-2 border-doctor-primary/30 shadow-md">
@@ -340,7 +318,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               <Button
                 onClick={startNewSession}
                 className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
-                disabled={isRecording || processingTranscript}
+                disabled={processingTranscript}
               >
                 <UserPlus className="h-8 w-8" />
               </Button>
@@ -377,14 +355,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               )}
             </div>
             
-            {/* Patient identified animation - only shows temporarily */}
             {showPatientIdentified && (
               <div className="animate-fade-in text-sm font-medium text-doctor-accent">
                 Patient identified!
               </div>
             )}
             
-            {/* Connection status indicator */}
             <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-gray-50">
               <div className={cn("h-3 w-3 rounded-full", statusInfo.color)}></div>
               <div className="flex flex-col">

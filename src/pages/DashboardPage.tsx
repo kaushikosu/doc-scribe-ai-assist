@@ -36,7 +36,8 @@ const DashboardPage = () => {
     formattedDuration,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
-    audioBlob
+    audioBlob,
+    resetRecording
   } = useAudioRecorder({
     onRecordingComplete: (blob) => {
       console.log("Full audio recording complete:", blob.size, "bytes");
@@ -178,12 +179,34 @@ const DashboardPage = () => {
     console.log("Recording state changed to:", recordingState);
     setIsRecording(recordingState);
     
-    if (recordingState) {
-    }
-    
     if (!recordingState && transcript) {
       toast.info('Processing transcript...');
     }
+  };
+  
+  const handleNewPatient = () => {
+    console.log("New patient session initiated, resetting all states");
+    
+    setTranscript('');
+    setClassifiedTranscript('');
+    setPatientInfo({ name: '', time: '' });
+    setIsClassifying(false);
+    setIsDiarizing(false);
+    setDiarizedTranscription(null);
+    
+    lastProcessedTranscriptRef.current = '';
+    
+    if (timeoutIdRef.current) {
+      clearTimeout(timeoutIdRef.current);
+      timeoutIdRef.current = null;
+    }
+    
+    if (isAudioRecording) {
+      stopAudioRecording();
+    }
+    resetRecording();
+    
+    toast.success("Ready for a new patient session");
   };
 
   return (
@@ -197,6 +220,7 @@ const DashboardPage = () => {
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
+              onNewPatient={handleNewPatient}
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">

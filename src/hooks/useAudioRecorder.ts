@@ -153,6 +153,37 @@ const useAudioRecorder = ({
     }
   }, [isRecording]);
   
+  // New function to completely reset the recording state
+  const resetRecording = useCallback(() => {
+    console.log("Resetting audio recorder state");
+    
+    // Stop any active recording
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
+    
+    // Stop and clear any active media streams
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    // Clear timer
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Reset all state
+    setIsRecording(false);
+    setRecordingDuration(0);
+    setAudioBlob(null);
+    audioChunksRef.current = [];
+    mediaRecorderRef.current = null;
+    
+    console.log("Audio recorder state has been reset");
+  }, [isRecording]);
+  
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -163,6 +194,7 @@ const useAudioRecorder = ({
     isRecording,
     startRecording,
     stopRecording,
+    resetRecording,
     audioBlob,
     recordingDuration,
     formattedDuration: formatDuration(recordingDuration)
