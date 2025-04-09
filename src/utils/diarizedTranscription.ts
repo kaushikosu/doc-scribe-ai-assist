@@ -1,10 +1,10 @@
-
 import { toast } from "@/lib/toast";
 import { AudioPart } from "@/components/DiarizedTranscriptView";
 
 // Update to use long-running API for larger files
 const SYNC_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:recognize";
 const LONG_RUNNING_API_URL = "https://speech.googleapis.com/v1p1beta1/speech:longrunningrecognize";
+const OPERATIONS_API_URL = "https://speech.googleapis.com/v1p1beta1/operations";
 
 // Maximum size for direct API upload (approximately 1MB)
 const MAX_AUDIO_SIZE = 950000; // 950KB (keeping under the 1MB limit with some buffer)
@@ -63,10 +63,10 @@ export async function getDiarizedTranscription({
       throw new Error("No audio data available for diarization");
     }
 
-    // For large files, we'll split into smaller segments
-    if (audioBlob.size > MAX_AUDIO_SIZE) {
-      console.log(`Audio size (${audioBlob.size} bytes) exceeds direct processing limit (${MAX_AUDIO_SIZE} bytes)`);
-      return await processLargeAudio({
+    // For larger files, we'll use the long-running API
+    if (audioBlob.size > MAX_AUDIO_SIZE || estimateDuration(audioBlob.size) > 60) {
+      console.log(`Audio size (${audioBlob.size} bytes) or duration exceeds direct processing limit. Using LongRunningRecognize API`);
+      return await processLargeAudioWithLongRunning({
         apiKey, 
         audioBlob, 
         speakerCount, 
@@ -191,7 +191,161 @@ async function processStandardAudio({
   }
 }
 
-// Handle larger audio files by splitting into segments
+// Handle larger audio files using longrunningrecognize endpoint
+async function processLargeAudioWithLongRunning({
+  apiKey, 
+  audioBlob, 
+  speakerCount, 
+  languageCode,
+  onPartProcessing,
+  onPartComplete,
+  onPartError
+}: DiarizedTranscriptionOptions): Promise<DiarizedTranscription> {
+  try {
+    toast.info("Processing larger audio file with LongRunningRecognize API");
+    
+    const audioPart: AudioPart = {
+      id: 1,
+      blob: audioBlob,
+      size: audioBlob.size,
+      duration: estimateDuration(audioBlob.size),
+      status: 'processing'
+    };
+    
+    if (onPartProcessing) {
+      onPartProcessing(audioPart);
+    }
+    
+    // Convert audio blob to base64
+    const base64Audio = await blobToBase64(audioBlob);
+    console.log("Audio converted to base64, length:", base64Audio.length);
+    
+    // Configure request with diarization settings for long-running API
+    const request = {
+      config: {
+        encoding: "WEBM_OPUS",
+        sampleRateHertz: 48000,
+        languageCode,
+        enableAutomaticPunctuation: true,
+        enableSpeakerDiarization: true,
+        diarizationSpeakerCount: speakerCount,
+        model: "latest_long",
+        useEnhanced: true
+      },
+      audio: {
+        content: base64Audio
+      }
+    };
+    
+    console.log("Sending request to Google Speech LongRunningRecognize API");
+    
+    // Send the long-running recognition request
+    const response = await fetch(`${LONG_RUNNING_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(request)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Google Speech API error response:", errorData);
+      const errorMessage = errorData.error?.message || 'Unknown error';
+      
+      audioPart.status = 'error';
+      audioPart.error = errorMessage;
+      
+      if (onPartError) {
+        onPartError(audioPart);
+      }
+      
+      throw new Error(`Speech API error: ${errorMessage}`);
+    }
+    
+    const operationData = await response.json();
+    console.log("LongRunningRecognize operation started:", operationData);
+    
+    if (!operationData.name) {
+      throw new Error("No operation name returned from API");
+    }
+    
+    // Poll for the operation result
+    const operationResult = await pollLongRunningOperation(operationData.name, apiKey);
+    console.log("LongRunningRecognize operation complete:", operationResult);
+    
+    if (operationResult.error) {
+      audioPart.status = 'error';
+      audioPart.error = operationResult.error.message;
+      
+      if (onPartError) {
+        onPartError(audioPart);
+      }
+      
+      throw new Error(`Speech API operation error: ${operationResult.error.message}`);
+    }
+    
+    if (!operationResult.response) {
+      throw new Error("No response data in operation result");
+    }
+    
+    const result = processGoogleSpeechResponse(operationResult.response);
+    
+    audioPart.status = 'completed';
+    audioPart.transcript = result.transcript;
+    
+    if (onPartComplete) {
+      onPartComplete(audioPart);
+    }
+    
+    // Add the audio part to the result
+    result.audioParts = [audioPart];
+    
+    return result;
+  } catch (error: any) {
+    console.error("Error in long-running audio processing:", error);
+    throw error;
+  }
+}
+
+// Poll for the result of a long-running operation
+async function pollLongRunningOperation(operationName: string, apiKey: string, maxAttempts = 30): Promise<any> {
+  console.log(`Polling operation: ${operationName}`);
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      toast.info(`Checking transcription status (attempt ${attempt + 1}/${maxAttempts})...`);
+      
+      const response = await fetch(`${OPERATIONS_API_URL}/${operationName}?key=${apiKey}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error checking operation status:", errorData);
+        throw new Error(`Failed to check operation status: ${errorData.error?.message || response.statusText}`);
+      }
+      
+      const operationStatus = await response.json();
+      console.log(`Operation status (attempt ${attempt + 1}):`, operationStatus);
+      
+      if (operationStatus.done) {
+        console.log("Operation completed:", operationStatus);
+        return operationStatus;
+      }
+      
+      // Wait before polling again - with exponential backoff
+      const delay = Math.min(5000 * Math.pow(1.5, attempt), 30000);
+      console.log(`Waiting ${delay}ms before polling again...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } catch (error) {
+      console.error(`Error on polling attempt ${attempt + 1}:`, error);
+      // Continue with next attempt despite error
+    }
+  }
+  
+  throw new Error(`Operation timed out after ${maxAttempts} attempts`);
+}
+
+// Handle larger audio files by splitting into segments (fallback if needed)
 async function processLargeAudio({
   apiKey, 
   audioBlob, 

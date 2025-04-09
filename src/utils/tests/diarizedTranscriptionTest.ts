@@ -1,3 +1,4 @@
+
 import { toast } from "@/lib/toast";
 import { processMediaStream } from "@/utils/googleSpeechToText";
 import { getDiarizedTranscription, DiarizedTranscription } from "@/utils/diarizedTranscription";
@@ -61,6 +62,10 @@ export const runDiarizedTranscriptionTest = async (config: TestConfig): Promise<
 
   console.log(`Starting test with audio file: ${testFilePath}`);
   console.log(`Expected duration: ${expectedDuration} seconds`);
+  
+  // Choose appropriate API based on duration
+  const useLongRunningAPI = expectedDuration > 60;
+  console.log(`Using ${useLongRunningAPI ? 'LongRunningRecognize' : 'Synchronous'} API based on expected duration`);
 
   try {
     // Load the test audio file

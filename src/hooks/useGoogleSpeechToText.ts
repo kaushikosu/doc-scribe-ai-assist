@@ -90,6 +90,13 @@ const useGoogleSpeechToText = ({
       // Enable diarization in the Google Speech API call
       const cleanupFn = streamMediaToGoogleSpeech(stream, apiKey, (result) => {
         if (result.error) {
+          // Check if it's a size limitation error
+          if (result.error.includes("too long") || result.error.includes("LongRunningRecognize")) {
+            console.log("Stream chunk too large for sync API, will use LongRunningRecognize for final processing");
+            // Don't show error, as we'll handle this in the final processing
+            return;
+          }
+          
           console.error('Stream processing error:', result.error);
           return;
         }
