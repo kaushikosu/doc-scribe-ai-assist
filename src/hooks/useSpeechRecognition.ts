@@ -32,7 +32,11 @@ const useSpeechRecognition = ({
     getAccumulatedTranscript,
     resetTranscript
   } = useGoogleSpeechToText({
-    onResult,
+    onResult: (result) => {
+      // Pass the actual transcription result to the callback
+      console.log("Forwarding speech result to VoiceRecorder:", result);
+      onResult(result);
+    },
     onSilence,
     pauseThreshold,
     apiKey: apiKey || ''

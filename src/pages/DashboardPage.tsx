@@ -232,6 +232,14 @@ const DashboardPage = () => {
     toast.info("Processing full audio for diarized transcription...");
     
     try {
+      handlePartProcessing({
+        id: 1,
+        blob: audioBlob,
+        size: audioBlob.size,
+        duration: estimateDuration(audioBlob.size),
+        status: 'processing'
+      });
+      
       const result = await getDiarizedTranscription({
         apiKey: googleApiKey,
         audioBlob,
@@ -291,6 +299,10 @@ const DashboardPage = () => {
         }, 1000);
       }
     }
+  };
+  
+  const estimateDuration = (sizeInBytes: number): number => {
+    return Math.max(1, Math.round(sizeInBytes / 12000));
   };
 
   const handleTranscriptUpdate = (newTranscript: string) => {

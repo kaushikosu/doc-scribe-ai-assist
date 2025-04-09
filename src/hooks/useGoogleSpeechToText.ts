@@ -110,6 +110,13 @@ const useGoogleSpeechToText = ({
         
         lastSpeechTimeRef.current = Date.now();
         
+        // Remove internal status messages from transcript
+        if (result.transcript === "Processing..." || result.transcript === "Listening...") {
+          // Don't pass internal status messages to the user interface
+          console.log("Skipping internal status message:", result.transcript);
+          return;
+        }
+        
         // Process the result with speaker tag if available
         onResult({
           transcript: result.transcript,

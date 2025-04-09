@@ -134,6 +134,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
+    if (result === "Processing..." || result === "Listening...") {
+      console.log("Skipping UI state message:", result);
+      return;
+    }
+    
     if (result.startsWith('Error:')) {
       console.error("Error in speech recognition:", result);
       return;
