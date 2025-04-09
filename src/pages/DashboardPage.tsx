@@ -33,7 +33,6 @@ const DashboardPage = () => {
   const mountedRef = useRef(true);
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const isProcessingRef = useRef<boolean>(false);
-  const audioProcessedRef = useRef<boolean>(false);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   
@@ -75,13 +74,9 @@ const DashboardPage = () => {
   }, [isRecording, transcript]);
   
   useEffect(() => {
-    if (isRecording) {
-      audioProcessedRef.current = false;
-      
-      if (!isAudioRecording) {
-        console.log("Starting full audio recording for diarization");
-        startAudioRecording();
-      }
+    if (isRecording && !isAudioRecording) {
+      console.log("Starting full audio recording for diarization");
+      startAudioRecording();
     } else if (!isRecording && isAudioRecording) {
       console.log("Stopping full audio recording and processing for diarization");
       stopAudioRecording();
@@ -106,7 +101,6 @@ const DashboardPage = () => {
         
         if (successfulParts.length > 0) {
           toast.success(`Audio processing complete (${successfulParts.length} parts with speech)`);
-          audioProcessedRef.current = true;
         } else {
           toast.info("Audio processing complete, no speech detected");
         }
@@ -232,14 +226,6 @@ const DashboardPage = () => {
     toast.info("Processing full audio for diarized transcription...");
     
     try {
-      handlePartProcessing({
-        id: 1,
-        blob: audioBlob,
-        size: audioBlob.size,
-        duration: estimateDuration(audioBlob.size),
-        status: 'processing'
-      });
-      
       const result = await getDiarizedTranscription({
         apiKey: googleApiKey,
         audioBlob,
@@ -260,22 +246,31 @@ const DashboardPage = () => {
         if (result.error) {
           toast.error("Diarization error: " + result.error);
         } else if (result.words.length === 0) {
+          toast.warning("No speech detected in the audio");
+          
           const completedParts = result.audioParts?.filter(p => p.status === 'completed') || [];
-          const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
+          const errorParts = result.audioParts?.filter(p => p.status === 'error') || [];
           
-          if (partsWithTranscripts.length > 0) {
-            toast.success(`Diarization complete with ${partsWithTranscripts.length} audio parts transcribed`);
-            audioProcessedRef.current = true;
-          } else {
-            toast.warning("No speech detected in the audio");
-          }
-          
+          console.log("Diarization completed without speech detection:");
+          console.log(`- Total parts: ${result.audioParts?.length || 0}`);
           console.log(`- Completed parts: ${completedParts.length}`);
-          console.log(`- Parts with transcripts: ${partsWithTranscripts.length}`);
+          console.log(`- Error parts: ${errorParts.length}`);
+          
+          const partsWithTranscripts = completedParts.filter(p => p.transcript && p.transcript.trim().length > 0);
+          if (partsWithTranscripts.length > 0) {
+            console.log(`- ${partsWithTranscripts.length} parts have transcripts but no diarized words`);
+          }
         } else {
           toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
-          audioProcessedRef.current = true;
         }
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
+            setIsDiarizing(false);
+            setIsProcessingTranscript(false);
+            isProcessingRef.current = false;
+          }
+        }, 1000);
       }
     } catch (error: any) {
       console.error("Error in diarized transcription:", error);
@@ -287,22 +282,12 @@ const DashboardPage = () => {
           error: error.message
         });
         toast.error("Failed to process diarized transcription");
-      }
-    } finally {
-      if (mountedRef.current) {
-        setTimeout(() => {
-          if (mountedRef.current) {
-            setIsDiarizing(false);
-            setIsProcessingTranscript(false);
-            isProcessingRef.current = false;
-          }
-        }, 1000);
+        
+        setIsDiarizing(false);
+        setIsProcessingTranscript(false);
+        isProcessingRef.current = false;
       }
     }
-  };
-  
-  const estimateDuration = (sizeInBytes: number): number => {
-    return Math.max(1, Math.round(sizeInBytes / 12000));
   };
 
   const handleTranscriptUpdate = (newTranscript: string) => {
@@ -340,7 +325,6 @@ const DashboardPage = () => {
     setIsDiarizing(false);
     setIsProcessingTranscript(false);
     isProcessingRef.current = false;
-    audioProcessedRef.current = false;
     setDiarizedTranscription(null);
     setAudioParts([]);
     

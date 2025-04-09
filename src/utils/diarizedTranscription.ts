@@ -536,37 +536,34 @@ async function processLargeAudio({
   }
 }
 
-// Helper to estimate duration based on file size
-const estimateDuration = (bytes: number): number => {
-  // Approximate calculation: ~12KB per second for 48kHz WebM opus
-  return Math.max(1, Math.round(bytes / 12000));
-};
-
-// Convert audio blob to base64
-const blobToBase64 = (blob: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      try {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-      } catch (error) {
-        reject(new Error("Failed to extract base64 data: " + error));
-      }
-    };
-    reader.onerror = (error) => {
-      reject(new Error("FileReader error: " + error));
-    };
-    reader.readAsDataURL(blob);
-  });
-};
-
-// Process Google Speech API response
-const processGoogleSpeechResponse = (data: any): DiarizedTranscription => {
-  console.log("Processing Google Speech API response");
+// Helper to estimate duration from audio size
+function estimateDuration(byteSize: number): number {
+  // Very rough estimate: ~12KB per second for WEBM OPUS at 48kHz
+  const bytesPerSecond = 12 * 1024;
+  const estimatedSeconds = byteSize / bytesPerSecond;
   
+  // Ensure minimum of 1 second
+  return Math.max(1, Math.round(estimatedSeconds));
+}
+
+// Process the response from Google Speech API
+function processGoogleSpeechResponse(data: any): DiarizedTranscription {
+  // Deep debug logging for the entire response
+  try {
+    console.log("Google diarized speech response structure:", 
+      JSON.stringify({
+        resultsCount: data.results?.length || 0,
+        hasAlternatives: data.results?.[0]?.alternatives?.length > 0,
+        hasWords: data.results?.[0]?.alternatives?.[0]?.words?.length > 0,
+      }, null, 2)
+    );
+  } catch (e) {
+    console.log("Error stringifying response structure:", e);
+  }
+    
+  // Process response to extract diarized words
   if (!data.results || data.results.length === 0) {
-    console.log("No results from Google Speech API");
+    console.warn("No transcription results returned from API");
     return {
       transcript: "",
       words: [],
@@ -576,126 +573,132 @@ const processGoogleSpeechResponse = (data: any): DiarizedTranscription => {
   
   // Extract words with speaker tags
   const words: DiarizedWord[] = [];
-  let transcript = "";
-  let maxSpeakerTag = 0;
+  let fullTranscript = "";
   
   data.results.forEach((result: any) => {
     if (result.alternatives && result.alternatives[0]) {
-      // Add to the raw transcript
+      // Add to full transcript
       if (result.alternatives[0].transcript) {
-        transcript += (transcript ? " " : "") + result.alternatives[0].transcript;
+        fullTranscript += result.alternatives[0].transcript + " ";
       }
       
-      // Extract words with speaker tags if available
+      // Process words with speaker tags if available
       if (result.alternatives[0].words) {
         result.alternatives[0].words.forEach((word: any) => {
-          if (!word.word) return;
-          
-          const speakerTag = word.speakerTag || 0;
-          maxSpeakerTag = Math.max(maxSpeakerTag, speakerTag);
+          const startTime = parseFloat(word.startTime?.seconds || 0) + parseFloat(word.startTime?.nanos || 0) / 1e9;
+          const endTime = parseFloat(word.endTime?.seconds || 0) + parseFloat(word.endTime?.nanos || 0) / 1e9;
           
           words.push({
             word: word.word,
-            speakerTag: speakerTag,
-            startTime: parseFloat(word.startTime?.seconds || 0) + 
-                      parseFloat(word.startTime?.nanos || 0) / 1000000000,
-            endTime: parseFloat(word.endTime?.seconds || 0) + 
-                    parseFloat(word.endTime?.nanos || 0) / 1000000000
+            speakerTag: word.speakerTag || 0,
+            startTime: startTime,
+            endTime: endTime
           });
         });
       }
     }
   });
   
-  console.log(`Processed ${words.length} words with speaker tags`);
-  console.log(`Detected ${maxSpeakerTag} speakers`);
+  console.log(`Processed ${words.length} words with speaker tags from ${data.results.length} result sections`);
   
-  return {
-    transcript,
-    words,
-    speakerCount: maxSpeakerTag
-  };
-};
-
-// Format diarized transcript with speaker labels
-export const formatDiarizedTranscript = (words: DiarizedWord[]): string => {
-  if (!words || words.length === 0) {
-    return "";
-  }
-  
-  let result = "";
-  let currentSpeaker = words[0].speakerTag;
-  let currentUtterance = `[Speaker ${currentSpeaker}]: `;
-  
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
-    
-    // If speaker changes, start a new paragraph
-    if (word.speakerTag !== currentSpeaker) {
-      result += currentUtterance + "\n\n";
-      currentSpeaker = word.speakerTag;
-      currentUtterance = `[Speaker ${currentSpeaker}]: `;
-    }
-    
-    // Add the word to the current utterance
-    currentUtterance += word.word + " ";
-    
-    // If this is the last word, or there's a significant pause, end the utterance
-    const nextWord = words[i + 1];
-    if (!nextWord || 
-        nextWord.speakerTag !== currentSpeaker ||
-        (nextWord.startTime - word.endTime > 1.5)) {
-      result += currentUtterance + "\n\n";
-      
-      if (nextWord && nextWord.speakerTag === currentSpeaker) {
-        // Same speaker continues after a pause
-        currentUtterance = `[Speaker ${currentSpeaker}]: `;
-      }
-    }
-  }
-  
-  return result.trim();
-};
-
-// Map speaker numbers to roles (Doctor/Patient)
-export const mapSpeakerRoles = (transcript: string): string => {
-  if (!transcript) return "";
-  
-  // Simple heuristic: Usually the doctor speaks more, so we'll 
-  // assume the speaker with the most content is the doctor
-  const speakerLines: { [key: string]: string[] } = {};
-  
-  // Split into paragraphs and group by speaker
-  transcript.split("\n\n").forEach(paragraph => {
-    const match = paragraph.match(/^\[Speaker (\d+)\]:/);
-    if (match) {
-      const speakerNum = match[1];
-      if (!speakerLines[speakerNum]) {
-        speakerLines[speakerNum] = [];
-      }
-      speakerLines[speakerNum].push(paragraph);
+  // Count actual speakers detected
+  const uniqueSpeakers = new Set<number>();
+  words.forEach(word => {
+    if (word.speakerTag > 0) {
+      uniqueSpeakers.add(word.speakerTag);
     }
   });
   
-  // Find the speaker with the most content (likely the doctor)
-  let doctorSpeaker = "";
-  let maxLength = 0;
+  // Log each unique speaker and their word count
+  if (uniqueSpeakers.size > 0) {
+    const speakerWordCounts: Record<number, number> = {};
+    words.forEach(word => {
+      if (word.speakerTag > 0) {
+        speakerWordCounts[word.speakerTag] = (speakerWordCounts[word.speakerTag] || 0) + 1;
+      }
+    });
+    console.log("Speaker statistics:", speakerWordCounts);
+  } else {
+    console.log("No speaker tags found in response");
+  }
   
-  for (const speaker in speakerLines) {
-    const totalLength = speakerLines[speaker].join(" ").length;
-    if (totalLength > maxLength) {
-      maxLength = totalLength;
-      doctorSpeaker = speaker;
+  console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
+  console.log(`Final transcript length: ${fullTranscript.length} characters`);
+  
+  return {
+    transcript: fullTranscript.trim(),
+    words,
+    speakerCount: uniqueSpeakers.size || (fullTranscript ? 2 : 0) // Default to 2 speakers if we have transcript but no tags
+  };
+}
+
+// Convert audio blob to base64
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      try {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      } catch (error) {
+        reject(new Error("Failed to convert audio to base64: " + error));
+      }
+    };
+    reader.onerror = (error) => {
+      reject(new Error("FileReader error: " + error));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Format diarized words into a readable transcript with speaker tags
+export function formatDiarizedTranscript(words: DiarizedWord[]): string {
+  if (words.length === 0) return "";
+  
+  const transcript: string[] = [];
+  let currentSpeaker: number | null = null;
+  let currentUtterance: string[] = [];
+  
+  // Process each word
+  words.forEach((word, index) => {
+    // Handle speaker change
+    if (currentSpeaker !== null && word.speakerTag !== currentSpeaker) {
+      // Add the previous speaker's utterance
+      transcript.push(`[Speaker ${currentSpeaker}]: ${currentUtterance.join(' ')}`);
+      currentUtterance = [];
     }
+    
+    // Update current speaker
+    currentSpeaker = word.speakerTag;
+    
+    // Add word to current utterance
+    currentUtterance.push(word.word);
+    
+    // End of sentence detection (basic)
+    const endsWithPunctuation = word.word.match(/[.!?]$/);
+    const isLastWord = index === words.length - 1;
+    const longPause = index < words.length - 1 && 
+                      (words[index+1].startTime - word.endTime > 1.0); // 1 second pause
+                      
+    if ((endsWithPunctuation || longPause || isLastWord) && currentUtterance.length > 0) {
+      transcript.push(`[Speaker ${currentSpeaker}]: ${currentUtterance.join(' ')}`);
+      currentUtterance = [];
+    }
+  });
+  
+  // Add any remaining utterance
+  if (currentUtterance.length > 0 && currentSpeaker !== null) {
+    transcript.push(`[Speaker ${currentSpeaker}]: ${currentUtterance.join(' ')}`);
   }
   
-  // Replace speaker numbers with roles
-  let mappedTranscript = transcript;
-  for (const speaker in speakerLines) {
-    const role = speaker === doctorSpeaker ? "Doctor" : "Patient";
-    const pattern = new RegExp(`\\[Speaker ${speaker}\\]:`, "g");
-    mappedTranscript = mappedTranscript.replace(pattern, `[${role}]:`);
-  }
-  
-  return mappedTranscript;
-};
+  return transcript.join('\n\n');
+}
+
+// Map speaker tags to Doctor/Patient roles
+export function mapSpeakerRoles(diarizedTranscript: string): string {
+  // Simple heuristic: typically speaker 1 is the doctor and speaker 2 is the patient
+  // This is a simplification - in reality, we'd need more sophisticated analysis
+  return diarizedTranscript
+    .replace(/\[Speaker 1\]/g, '[Doctor]')
+    .replace(/\[Speaker 2\]/g, '[Patient]');
+}

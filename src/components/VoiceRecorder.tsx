@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,7 +40,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     console.log("VoiceRecorder raw transcript:", rawTranscript);
     
     if (rawTranscript) {
-      currentTranscriptRef.current = rawTranscript;
       updateTranscriptDebounced(rawTranscript);
     }
   }, [rawTranscript]);
@@ -117,10 +117,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setIsRecording(webSpeechIsRecording);
     setProcessingTranscript(processingStatus === 'processing');
     
+    // When processing is complete, update the UI
     if (processingStatus === 'idle' && processingTranscript) {
       setProcessingTranscript(false);
     }
-  }, [webSpeechIsRecording, processingStatus, processingTranscript]);
+  }, [webSpeechIsRecording, processingStatus]);
 
   function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
     transcript: string, 
@@ -134,11 +135,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return;
     }
     
-    if (result === "Processing..." || result === "Listening...") {
-      console.log("Skipping UI state message:", result);
-      return;
-    }
-    
     if (result.startsWith('Error:')) {
       console.error("Error in speech recognition:", result);
       return;
@@ -146,10 +142,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     
     if (isFinal) {
       setRawTranscript(prev => {
-        const updatedTranscript = prev === '' ? result : 
-          prev.endsWith('\n\n') ? prev + result : prev + '\n\n' + result;
-        currentTranscriptRef.current = updatedTranscript;
-        return updatedTranscript;
+        if (prev === '') {
+          return result;
+        } else if (prev.endsWith('\n\n')) {
+          return prev + result;
+        } else {
+          return prev + '\n\n' + result;
+        }
       });
       
       if (isNewSession && !patientIdentifiedRef.current) {
@@ -234,12 +233,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     resetTranscript();
     setTranscript('');
     setRawTranscript('');
-    currentTranscriptRef.current = '';
     onTranscriptUpdate('');
     setIsNewSession(true);
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
     patientNameScanAttempts.current = 0;
+    currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
     setProcessingTranscript(false);
     setIdle(); // Reset the processing status
