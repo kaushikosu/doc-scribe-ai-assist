@@ -11,12 +11,14 @@ interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
+  onNewPatient?: () => void; // Add new prop for handling new patient
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
   onPatientInfoUpdate,
-  onRecordingStateChange
+  onRecordingStateChange,
+  onNewPatient
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
@@ -242,6 +244,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   // Start a new session
   const startNewSession = () => {
+    // Stop recording if it's active
+    if (isRecording) {
+      stopRecording();
+    }
+    
+    // Reset all local state
     resetTranscript();
     setTranscript('');
     setRawTranscript('');
@@ -253,7 +261,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
     
-    toast.success('Ready for new patient');
+    // Call the parent's onNewPatient handler if provided
+    if (onNewPatient) {
+      console.log("Calling parent onNewPatient handler");
+      onNewPatient();
+    } else {
+      toast.success('Ready for new patient');
+    }
   };
 
   // Handle stopping recording

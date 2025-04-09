@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -19,7 +20,6 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
-  const [isClassifying, setIsClassifying] = useState(false);
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
@@ -36,6 +36,7 @@ const DashboardPage = () => {
     formattedDuration,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
+    reset: resetAudioRecorder,
     audioBlob
   } = useAudioRecorder({
     onRecordingComplete: (blob) => {
@@ -178,12 +179,34 @@ const DashboardPage = () => {
     console.log("Recording state changed to:", recordingState);
     setIsRecording(recordingState);
     
-    if (recordingState) {
-    }
-    
     if (!recordingState && transcript) {
       toast.info('Processing transcript...');
     }
+  };
+
+  // Add a reset function to handle "New Patient" action
+  const handleNewPatient = () => {
+    console.log("New patient button clicked, resetting all components");
+    
+    // Reset transcript state
+    setTranscript('');
+    setClassifiedTranscript('');
+    lastProcessedTranscriptRef.current = '';
+    
+    // Reset patient info
+    setPatientInfo({
+      name: '',
+      time: ''
+    });
+    
+    // Reset diarized transcription
+    setDiarizedTranscription(null);
+    setIsDiarizing(false);
+    
+    // Reset audio recorder
+    resetAudioRecorder();
+    
+    toast.success("Ready for new patient");
   };
 
   return (
@@ -197,6 +220,7 @@ const DashboardPage = () => {
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
+              onNewPatient={handleNewPatient}
             />
             
             <Card className="p-5 border-none shadow-md bg-gradient-to-br from-doctor-primary/20 via-doctor-primary/10 to-transparent rounded-xl">
