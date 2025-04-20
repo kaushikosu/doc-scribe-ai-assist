@@ -9,7 +9,8 @@ import { classifyTranscript } from '@/utils/speaker';
 import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
-import { getDiarizedTranscription, DiarizedTranscription } from '@/utils/diarizedTranscription';
+import { DiarizedTranscription } from '@/utils/diarizedTranscription';
+import { processCompleteAudio } from '@/utils/deepgramSpeechToText';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -29,6 +30,7 @@ const DashboardPage = () => {
   const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
+  const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
   
   const {
     isRecording: isAudioRecording,
@@ -111,9 +113,9 @@ const DashboardPage = () => {
   }, [transcript]);
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
-    if (!googleApiKey) {
-      console.error("Google Speech API key is missing");
-      toast.error("Google Speech API key is not configured");
+    if (!deepgramApiKey) {
+      console.error("Deepgram API key is missing");
+      toast.error("Deepgram API key is not configured");
       return;
     }
     
@@ -123,43 +125,50 @@ const DashboardPage = () => {
       return;
     }
     
-    console.log("Processing audio blob for diarization:", audioBlob.size, "bytes");
+    console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    toast.info("Processing full audio for diarized transcription...");
+    toast.info("Processing audio with Deepgram...");
     
     try {
-      const result = await getDiarizedTranscription({
-        apiKey: googleApiKey,
-        audioBlob,
-        speakerCount: 2
-      });
+      // Process audio with Deepgram
+      const { transcript: diarizedText, error } = await processCompleteAudio(audioBlob, deepgramApiKey);
+      console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
       
-      if (mountedRef.current) {
-        console.log("Diarization complete:", result);
-        setDiarizedTranscription(result);
-        
-        if (result.error) {
-          toast.error("Diarization error: " + result.error);
-        } else if (result.words.length === 0) {
-          toast.warning("No speech detected in the audio");
-        } else {
-          toast.success(`Diarized transcription complete (${result.speakerCount} speakers detected)`);
-        }
-        
-        setIsDiarizing(false);
-      }
-    } catch (error: any) {
-      console.error("Error in diarized transcription:", error);
-      if (mountedRef.current) {
-        setIsDiarizing(false);
+      if (error) {
+        console.error("Deepgram error:", error);
         setDiarizedTranscription({
-          transcript: "",
-          words: [],
-          speakerCount: 0,
-          error: error.message
+          transcript: "Deepgram error",
+          error: error
         });
-        toast.error("Failed to process diarized transcription");
+        toast.error("Diarization error: " + error);
+      } else if (!diarizedText || diarizedText.trim().length === 0) {
+        console.warn("No speech detected by Deepgram");
+        setDiarizedTranscription({
+          transcript: "No speech detected by deepgram",
+          error: "No speech detected"
+        });
+        toast.warning("No speech detected in the audio");
+      } else {
+        const result: DiarizedTranscription = {
+          transcript: diarizedText,
+          error: undefined
+        };
+        
+        console.log("Deepgram diarization complete:", result);
+        setDiarizedTranscription(result);
+        toast.success(`Deepgram diarized transcription complete`);
       }
+      
+      setIsDiarizing(false);
+      
+    } catch (error: any) {
+      console.error("Error in Deepgram diarized transcription:", error);
+      setIsDiarizing(false);
+      setDiarizedTranscription({
+        transcript: "Error in deepgram transcription",
+        error: error.message || "Unknown error processing audio"
+      });
+      toast.error("Failed to process diarized transcription with Deepgram");
     }
   };
 

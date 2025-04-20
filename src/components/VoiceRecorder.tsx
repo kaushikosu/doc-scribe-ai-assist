@@ -1,39 +1,89 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus, Globe, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
-import useSpeechRecognition from '@/hooks/useSpeechRecognition';
+import useDualTranscription from '@/hooks/useDualTranscription';
+import { DeepgramResult } from '@/utils/deepgramSpeechToText';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
+  onDiarizedTranscriptUpdate?: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
+  onDiarizedTranscriptUpdate,
   onPatientInfoUpdate,
   onRecordingStateChange
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
   const [rawTranscript, setRawTranscript] = useState(''); 
+  const [diarizedTranscript, setDiarizedTranscript] = useState('');
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
   const [showPatientIdentified, setShowPatientIdentified] = useState(false);
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
+  const diarizedMessagesRef = useRef<string[]>([]);
   const isFirstInteractionRef = useRef<boolean>(true);
   const patientIdentifiedRef = useRef<boolean>(false);
   const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Handle silence - add a line break to separate utterances
+  const handleSilence = () => {
+    // Add line break to help separate different speech segments
+    setRawTranscript(prev => {
+      if (prev.endsWith('\n\n')) return prev;
+      return prev + "\n\n";
+    });
+  };
+
+  // Get Deepgram API key from environment
+  const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
+
+  // Safe toast functions to avoid render-time calls
+  const showSuccessToast = useCallback((message: string) => {
+    setTimeout(() => {
+      toast.success(message);
+    }, 0);
+  }, []);
+
+  // Initialize dual transcription
+  const { 
+    isRecording: dualIsRecording, 
+    detectedLanguage,
+    startRecording, 
+    stopRecording,
+    toggleRecording: dualToggleRecording,
+    resetTranscript,
+    getAccumulatedTranscript,
+    processFinalAudio
+  } = useDualTranscription({
+    onRealtimeResult: handleSpeechResult,
+    onSilence: handleSilence,
+    pauseThreshold,
+    deepgramApiKey
+  });
+  
+  // Update local recording state when dual recording state changes
+  useEffect(() => {
+    setIsRecording(dualIsRecording);
+    
+    if (onRecordingStateChange) {
+      onRecordingStateChange(dualIsRecording);
+    }
+  }, [dualIsRecording, onRecordingStateChange]);
+
   // Log when transcript changes - useful for debugging
   useEffect(() => {
     console.log("VoiceRecorder raw transcript:", rawTranscript);
@@ -43,22 +93,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       updateTranscriptDebounced(rawTranscript);
     }
   }, [rawTranscript]);
-
-  // Notify parent about recording state changes
-  useEffect(() => {
-    if (onRecordingStateChange) {
-      onRecordingStateChange(isRecording);
-    }
-  }, [isRecording, onRecordingStateChange]);
-
-  // Handle silence - add a line break to separate utterances
-  const handleSilence = () => {
-    // Add line break to help separate different speech segments
-    setRawTranscript(prev => {
-      if (prev.endsWith('\n\n')) return prev;
-      return prev + "\n\n";
-    });
-  };
 
   // Improved transcript update function with better real-time performance
   const updateTranscriptDebounced = (newTranscript: string) => {
@@ -75,54 +109,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }, 50); // Small delay for better responsiveness
   };
 
-  // Try to extract patient name from greeting patterns
-  const extractPatientName = (text: string): string | null => {
-    // Common greeting patterns
-    const patterns = [
-      /(?:namaste|hello|hi|hey)\s+([A-Z][a-z]{2,})/i,
-      /(?:patient|patient's) name is\s+([A-Z][a-z]{2,})/i,
-      /(?:this is|i am|i'm)\s+([A-Z][a-z]{2,})/i,
-      /Mr\.|Mrs\.|Ms\.|Dr\.\s+([A-Z][a-z]{2,})/i
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-    
-    // Fallback: try to find any capitalized word after greeting
-    const simpleMatch = text.match(/(?:namaste|hello|hi|hey)\s+(\w+)/i);
-    if (simpleMatch && simpleMatch[1]) {
-      return simpleMatch[1].charAt(0).toUpperCase() + simpleMatch[1].slice(1);
-    }
-    
-    return null;
-  };
-
-  // Initialize Web Speech Recognition
-  const { 
-    isRecording: webSpeechIsRecording, 
-    detectedLanguage,
-    startRecording, 
-    stopRecording,
-    toggleRecording: webToggleRecording,
-    getAccumulatedTranscript,
-    resetTranscript
-  } = useSpeechRecognition({
-    onResult: handleSpeechResult,
-    onSilence: handleSilence,
-    pauseThreshold
-  });
-  
-  // Update local recording state when web speech recording state changes
-  useEffect(() => {
-    setIsRecording(webSpeechIsRecording);
-  }, [webSpeechIsRecording]);
-
-  // Improved speech result handler with better real-time updates
-  function handleSpeechResult({ transcript: result, isFinal, resultIndex }: { 
+  // Handler for Web Speech results (real-time transcription)
+  function handleSpeechResult({ 
+    transcript: result, 
+    isFinal, 
+    resultIndex 
+  }: { 
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number
@@ -173,6 +165,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }
   
+  // Try to extract patient name from greeting patterns
+  const extractPatientName = (text: string): string | null => {
+    return null;
+  };
+  
   // Multiple attempts to identify patient name
   function attemptPatientIdentification(text: string) {
     console.log("Checking for patient name in:", text);
@@ -197,13 +194,13 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       setIsNewSession(false);
       patientIdentifiedRef.current = true;
       
-      // Show success notification
+      // Show success notification using setTimeout to avoid render-time state changes
       setShowPatientIdentified(true);
       setTimeout(() => {
         setShowPatientIdentified(false);
       }, 3000);
       
-      toast.success(`Patient identified: ${extractedName}`);
+      showSuccessToast(`Patient identified: ${extractedName}`);
       isFirstInteractionRef.current = false;
       return;
     }
@@ -234,18 +231,42 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
           setShowPatientIdentified(false);
         }, 3000);
         
-        toast.success(`Patient identified: ${possibleName}`);
+        showSuccessToast(`Patient identified: ${possibleName}`);
         isFirstInteractionRef.current = false;
       }
     }
   }
 
   // Start a new session
-  const startNewSession = () => {
+  const startNewSession = async () => {
+    // Process final audio for improved diarization if we have recorded audio
+    if (audioBlob) {
+      setProcessingTranscript(true);
+      
+      // Get final diarized transcript if possible
+      try {
+        const finalDiarizedTranscript = await processFinalAudio(audioBlob);
+        if (finalDiarizedTranscript && onDiarizedTranscriptUpdate) {
+          setDiarizedTranscript(finalDiarizedTranscript);
+          onDiarizedTranscriptUpdate(finalDiarizedTranscript);
+        }
+      } catch (error) {
+        console.error("Error processing final audio:", error);
+      }
+      
+      setProcessingTranscript(false);
+      setAudioBlob(null);
+    }
+    
+    // Reset everything
     resetTranscript();
     setTranscript('');
     setRawTranscript('');
+    setDiarizedTranscript('');
+    diarizedMessagesRef.current = [];
     onTranscriptUpdate('');
+    if (onDiarizedTranscriptUpdate) onDiarizedTranscriptUpdate('');
+    
     setIsNewSession(true);
     isFirstInteractionRef.current = true;
     patientIdentifiedRef.current = false;
@@ -253,19 +274,78 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     currentTranscriptRef.current = '';
     setShowPatientIdentified(false);
     
-    toast.success('Ready for new patient');
+    showSuccessToast('Ready for new patient');
   };
 
   // Handle stopping recording
-  const handleStopRecording = () => {
+  const handleStopRecording = async () => {
     // Clear any pending transcript timeouts
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
       transcriptUpdateTimeoutRef.current = null;
     }
     
+    setProcessingTranscript(true);
+    
     // Stop recording
     stopRecording();
+    
+    // Setup audio recording for Deepgram processing
+    try {
+      // Use MediaRecorder API to capture audio
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+      
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks: BlobPart[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+      
+      mediaRecorder.onstop = async () => {
+        // Save the audio blob for later processing
+        const recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        setAudioBlob(recordedBlob);
+        
+        // Process with Deepgram now if needed
+        if (onDiarizedTranscriptUpdate) {
+          try {
+            const finalDiarizedTranscript = await processFinalAudio(recordedBlob);
+            if (finalDiarizedTranscript) {
+              setDiarizedTranscript(finalDiarizedTranscript);
+              onDiarizedTranscriptUpdate(finalDiarizedTranscript);
+            }
+          } catch (error) {
+            console.error("Error processing final audio:", error);
+          }
+        }
+        
+        setProcessingTranscript(false);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      // Start recording for a short period to capture audio
+      mediaRecorder.start();
+      
+      // Stop after a fixed amount of time (e.g., 5 seconds)
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 5000);
+      
+    } catch (error) {
+      console.error("Error setting up audio recording:", error);
+      setProcessingTranscript(false);
+    }
   };
 
   // Handle toggling recording
@@ -276,10 +356,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       // Reset raw transcript for new session
       if (isNewSession) {
         setRawTranscript('');
+        setDiarizedTranscript('');
+        diarizedMessagesRef.current = [];
         currentTranscriptRef.current = '';
       }
       
-      startRecording();
+      dualToggleRecording();
     }
   };
 
@@ -289,7 +371,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return {
         color: "bg-blue-500",
         text: "Processing",
-        subtext: "Processing transcript...",
+        subtext: "Processing transcript with Deepgram...",
         icon: <RotateCw className="h-4 w-4 animate-spin" />
       };
     }
@@ -298,7 +380,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       return {
         color: "bg-green-500",
         text: "Recording",
-        subtext: `Using ${detectedLanguage} language`,
+        subtext: `Using Web Speech (${detectedLanguage})`,
         icon: <Globe className="h-4 w-4" />
       };
     } else {
@@ -354,7 +436,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Recording</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Using Web Speech Recognition ({detectedLanguage})
+                    Using Web Speech ({detectedLanguage})
                   </div>
                 </div>
               ) : processingTranscript ? (
@@ -364,7 +446,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Processing</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Processing transcript...
+                    Processing transcript with Deepgram...
                   </div>
                 </div>
               ) : (

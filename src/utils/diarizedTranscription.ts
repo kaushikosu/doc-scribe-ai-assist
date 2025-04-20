@@ -21,8 +21,6 @@ export interface DiarizedWord {
 
 export interface DiarizedTranscription {
   transcript: string;
-  words: DiarizedWord[];
-  speakerCount: number;
   error?: string;
 }
 
@@ -144,8 +142,6 @@ export async function getDiarizedTranscription({
       console.warn("No transcription results returned from API");
       return {
         transcript: "",
-        words: [],
-        speakerCount: 0,
         error: "No transcription results returned"
       };
     }
@@ -188,18 +184,14 @@ export async function getDiarizedTranscription({
     console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
     
     return {
-      transcript: fullTranscript.trim(),
-      words,
-      speakerCount: uniqueSpeakers.size
+      transcript: fullTranscript.trim()
     };
     
   } catch (error: any) {
     console.error("Error in diarized transcription:", error);
     toast.error("Failed to process diarized transcription: " + error.message);
     return {
-      transcript: "",
-      words: [],
-      speakerCount: 0,
+      transcript: "Error in deepgram transcription",
       error: error.message
     };
   }

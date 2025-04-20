@@ -1,12 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Loader } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText } from 'lucide-react';
 import { toast } from '@/lib/toast';
-import { DiarizedTranscription, formatDiarizedTranscript, mapSpeakerRoles } from '@/utils/diarizedTranscription';
+import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 
 interface DiarizedTranscriptViewProps {
   diarizedData: DiarizedTranscription | null;
@@ -25,23 +23,17 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
 }) => {
   const [showMappedRoles, setShowMappedRoles] = useState(true);
   
-  // Format the diarized transcript
+  // Format the diarized transcript - use transcript directly from diarizedData
   const formattedTranscript = React.useMemo(() => {
-    if (!diarizedData || !diarizedData.words.length) return '';
-    
-    const rawTranscript = formatDiarizedTranscript(diarizedData.words);
-    return showMappedRoles ? mapSpeakerRoles(rawTranscript) : rawTranscript;
-  }, [diarizedData, showMappedRoles]);
+    if (!diarizedData || !diarizedData.transcript) return '';
+    return diarizedData.transcript;
+  }, [diarizedData]);
 
   const handleCopyTranscript = () => {
     if (formattedTranscript) {
       navigator.clipboard.writeText(formattedTranscript);
       toast.success('Diarized transcript copied to clipboard');
     }
-  };
-
-  const toggleRoleMapping = () => {
-    setShowMappedRoles(prev => !prev);
   };
   
   const handleDownloadRecording = () => {
@@ -80,7 +72,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     if (isProcessing) {
       return {
         title: "Processing full audio",
-        description: "Identifying speakers with Google diarization...",
+        description: "Identifying speakers with Deepgram diarization...",
         icon: <RotateCw className="h-8 w-8 text-doctor-accent animate-spin" />
       };
     }
@@ -101,7 +93,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       };
     }
     
-    if (diarizedData && diarizedData.words.length === 0 && !diarizedData.error) {
+    if (diarizedData && !diarizedData.transcript && !diarizedData.error) {
       return {
         title: "Processing complete",
         description: "No speech detected in the recording",
@@ -118,20 +110,18 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
     }
 
-    const paragraphs = formattedTranscript.split('\n\n');
+    const lines = formattedTranscript.split('\n');
     
-    return paragraphs.map((paragraph, index) => {
+    return lines.map((line, index) => {
       // Identify speaker label
-      const match = paragraph.match(/^\[(Doctor|Patient|Speaker \d+)\]:/);
+      const match = line.match(/^(Speaker\s+\d+):/);
       
       if (match) {
         const speakerLabel = match[1];
-        const content = paragraph.substring(paragraph.indexOf(':') + 1).trim();
+        const content = line.substring(line.indexOf(':') + 1).trim();
         
-        const labelClass = 
-          speakerLabel === 'Doctor' ? 'text-doctor-primary font-semibold' : 
-          speakerLabel === 'Patient' ? 'text-doctor-accent font-semibold' : 
-          'text-gray-600 font-semibold';
+        // Basic styling for speaker labels
+        const labelClass = 'text-gray-600 font-semibold'; 
         
         return (
           <div key={index} className="mb-3 pb-2 border-b border-gray-100">
@@ -140,7 +130,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         );
       }
       
-      return <div key={index} className="mb-3">{paragraph}</div>;
+      return <div key={index} className="mb-3">{line}</div>;
     });
   };
 
@@ -152,7 +142,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         <div className="flex items-center gap-1.5">
           <FileText className="h-4 w-4 text-doctor-accent" />
           <CardTitle className="text-base text-doctor-accent font-medium">
-            Diarized Transcript {recordingDuration && `(${recordingDuration})`}
+            Deepgram Diarized Transcript {recordingDuration && `(${recordingDuration})`}
           </CardTitle>
         </div>
         <div className="flex gap-1">
@@ -167,26 +157,16 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
               Download
             </Button>
           )}
-          {diarizedData && diarizedData.words.length > 0 && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={toggleRoleMapping}
-                className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
-              >
-                {showMappedRoles ? 'Show Speaker Numbers' : 'Show Doctor/Patient'}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleCopyTranscript}
-                className="h-7 text-doctor-accent hover:text-doctor-accent/80 hover:bg-doctor-accent/10 border-doctor-accent"
-              >
-                <Copy className="h-3.5 w-3.5 mr-1" />
-                Copy
-              </Button>
-            </>
+          {diarizedData && diarizedData.transcript && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleCopyTranscript}
+              className="h-7 text-doctor-accent hover:text-doctor-accent/80 hover:bg-doctor-accent/10 border-doctor-accent"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Copy
+            </Button>
           )}
         </div>
       </CardHeader>
