@@ -9,6 +9,85 @@ export interface DeepgramResult {
   topics?: string[];
 }
 
+// Helper function to format the transcript with speaker information
+// Handles the nested structure from Deepgram API responses
+function postProcessDeepgramResponse(data: any): string {
+  try {
+    console.log('Post-processing Deepgram response:', data);
+    
+    // Check if we have a valid data structure
+    if (!data) {
+      console.warn('No data provided to post-processor');
+      return '';
+    }
+    
+    // If the response already contains a formatted transcript, use it
+    if (typeof data.transcript === 'string' && data.transcript.includes('Speaker')) {
+      console.log('Using already formatted transcript');
+      return data.transcript;
+    }
+
+    // Check for paragraphs which already has formatted transcript with speaker info
+    if (data.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.transcript) {
+      const paragraphsTranscript = data.results.channels[0].alternatives[0].paragraphs.transcript;
+      console.log('Using paragraphs transcript:', paragraphsTranscript);
+      return paragraphsTranscript.trim();
+    }
+    
+    // Extract words from the nested structure
+    let words;
+    if (data.results?.channels?.[0]?.alternatives?.[0]?.words) {
+      words = data.results.channels[0].alternatives[0].words;
+      console.log(`Found ${words.length} words in Deepgram response structure`);
+    } else if (data.rawTranscript?.words) {
+      words = data.rawTranscript.words;
+      console.log(`Found ${words.length} words in rawTranscript`);
+    } else if (data.words) {
+      words = data.words;
+      console.log(`Found ${words.length} words directly in data object`);
+    }
+    
+    // If we found words with speaker info, format the transcript
+    if (words && Array.isArray(words) && words.length > 0) {
+      let formatted = '';
+      let currentSpeaker = -1;
+      
+      words.forEach((word) => {
+        // Check if this word has speaker info
+        if (word.speaker !== undefined && word.speaker !== null) {
+          if (word.speaker !== currentSpeaker) {
+            if (formatted) formatted += '\n\n';
+            formatted += `Speaker ${word.speaker}: `;
+            currentSpeaker = word.speaker;
+          }
+          formatted += `${word.punctuated_word || word.word || ''} `;
+        } else {
+          // No speaker info, just add the word
+          formatted += `${word.punctuated_word || word.word || ''} `;
+        }
+      });
+      
+      return formatted.trim();
+    }
+    
+    // Fallback to simple transcript if available
+    if (data.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+      console.log('Falling back to simple transcript');
+      return data.results.channels[0].alternatives[0].transcript;
+    }
+    
+    // Last resort - get whatever transcript we can find
+    return data.transcript || '';
+  } catch (error) {
+    console.error('Error in postProcessDeepgramResponse:', error);
+    // Fall back to the plain transcript if available
+    if (data?.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
+      return data.results.channels[0].alternatives[0].transcript;
+    }
+    return data?.transcript || 'Error formatting transcript';
+  }
+}
+
 // Process a complete audio file with Deepgram for improved diarization
 export const processCompleteAudio = async (
   audioBlob: Blob,
@@ -38,12 +117,14 @@ export const processCompleteAudio = async (
       mimeType: mimeType
     });
     
-
     console.log('Received response from backend:', response);
+
+    // Post-process the response to format transcript with speaker information
+    const processedTranscript = postProcessDeepgramResponse(response.data);
 
     // Return the formatted transcript
     return {
-      transcript: response.data.transcript,
+      transcript: processedTranscript || response.data.transcript || '',
       error: response.data.error
     };
     
