@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Edit, Save, Copy, AlignJustify } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { toast } from '@/lib/toast';
 
 interface TranscriptEditorProps {
@@ -145,10 +145,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               placeholder="Transcript will appear here..."
             />
           ) : (
-            <ScrollArea 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] overflow-auto`}
+            <div 
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[60vh] min-h-[120px] overflow-y-auto`}
               ref={scrollAreaRef}
-              scrollHideDelay={0}
             >
               <div 
                 ref={contentRef} 
@@ -159,7 +158,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   "<div class='text-muted-foreground text-center italic h-full flex items-center justify-center'>Transcript will appear here...</div>"
                 }}
               />
-            </ScrollArea>
+            </div>
           )}
         </CardContent>
       </Card>
