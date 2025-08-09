@@ -164,6 +164,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               ref={scrollAreaRef}
             >
               <div 
+                key={`content-${mode}-${Boolean(transcript)}`}
                 ref={contentRef} 
                 className={cn(
                   "p-3 w-full bg-muted rounded-md min-h-[300px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
