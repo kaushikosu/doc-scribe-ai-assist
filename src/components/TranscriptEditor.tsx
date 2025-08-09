@@ -150,7 +150,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-3">
           {isEditing ? (
             <Textarea
               value={editableTranscript}
