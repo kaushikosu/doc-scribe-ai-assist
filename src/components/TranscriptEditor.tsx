@@ -132,7 +132,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               title="Copy transcript"
               onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}
               disabled={!transcript.length}
-              className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
+              className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -143,7 +143,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               title={isEditing ? "Save transcript" : "Edit transcript"}
               onClick={isEditing ? handleSave : handleEdit}
               disabled={!transcript.length}
-              className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90"
+              className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isEditing ? (
                 <Save className="h-4 w-4" />

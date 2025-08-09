@@ -535,7 +535,7 @@ const handleGenerateAI = () => {
 
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Header settings" title="Header settings" className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10">
+                <Button variant="outline" size="sm" aria-label="Header settings" title="Header settings" className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Settings className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -617,7 +617,7 @@ const handleGenerateAI = () => {
                 title="Generate prescription"
                 onClick={handleGenerateAI}
                 disabled={isPrescriptionDisabled}
-                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 h-8 w-8 p-0"
+                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 h-8 w-8 p-0 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
                   <RotateCw className="h-4 w-4 animate-spin" />
@@ -632,7 +632,7 @@ const handleGenerateAI = () => {
                 title={isEditing ? "Save prescription" : "Edit prescription"}
                 onClick={isEditing ? handleSave : handleEdit}
                 disabled={!prescription.length || isPrescriptionDisabled}
-                className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90"
+                className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isEditing ? (
                   <Save className="h-4 w-4" />
