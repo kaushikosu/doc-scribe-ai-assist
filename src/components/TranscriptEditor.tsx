@@ -160,7 +160,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             />
           ) : (
             <div 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto bg-muted p-2`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto p-2`}
               ref={scrollAreaRef}
             >
               <div 
