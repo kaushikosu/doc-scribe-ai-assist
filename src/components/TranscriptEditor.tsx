@@ -155,8 +155,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             <Textarea
               value={editableTranscript}
               onChange={handleChange}
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-primary p-2 bg-muted`}
-              placeholder="Transcript will appear here..."
+              className="min-h-[300px] bg-muted p-3 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+               placeholder="Transcript will appear here..."
             />
           ) : (
             <div 
@@ -166,7 +166,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               <div 
                 ref={contentRef} 
                 className={cn(
-                  "p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words transition-opacity duration-300 animate-fade-in",
+                  "p-3 w-full bg-muted rounded-md min-h-[300px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
                   overlayMsg ? "opacity-50" : "opacity-100"
                 )}
               >

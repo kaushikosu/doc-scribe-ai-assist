@@ -667,11 +667,11 @@ const handleGenerateAI = () => {
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
-            className="min-h-[300px] font-mono text-sm resize-none focus-visible:ring-primary"
+            className="min-h-[300px] bg-muted p-3 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
             placeholder="Prescription will be generated here..."
           />
         ) : (
-          <div className="bg-muted p-3 rounded-md min-h-[300px] font-mono text-sm whitespace-pre-wrap">
+          <div className="bg-muted p-3 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
             {prescription || (
               isClassifying ? 
                 "Waiting for transcript classification to complete..." : 
