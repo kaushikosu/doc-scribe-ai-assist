@@ -287,11 +287,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       <Card className="border-2 border-doctor-primary/30 shadow-md">
         <CardContent className="p-4 bg-gradient-to-r from-doctor-primary/10 to-transparent">
           <div className="flex flex-col items-center gap-4">
-            <div className="flex space-x-4">
+            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <Button 
                 onClick={handleToggleRecording}
                 className={cn(
-                  "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all",
+                  "w-16 h-16 rounded-full flex justify-center items-center shadow-lg transition-all mx-auto sm:mx-0",
                   isRecording 
                     ? "bg-destructive hover:bg-destructive/90" 
                     : "bg-doctor-primary hover:bg-doctor-primary/90"
@@ -307,7 +307,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
               
               <Button
                 onClick={startNewSession}
-                className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all"
+                className="w-16 h-16 rounded-full flex justify-center items-center bg-doctor-accent hover:bg-doctor-accent/90 shadow-lg transition-all mx-auto sm:mx-0"
                 disabled={isRecording || processingTranscript}
               >
                 <UserPlus className="h-8 w-8" />

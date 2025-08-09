@@ -144,10 +144,13 @@ useEffect(() => {
 }, [classifiedTranscript, isClassifying]);
 
 // Auto-create patient record once a prescription is available
+const [isSavingRecord, setIsSavingRecord] = useState(false);
+
 useEffect(() => {
   if (prescription && !recordSaved && !isGenerating) {
     (async () => {
       try {
+        setIsSavingRecord(true);
         await createPatientRecord({
           patient_name: patientInfo?.name || null,
           prescription,
@@ -155,7 +158,11 @@ useEffect(() => {
           updated_transcript: classifiedTranscript || null,
         });
         setRecordSaved(true);
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to save patient record:', e);
+      } finally {
+        setIsSavingRecord(false);
+      }
     })();
   }
 }, [prescription]);
@@ -695,9 +702,9 @@ const handleGenerateAI = () => {
         )}
       </CardContent>
       {prescription && !isEditing && !isPrescriptionDisabled && (
-        <CardFooter className="pt-0 flex gap-2">
+        <CardFooter className="pt-0 flex flex-col sm:flex-row gap-2">
           <Button 
-            className="mt-2 flex-1 bg-doctor-primary hover:bg-doctor-primary/90"
+            className="flex-1 bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
             onClick={async () => {
               try {
                 await createPatientRecord({
@@ -708,12 +715,27 @@ const handleGenerateAI = () => {
                 });
               } catch (e) {}
             }}
+            disabled={recordSaved || isSavingRecord}
           >
-            <Check className="h-4 w-4 mr-2" />
-            Save to Records
+            {isSavingRecord ? (
+              <>
+                <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : recordSaved ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Saved ✓
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Save to Records
+              </>
+            )}
           </Button>
           <Button 
-            className="mt-2 flex-1 bg-doctor-primary hover:bg-doctor-primary/90"
+            className="flex-1 bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
             onClick={handlePrint}
           >
             <Printer className="h-4 w-4 mr-2" />
