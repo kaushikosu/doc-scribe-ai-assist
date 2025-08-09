@@ -188,16 +188,16 @@ useEffect(() => {
 ${hospitalName.toUpperCase()}
 ${hospitalAddress}
 Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
-${empanelmentId ? `PM-JAY Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
+${empanelmentId ? `Empanelment ID (if applicable): ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
 ==================================================================
-PM-JAY PRESCRIPTION (ABDM aligned)
+ABDM-compliant Prescription
 
 Date: ${currentDate}    Time: ${patientInfo.time || ''}
 
 PATIENT DETAILS
 - Name: ${patientInfo.name || '[Patient Name]'}
 - Age/Sex: [Age]/[Sex]
-- PM-JAY Beneficiary ID: ${patientBeneficiaryId || '[Beneficiary ID]'}
+- Beneficiary ID (optional): ${patientBeneficiaryId || '[Beneficiary ID]'}
 - ABHA (Health ID): ${patientAbha || '[ABHA Number]'}
 - Aadhaar: ${patientAadhaar || '[Aadhaar Number]'}
 
@@ -530,7 +530,7 @@ const handleGenerateAI = () => {
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogContent className="sm:max-w-[640px]">
                 <DialogHeader>
-                  <DialogTitle>PM-JAY Header Details</DialogTitle>
+                  <DialogTitle>ABDM Header Details</DialogTitle>
                 </DialogHeader>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -639,7 +639,7 @@ const handleGenerateAI = () => {
                     checked={usePmjayFormat}
                     onCheckedChange={(v) => setUsePmjayFormat(Boolean(v))}
                   >
-                    PM-JAY format
+                    ABDM format
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
