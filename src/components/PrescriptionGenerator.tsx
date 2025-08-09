@@ -524,7 +524,7 @@ const handleGenerateAI = () => {
     <Card 
       className={cn("border rounded-lg transition-all", isClassifying ? 'opacity-60' : '')}
     >
-      <CardHeader className="px-3 py-2 border-b">
+      <CardHeader className="px-3 py-2 border-b bg-muted/50 shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <CardTitle className="text-lg font-semibold text-foreground">Prescription</CardTitle>
 

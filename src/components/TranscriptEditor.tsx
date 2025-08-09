@@ -109,14 +109,14 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   return (
     <>
       <Card className={cn("border rounded-lg transition-all")}>
-        <CardHeader className="px-3 py-2 border-b flex flex-row justify-between items-center">
+        <CardHeader className="px-3 py-2 border-b bg-muted/50 shadow-sm flex flex-row justify-between items-center">
           <div className="flex items-center gap-2">
             <CardTitle className="text-lg font-semibold text-foreground">Transcript</CardTitle>
             {status?.type === 'processing' ? null : (
-              <Badge variant="outline" className="h-5 px-2 text-[11px] text-muted-foreground border-muted flex items-center gap-1">
+              <Badge variant="outline" className="h-5 px-2 text-[11px] flex items-center gap-1 border-doctor-primary text-doctor-primary bg-doctor-primary/5">
                 {mode === 'revised' ? 'Revised' : (
                   <>
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary pulse" />
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-doctor-primary animate-pulse-recording" />
                     Live
                   </>
                 )}
