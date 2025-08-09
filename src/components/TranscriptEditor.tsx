@@ -84,7 +84,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             : speaker === 'patient'
             ? 'text-foreground border-l-2 border-doctor-accent/25 bg-doctor-accent/5 rounded-sm'
             : 'text-muted-foreground';
-          const labelClass = speaker === 'identifying' ? 'font-semibold text-muted-foreground' : 'font-semibold text-foreground';
+          const labelClass = speaker === 'identifying' ? 'text-muted-foreground' : 'text-foreground';
           const speakerLabel = speaker.charAt(0).toUpperCase() + speaker.slice(1);
           
           return `<div class="transcript-row ${rowClass}">
@@ -210,7 +210,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           line-height: 1.45;
         }
         .transcript-label {
-          font-weight: 600;
+          font-weight: 400;
           white-space: nowrap;
         }
         .transcript-content {
