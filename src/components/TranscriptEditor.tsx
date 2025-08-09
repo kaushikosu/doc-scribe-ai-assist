@@ -72,26 +72,28 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     }
     
     // Process transcript to highlight speaker labels if they exist
-    const processedTranscript = paragraphs.map(paragraph => {
-      const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
-      
-      if (speakerMatch) {
-        const speaker = speakerMatch[1];
-        const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
+      const processedTranscript = paragraphs.map(paragraph => {
+        const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
         
-        // Apply different styling based on speaker
-        const speakerClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
-                            (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
-                            'text-muted-foreground font-semibold');
+        if (speakerMatch) {
+          const speaker = speakerMatch[1];
+          const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
+          
+          // Apply different styling based on speaker
+          const labelClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
+                             (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
+                             'text-muted-foreground font-semibold');
+          const lineClass = speaker === 'Doctor' ? 'text-doctor-primary' :
+                            (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
+          
+          return `<div class="transcript-paragraph ${lineClass}">
+            <span class="${labelClass}">[${speaker}]:</span> ${content}
+          </div>`;
+        }
         
-        return `<div class="transcript-paragraph">
-          <span class="${speakerClass}">[${speaker}]:</span> ${content}
-        </div>`;
-      }
-      
-      // Regular paragraph without speaker label
-      return `<div class="transcript-paragraph">${paragraph}</div>`;
-    }).join('');
+        // Regular paragraph without speaker label
+        return `<div class="transcript-paragraph">${paragraph}</div>`;
+      }).join('');
     
     return processedTranscript;
   }, [transcript]);
@@ -105,14 +107,16 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           <div className="flex items-center gap-2">
             <AlignJustify className="h-4 w-4 text-doctor-secondary" />
             <CardTitle className="text-base text-doctor-secondary font-medium">Transcript</CardTitle>
-            <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50 flex items-center gap-1">
-              {mode === 'revised' ? 'Revised' : (
-                <>
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-doctor-secondary pulse" />
-                  Live
-                </>
-              )}
-            </Badge>
+            {status?.type === 'processing' ? null : (
+              <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50 flex items-center gap-1">
+                {mode === 'revised' ? 'Revised' : (
+                  <>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-doctor-secondary pulse" />
+                    Live
+                  </>
+                )}
+              </Badge>
+            )}
           </div>
           <div className="flex gap-1">
             <Button 
@@ -170,7 +174,11 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                 )}
               >
                 {transcript ? (
-                  transcript
+                  mode === 'revised' ? (
+                    <div dangerouslySetInnerHTML={{ __html: formattedTranscript }} />
+                  ) : (
+                    transcript
+                  )
                 ) : (
                   <div className="text-muted-foreground text-center italic h-full flex items-center justify-center">
                     Transcript will appear here...
@@ -193,10 +201,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       <style>
         {`
         .transcript-paragraph {
-          margin-bottom: 0.75rem;
-          padding-bottom: 0.5rem;
+          margin-bottom: 0.5rem;
+          padding-bottom: 0.25rem;
           border-bottom: 1px dotted rgba(0,0,0,0.05);
-          line-height: 1.5;
+          line-height: 1.55;
         }
         
         @keyframes fadeIn {
