@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Edit, Save, Copy, AlignJustify } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { toast } from '@/lib/toast';
+
 
 interface TranscriptEditorProps {
   transcript: string;
@@ -55,7 +55,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text);
-    toast.success(message);
   };
 
 

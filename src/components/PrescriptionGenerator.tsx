@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Edit, Save, Check, MessageSquare, Printer, RotateCw, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from '@/lib/toast';
+
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -110,7 +110,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
       patientAadhaar,
     };
     localStorage.setItem('pmjayHeader', JSON.stringify(data));
-    toast.success('Header details saved');
+    
     setSettingsOpen(false);
   };
 
@@ -136,7 +136,7 @@ useEffect(() => {
       setLastProcessedTranscript(classifiedTranscript);
       setIsGenerating(false);
       onGenerated?.();
-    }, 800);
+    }, 1500);
     
     return () => clearTimeout(timeoutId);
   }
@@ -263,8 +263,6 @@ Department of ${doctorDept}
       setEditablePrescription(generatedPrescription);
       
     } catch (error) {
-      console.error('Error generating prescription:', error);
-      toast.error('Error generating prescription template');
     }
   };
 
@@ -459,7 +457,6 @@ Department of ${doctorDept}
   const handleSave = () => {
     setPrescription(editablePrescription);
     setIsEditing(false);
-    toast.success('Prescription saved');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -467,7 +464,6 @@ Department of ${doctorDept}
   };
 
   const handleFetchPatientDetails = () => {
-    toast.info('To fetch patient details from IDs, please connect Supabase first.');
   };
 
 const handleGenerateAI = () => {
@@ -479,7 +475,7 @@ const handleGenerateAI = () => {
       generatePrescription(classifiedTranscript);
       setIsGenerating(false);
       onGenerated?.();
-    }, 800);
+    }, 1500);
   } else if (transcript && !isClassifying) {
     onGeneratingStart?.();
     setIsGenerating(true);
@@ -489,9 +485,8 @@ const handleGenerateAI = () => {
       generatePrescription(transcript);
       setIsGenerating(false);
       onGenerated?.();
-    }, 800);
+    }, 1500);
   } else {
-    toast.error('No transcript available for prescription generation');
   }
 };
 
@@ -516,7 +511,7 @@ const handleGenerateAI = () => {
       printWindow.focus();
       printWindow.print();
     } else {
-      toast.error('Could not open print window. Please check your browser settings.');
+      
     }
   };
   
@@ -690,7 +685,6 @@ const handleGenerateAI = () => {
           <Button 
             className="mt-2 flex-1 bg-doctor-accent hover:bg-doctor-accent/90"
             onClick={() => {
-              toast.success('Prescription saved to patient records');
             }}
           >
             <Check className="h-4 w-4 mr-2" />

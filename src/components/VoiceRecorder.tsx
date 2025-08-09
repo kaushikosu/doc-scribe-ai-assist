@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from '@/lib/toast';
+
 import useDualTranscription from '@/hooks/useDualTranscription';
 import { DeepgramResult } from '@/utils/deepgramSpeechToText';
 
@@ -50,11 +50,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
 
   // Safe toast functions to avoid render-time calls
-  const showSuccessToast = useCallback((message: string) => {
-    setTimeout(() => {
-      toast.success(message);
-    }, 0);
-  }, []);
 
   // Initialize dual transcription
   const { 
@@ -191,10 +186,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     diarizedMessagesRef.current = [];
     onTranscriptUpdate('');
     if (onDiarizedTranscriptUpdate) onDiarizedTranscriptUpdate('');
-    
-    setIsNewSession(true);
-    currentTranscriptRef.current = '';
-    showSuccessToast('Ready for new session');
   };
 
   // Handle stopping recording
