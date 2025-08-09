@@ -177,7 +177,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                     transcript
                   )
                 ) : (
-                  <div className="text-muted-foreground text-center italic h-full flex items-center justify-center font-sans">
+                  <div className="text-muted-foreground text-center h-full flex items-center justify-center font-sans">
                     {placeholderText}
                   </div>
                 )}
