@@ -7,6 +7,8 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
+import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
+import { toast } from '@/lib/toast';
 
 const Index = () => {
   const [transcript, setTranscript] = useState('');
@@ -15,6 +17,7 @@ const Index = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [classifiedTranscript, setClassifiedTranscript] = useState('');
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     setTranscript(newTranscript);
@@ -28,6 +31,14 @@ const Index = () => {
     setIsRecording(recordingState);
   };
 
+  // Receive Deepgram diarized transcript, map speakers to roles, and store classified text
+  const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
+    if (!deepgramTranscript) return;
+    const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(deepgramTranscript, { 0: 'Doctor', 1: 'Patient' });
+    setClassifiedTranscript(mapped);
+    toast.success('Assigned roles: Speaker 0 → Doctor, Speaker 1 → Patient');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
@@ -38,6 +49,7 @@ const Index = () => {
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
+              onDiarizedTranscriptUpdate={handleDiarizedTranscriptUpdate}
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
             />
@@ -80,6 +92,7 @@ const Index = () => {
             <PrescriptionGenerator 
               transcript={transcript} 
               patientInfo={patientInfo} 
+              classifiedTranscript={classifiedTranscript}
             />
           </div>
         </div>

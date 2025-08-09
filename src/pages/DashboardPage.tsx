@@ -10,7 +10,7 @@ import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
-import { processCompleteAudio } from '@/utils/deepgramSpeechToText';
+import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -156,7 +156,11 @@ const DashboardPage = () => {
         
         console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
-        toast.success(`Deepgram diarized transcription complete`);
+
+        // Map Deepgram speakers to roles and set classified transcript for prescription
+        const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
+        setClassifiedTranscript(mapped);
+        toast.success('Assigned roles: Speaker 0 → Doctor, Speaker 1 → Patient');
       }
       
       setIsDiarizing(false);
