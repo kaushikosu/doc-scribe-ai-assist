@@ -19,40 +19,32 @@ export default function StatusStepsBar({ currentStep, className }: StatusStepsBa
   const activeIndex = steps.findIndex((s) => s.key === currentStep);
 
   return (
-    <div className={cn("mb-6", className)}>
-      <nav aria-label="Progress" className="rounded-xl border bg-background/90 backdrop-blur shadow-md p-3 sm:p-4">
-        <ol className="grid grid-cols-4 gap-2 sm:gap-3">
+    <div className={cn("mb-4 sm:mb-6", className)}>
+      <nav aria-label="Progress" className="rounded-xl border border-doctor-primary/20 bg-card text-card-foreground shadow-lg p-3 sm:p-4">
+        <ol className="grid grid-cols-4 gap-3">
           {steps.map((step, idx) => {
             const isDone = idx < activeIndex;
             const isActive = idx === activeIndex;
             return (
-              <li key={step.key} className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "relative flex items-center w-full",
-                    idx < steps.length - 1 && "pr-2"
-                  )}
-                >
-                  {/* Dot */}
+              <li key={step.key} className="flex items-center gap-3 min-w-0">
+                <div className={cn("relative flex items-center w-full", idx < steps.length - 1 && "pr-3") }>
                   <div
                     className={cn(
-                      "flex h-6 w-6 items-center justify-center rounded-full border text-xs font-medium",
+                      "flex h-7 w-7 items-center justify-center rounded-full border text-xs sm:text-sm font-semibold",
                       isDone && "bg-doctor-primary text-white border-doctor-primary",
                       isActive && "bg-doctor-secondary text-white border-doctor-secondary animate-pulse",
-                      !isDone && !isActive && "bg-muted text-foreground/70 border-border"
+                      !isDone && !isActive && "bg-muted text-foreground/80 border-border"
                     )}
                     aria-current={isActive ? "step" : undefined}
                   >
                     {isDone ? "✓" : idx + 1}
                   </div>
-
-                  {/* Connector */}
                   {idx < steps.length - 1 && (
-                    <div className="absolute left-7 right-0 h-1 rounded-full bg-muted">
+                    <div className="absolute left-8 right-0 h-1.5 rounded-full bg-muted/70">
                       <div
                         className={cn(
-                          "h-1 rounded-full transition-all",
-                          (isDone || isActive) ? "bg-doctor-primary" : "bg-muted"
+                          "h-1.5 rounded-full transition-all",
+                          (isDone || isActive) ? "bg-doctor-primary" : "bg-muted/70"
                         )}
                         style={{ width: isDone ? "100%" : isActive ? "50%" : "0%" }}
                       />
@@ -60,7 +52,7 @@ export default function StatusStepsBar({ currentStep, className }: StatusStepsBa
                   )}
                 </div>
                 <span className={cn(
-                  "text-xs sm:text-sm font-medium truncate",
+                  "text-[11px] sm:text-sm md:text-base font-medium truncate",
                   isActive ? "text-doctor-secondary" : isDone ? "text-doctor-primary" : "text-muted-foreground"
                 )}>
                   {step.label}

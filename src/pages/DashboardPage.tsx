@@ -169,8 +169,8 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
-        <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
+        <StatusStepsBar currentStep={progressStep} />
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
