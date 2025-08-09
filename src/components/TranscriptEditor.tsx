@@ -108,7 +108,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [transcript]);
 
-  const overlayMsg = showStopped ? "Recording stopped" : (status?.type === 'processing' ? 'Revising transcription' : null);
+  const overlayMsg = showStopped ? 'Recording stopped' : (status?.type === 'processing' && mode !== 'revised' ? 'Revising transcription' : null);
 
   return (
     <>

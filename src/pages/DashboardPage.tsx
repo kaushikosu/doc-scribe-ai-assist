@@ -119,8 +119,8 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
          setDisplayMode('revised');
-         setStatus({ type: 'updated', message: 'Transcript updated' });
-         setTimeout(() => setStatus((prev) => (prev.type === 'updated' ? { type: 'idle' } : prev)), 1200);
+         setStatus({ type: 'ready', message: 'Revised transcript ready' });
+         setTimeout(() => setStatus({ type: 'idle' }), 800);
       }
       
       setIsDiarizing(false);
@@ -157,7 +157,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   }
   
   if (!recordingState && transcript) {
-    setStatus({ type: 'processing', message: 'Revising transcription' });
+    // no status change here; processing state will be set when diarization starts
   }
 };
 
