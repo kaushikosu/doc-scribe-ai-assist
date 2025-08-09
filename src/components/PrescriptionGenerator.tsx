@@ -522,7 +522,7 @@ const handleGenerateAI = () => {
 
   return (
     <Card 
-      className={cn("border rounded-lg transition-all font-sans", isClassifying ? 'opacity-60' : '')}
+      className={cn("border rounded-lg transition-all", isClassifying ? 'opacity-60' : '')}
     >
       <CardHeader className="px-3 py-2 border-b border-doctor-primary/25 bg-doctor-primary/10 shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-3">
@@ -663,10 +663,14 @@ const handleGenerateAI = () => {
           />
         ) : (
           <div className="bg-muted p-3 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
-            {prescription || (
-              isClassifying ? 
-                "Waiting for transcript classification to complete..." : 
-                "Prescription will be generated automatically after transcript is processed..."
+            {prescription ? (
+              prescription
+            ) : (
+              <span className="font-sans">
+                {isClassifying
+                  ? "Waiting for transcript classification to complete..."
+                  : "Prescription will be generated automatically after transcript is processed..."}
+              </span>
             )}
           </div>
         )}
