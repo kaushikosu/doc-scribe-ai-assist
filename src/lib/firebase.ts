@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { toast } from "./toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Your web app's Firebase configuration
 // Replace these with your actual Firebase config values
@@ -24,6 +25,20 @@ const googleProvider = new GoogleAuthProvider();
 export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    // Link Firebase session to Supabase using the Google ID token
+    try {
+      const idToken = await result.user.getIdToken(true);
+      const { error: supabaseError } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      });
+      if (supabaseError) {
+        console.error('Supabase sign-in with ID token failed:', supabaseError);
+        toast.error('Signed in with Google, but failed to start Supabase session.');
+      }
+    } catch (linkError) {
+      console.error('Error linking Firebase to Supabase:', linkError);
+    }
     return result.user;
   } catch (error: any) {
     console.error("Error signing in with Google:", error);
@@ -53,6 +68,7 @@ export const signInWithGoogle = async () => {
 export const signOutUser = async () => {
   try {
     await signOut(auth);
+    await supabase.auth.signOut();
     toast.success("Signed out successfully");
   } catch (error) {
     console.error("Error signing out:", error);

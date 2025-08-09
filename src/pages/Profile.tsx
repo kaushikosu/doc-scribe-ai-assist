@@ -3,15 +3,71 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/componen
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/lib/toast";
 
 const Profile: React.FC = () => {
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Wire to Supabase doctor_profiles table
-    // For now, this is a placeholder action
-    alert("Profile saved. (DB wiring pending)");
-  };
 
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+
+    try {
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userRes.user) {
+        toast.error("You must be signed in to save your profile.");
+        return;
+      }
+
+      const payload: any = {
+        full_name: fd.get('full_name')?.toString() || null,
+        gender: fd.get('gender')?.toString() || null,
+        dob: fd.get('dob')?.toString() || null,
+        phone: fd.get('phone')?.toString() || null,
+        email: fd.get('email')?.toString() || null,
+        qualifications: fd.get('qualifications')?.toString() || null,
+        registration_council: fd.get('registration_council')?.toString() || null,
+        registration_number: fd.get('registration_number')?.toString() || null,
+        registration_year: fd.get('registration_year') ? Number(fd.get('registration_year')) : null,
+        speciality: fd.get('speciality')?.toString() || null,
+        facility_name: fd.get('facility_name')?.toString() || null,
+        facility_id: fd.get('facility_id')?.toString() || null,
+        address_line1: fd.get('address_line1')?.toString() || null,
+        address_line2: fd.get('address_line2')?.toString() || null,
+        district: fd.get('district')?.toString() || null,
+        state: fd.get('state')?.toString() || null,
+        pincode: fd.get('pincode')?.toString() || null,
+      };
+
+      // Check if profile exists
+      const { data: existing, error: selectErr } = await supabase
+        .from('doctor_profiles')
+        .select('id')
+        .eq('user_id', userRes.user.id)
+        .maybeSingle();
+
+      if (selectErr) throw selectErr;
+
+      if (existing?.id) {
+        const { error: updErr } = await supabase
+          .from('doctor_profiles')
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (updErr) throw updErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from('doctor_profiles')
+          .insert({ ...payload, user_id: userRes.user.id });
+        if (insErr) throw insErr;
+      }
+
+      toast.success('Profile saved');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to save profile');
+    }
+  };
   return (
     <main className="container mx-auto max-w-3xl py-6">
       <h1 className="text-2xl font-bold mb-4">Doctor Profile</h1>
@@ -24,7 +80,7 @@ const Profile: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="full_name">Full name</Label>
-                <Input id="full_name" placeholder="Dr. Jane Doe" />
+                <Input id="full_name" name="full_name" placeholder="Dr. Jane Doe" />
               </div>
               <div>
                 <Label htmlFor="gender">Gender</Label>

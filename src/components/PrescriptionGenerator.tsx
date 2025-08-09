@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { createPatientRecord } from '@/integrations/supabase/patientRecords';
 
 interface PrescriptionGeneratorProps {
   transcript: string;
@@ -39,6 +40,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [recordSaved, setRecordSaved] = useState(false);
 
   // PM-JAY format toggle and header details (persisted locally)
   const [usePmjayFormat, setUsePmjayFormat] = useState<boolean>(() => {
@@ -140,6 +142,23 @@ useEffect(() => {
     return () => clearTimeout(timeoutId);
   }
 }, [classifiedTranscript, isClassifying]);
+
+// Auto-create patient record once a prescription is available
+useEffect(() => {
+  if (prescription && !recordSaved && !isGenerating) {
+    (async () => {
+      try {
+        await createPatientRecord({
+          patient_name: patientInfo?.name || null,
+          prescription,
+          live_transcript: transcript || null,
+          updated_transcript: classifiedTranscript || null,
+        });
+        setRecordSaved(true);
+      } catch (e) {}
+    })();
+  }
+}, [prescription]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
@@ -679,7 +698,15 @@ const handleGenerateAI = () => {
         <CardFooter className="pt-0 flex gap-2">
           <Button 
             className="mt-2 flex-1 bg-doctor-primary hover:bg-doctor-primary/90"
-            onClick={() => {
+            onClick={async () => {
+              try {
+                await createPatientRecord({
+                  patient_name: patientInfo?.name || null,
+                  prescription,
+                  live_transcript: transcript || null,
+                  updated_transcript: classifiedTranscript || null,
+                });
+              } catch (e) {}
             }}
           >
             <Check className="h-4 w-4 mr-2" />
