@@ -4,7 +4,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
-import StatusStepsBar from '@/components/StatusStepsBar';
+
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -21,9 +21,6 @@ const DashboardPage = () => {
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
-  type ProgressStep = 'idle' | 'recording' | 'processing' | 'generating' | 'generated';
-  const [progressStep, setProgressStep] = useState<ProgressStep>('idle');
-  
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   
@@ -123,7 +120,6 @@ const DashboardPage = () => {
         setTranscript(mapped);
          setDisplayMode('revised');
          setStatus({ type: 'updated', message: 'Transcript updated' });
-         setProgressStep('generating');
          setTimeout(() => setStatus((prev) => (prev.type === 'updated' ? { type: 'idle' } : prev)), 1200);
       }
       
@@ -158,12 +154,10 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   if (recordingState) {
     setDisplayMode('live');
     setStatus({ type: 'recording', message: 'Recording in progress' });
-    setProgressStep('recording');
   }
   
   if (!recordingState && transcript) {
     setStatus({ type: 'processing', message: 'Updating transcript...' });
-    setProgressStep('processing');
   }
 };
 
@@ -171,9 +165,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
         <DocHeader patientInfo={patientInfo} />
-        {progressStep !== 'idle' && (
-          <StatusStepsBar currentStep={progressStep} />
-        )}
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
@@ -228,11 +219,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => setProgressStep('generating')}
-    onGenerated={() => {
-      setProgressStep('generated');
-      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }}
   />
 </div>
           </div>
