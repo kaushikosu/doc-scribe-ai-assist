@@ -172,10 +172,19 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               >
                 {transcript ? (
                   mode === 'revised' ? (
-                    <div dangerouslySetInnerHTML={{ __html: formattedTranscript }} />
-                  ) : (
-                    transcript
-                  )
+                  <div dangerouslySetInnerHTML={{ __html: formattedTranscript }} />
+                ) : (
+                  <div>
+                    {transcript
+                      .split(/\n+/)
+                      .filter((p) => p.trim().length > 0)
+                      .map((p, idx) => (
+                        <div key={idx} className="transcript-row">
+                          <span className="transcript-content">{p.trim()}</span>
+                        </div>
+                      ))}
+                  </div>
+                )
                 ) : (
                   <div className="text-muted-foreground text-center h-full flex items-center justify-center font-sans">
                     {placeholderText}
