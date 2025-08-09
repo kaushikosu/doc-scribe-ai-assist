@@ -85,7 +85,7 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: 'updated', message: 'Transcript updated' });
+    setStatus({ type: 'processing' });
     
     try {
       // Process audio with Deepgram
