@@ -656,7 +656,7 @@ const handleGenerateAI = () => {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-3">
         {isGenerating ? (
           <div className="min-h-[300px] bg-muted p-3 rounded-md flex flex-col justify-center items-center">
             <RotateCw className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
