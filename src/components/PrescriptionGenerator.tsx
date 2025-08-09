@@ -3,9 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, Check, MessageSquare, Printer, RotateCw } from 'lucide-react';
+import { Edit, Save, Check, MessageSquare, Printer, RotateCw, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
+import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface PrescriptionGeneratorProps {
   transcript: string;
@@ -31,6 +35,77 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // PM-JAY format toggle and header details (persisted locally)
+  const [usePmjayFormat, setUsePmjayFormat] = useState<boolean>(() => {
+    const v = localStorage.getItem('usePmjayFormat');
+    return v ? v === 'true' : true;
+  });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Facility details
+  const [hospitalAddress, setHospitalAddress] = useState('Medical Center Road, City - 123456');
+  const [hospitalPhone, setHospitalPhone] = useState('(555) 123-4567');
+  const [hospitalEmail, setHospitalEmail] = useState('info@citygeneralhospital.com');
+  const [empanelmentId, setEmpanelmentId] = useState('');
+  const [hfrId, setHfrId] = useState('');
+
+  // Doctor details
+  const [doctorRegId, setDoctorRegId] = useState('DCT-12345');
+  const [doctorDept, setDoctorDept] = useState('General Medicine');
+  const [doctorQualification, setDoctorQualification] = useState('MBBS, MD');
+
+  // Load header details from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('pmjayHeader');
+      if (stored) {
+        const d = JSON.parse(stored);
+        setHospitalName(d.hospitalName ?? hospitalName);
+        setHospitalAddress(d.hospitalAddress ?? hospitalAddress);
+        setHospitalPhone(d.hospitalPhone ?? hospitalPhone);
+        setHospitalEmail(d.hospitalEmail ?? hospitalEmail);
+        setEmpanelmentId(d.empanelmentId ?? empanelmentId);
+        setHfrId(d.hfrId ?? hfrId);
+        setDoctorName(d.doctorName ?? doctorName);
+        setDoctorRegId(d.doctorRegId ?? doctorRegId);
+        setDoctorDept(d.doctorDept ?? doctorDept);
+        setDoctorQualification(d.doctorQualification ?? doctorQualification);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('usePmjayFormat', String(usePmjayFormat));
+  }, [usePmjayFormat]);
+
+  const saveHeaderDetails = () => {
+    const data = {
+      hospitalName,
+      hospitalAddress,
+      hospitalPhone,
+      hospitalEmail,
+      empanelmentId,
+      hfrId,
+      doctorName,
+      doctorRegId,
+      doctorDept,
+      doctorQualification,
+    };
+    localStorage.setItem('pmjayHeader', JSON.stringify(data));
+    toast.success('Header details saved');
+    setSettingsOpen(false);
+  };
+
+  // Regenerate on format toggle if transcript exists
+  useEffect(() => {
+    if (!isClassifying && (classifiedTranscript || transcript)) {
+      const text = classifiedTranscript || transcript;
+      generatePrescription(text);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usePmjayFormat]);
+
   useEffect(() => {
     // Generate prescription when classified transcript becomes available or changes
     if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
@@ -53,56 +128,117 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
       if (!transcriptText.trim()) {
         return; // Don't generate for empty transcript
       }
-      
+
       toast.info('Generating prescription...');
-      
+
       const medications = extractMedications(transcriptText);
       const symptoms = extractSymptoms(transcriptText);
       const recommendations = extractRecommendations(transcriptText);
-      
-      if (medications.length === 0) {
-        console.log("No medications detected; generating prescription with placeholders");
-      }
-      
+
       const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric', 
-        month: 'long', 
+        year: 'numeric',
+        month: 'long',
         day: 'numeric'
       });
-      
-      const generatedPrescription = `
+
+      // Simple diagnosis derivation from symptoms with ICD-10 hints
+      const deriveDiagnosis = (syms: string[]) => {
+        const map: Record<string, { text: string; icd: string }[]> = {
+          'Chest pain': [{ text: 'Chest pain', icd: 'R07.4' }],
+          'Cough': [{ text: 'Cough', icd: 'R05' }],
+          'Fever': [{ text: 'Fever, unspecified', icd: 'R50.9' }],
+          'Shortness of breath': [{ text: 'Dyspnea', icd: 'R06.0' }],
+          'Headache': [{ text: 'Headache', icd: 'R51' }],
+          'Sore throat': [{ text: 'Acute pharyngitis, unspecified', icd: 'J02.9' }],
+          'Diarrhea': [{ text: 'Diarrhea, unspecified', icd: 'R19.7' }],
+          'Vomiting': [{ text: 'Nausea and vomiting', icd: 'R11' }],
+          'Back pain': [{ text: 'Low back pain', icd: 'M54.5' }],
+        };
+        const out: { text: string; icd: string }[] = [];
+        for (const s of syms) {
+          if (map[s]) out.push(...map[s]);
+        }
+        return out.length ? out : [{ text: 'To be coded', icd: '-' }];
+      };
+
+      const diagnosis = deriveDiagnosis(symptoms);
+
+      let generatedPrescription = '';
+
+      if (usePmjayFormat) {
+        generatedPrescription = `
+${hospitalName.toUpperCase()}
+${hospitalAddress}
+Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
+${empanelmentId ? `PM-JAY Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
+==================================================================
+PM-JAY PRESCRIPTION (ABDM aligned)
+
+Date: ${currentDate}    Time: ${patientInfo.time || ''}
+
+PATIENT DETAILS
+- Name: ${patientInfo.name || '[Patient Name]'}
+- Age/Sex: [Age]/[Sex]
+- PM-JAY Beneficiary ID: [Beneficiary ID]
+- ABHA (Health ID): [ABHA Number]
+
+CLINICAL SUMMARY
+- Presenting complaints (from patient): ${symptoms.join(', ') || 'N/A'}
+- Provisional diagnosis:${diagnosis.map(d => ` ${d.text}${d.icd && d.icd !== '-' ? ` (ICD-10: ${d.icd})` : ''}`).join('; ') || ' To be coded'}
+
+INVESTIGATIONS/PROCEDURES ADVISED
+${recommendations.length ? recommendations.map((rec, idx) => `${idx + 1}. ${rec}`).join('\n') : 'None'}
+
+MEDICATIONS (Generic preferred under PM-JAY)
+${medications.length ? medications.map((med, idx) => `${idx + 1}. ${med} | Route: [oral] | Duration: [days] | Instructions: [before/after food]`).join('\n') : 'None prescribed'}
+
+ADVICE AND FOLLOW-UP
+- Lifestyle/Non-pharmacological advice: [Advice]
+- Follow-up: ${recommendations.find(r => r.toLowerCase().includes('follow-up')) || '[Follow-up plan]'}
+
+DOCTOR DETAILS AND DIGITAL SIGNATURE
+- ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}
+- Reg./HPR ID: ${doctorRegId}
+- Department: ${doctorDept}
+This is a digitally generated prescription.
+==================================================================
+        `.trim();
+      } else {
+        // Fallback to simple template
+        generatedPrescription = `
 ${hospitalName.toUpperCase()}
 ------------------------------------------------------------------
-${hospitalName}, Medical Center Road, City - 123456
-Phone: (555) 123-4567 | Email: info@citygeneralhospital.com
+${hospitalName}, ${hospitalAddress}
+Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
 
 PRESCRIPTION
 
-Date: ${currentDate}                     Time: ${patientInfo.time || ""}
+Date: ${currentDate}                     Time: ${patientInfo.time || ''}
 
 PATIENT INFORMATION:
-Name: ${patientInfo.name || "[Patient Name]"}
+Name: ${patientInfo.name || '[Patient Name]'}
  
 CLINICAL NOTES:
-Patient presenting with: ${symptoms.join(', ') || "N/A"}
+Patient presenting with: ${symptoms.join(', ') || 'N/A'}
 
-      MEDICATIONS:
-      ${medications.length ? medications.map((med, index) => `${index + 1}. ${med}`).join('\n') : 'N/A'}
-      
-      RECOMMENDATIONS/TESTS:
-      ${recommendations.length ? recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n') : 'N/A'}
-      
-      INSTRUCTIONS:
-      - Take medications as directed
-      - Return for follow-up in 2 weeks
-      - Contact immediately if symptoms worsen
-      
-      ------------------------------------------------------------------
-      ${doctorName}
-      Registration No: DCT-12345
-      Department of General Medicine
-      `.trim();
-      
+MEDICATIONS:
+${medications.length ? medications.map((med, index) => `${index + 1}. ${med}`).join('\n') : 'N/A'}
+
+RECOMMENDATIONS/TESTS:
+${recommendations.length ? recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n') : 'N/A'}
+
+INSTRUCTIONS:
+- Take medications as directed
+- Return for follow-up in 2 weeks
+- Contact immediately if symptoms worsen
+
+------------------------------------------------------------------
+${doctorName}
+Registration No: ${doctorRegId}
+Department of ${doctorDept}
+        `.trim();
+      }
+
       setPrescription(generatedPrescription);
       setEditablePrescription(generatedPrescription);
       toast.success('Prescription generated');
@@ -366,50 +502,118 @@ Patient presenting with: ${symptoms.join(', ') || "N/A"}
       className={`border-2 border-doctor-accent/30 transition-all ${isClassifying ? 'opacity-60' : ''}`}
     >
       <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <CardTitle className="text-xl text-doctor-accent">Prescription</CardTitle>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleGenerateAI}
-              disabled={isPrescriptionDisabled}
-              className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
-            >
-              {isGenerating ? (
-                <>
-                  <RotateCw className="h-4 w-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Generate
-                </>
-              )}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={isEditing ? handleSave : handleEdit}
-              disabled={!prescription.length || isPrescriptionDisabled}
-              className={cn(
-                "border-doctor-accent text-doctor-accent",
-                isEditing ? "hover:bg-doctor-accent hover:text-white" : "hover:bg-doctor-accent/10"
-              )}
-            >
-              {isEditing ? (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save
-                </>
-              ) : (
-                <>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </>
-              )}
-            </Button>
+
+          <div className="flex items-center gap-3 ml-auto">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="pmjay-format" className="text-sm text-muted-foreground">PM-JAY format</Label>
+              <Switch id="pmjay-format" checked={usePmjayFormat} onCheckedChange={setUsePmjayFormat} />
+            </div>
+
+            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Header
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[640px]">
+                <DialogHeader>
+                  <DialogTitle>PM-JAY Header Details</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Hospital Name</Label>
+                    <Input value={hospitalName} onChange={(e) => setHospitalName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Hospital Address</Label>
+                    <Input value={hospitalAddress} onChange={(e) => setHospitalAddress(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Phone</Label>
+                    <Input value={hospitalPhone} onChange={(e) => setHospitalPhone(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input value={hospitalEmail} onChange={(e) => setHospitalEmail(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>PM-JAY Empanelment ID</Label>
+                    <Input value={empanelmentId} onChange={(e) => setEmpanelmentId(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>HFR ID</Label>
+                    <Input value={hfrId} onChange={(e) => setHfrId(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Doctor Name</Label>
+                    <Input value={doctorName} onChange={(e) => setDoctorName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Doctor Reg./HPR ID</Label>
+                    <Input value={doctorRegId} onChange={(e) => setDoctorRegId(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Department</Label>
+                    <Input value={doctorDept} onChange={(e) => setDoctorDept(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Qualification</Label>
+                    <Input value={doctorQualification} onChange={(e) => setDoctorQualification(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+                  <Button className="bg-doctor-accent hover:bg-doctor-accent/90" onClick={saveHeaderDetails}>Save</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleGenerateAI}
+                disabled={isPrescriptionDisabled}
+                className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
+              >
+                {isGenerating ? (
+                  <>
+                    <RotateCw className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Generate
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={isEditing ? handleSave : handleEdit}
+                disabled={!prescription.length || isPrescriptionDisabled}
+                className={cn(
+                  "border-doctor-accent text-doctor-accent",
+                  isEditing ? "hover:bg-doctor-accent hover:text-white" : "hover:bg-doctor-accent/10"
+                )}
+              >
+                {isEditing ? (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
