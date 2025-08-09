@@ -58,6 +58,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
       
       const medications = extractMedications(transcriptText);
       const symptoms = extractSymptoms(transcriptText);
+      const recommendations = extractRecommendations(transcriptText);
       
       if (medications.length === 0) {
         console.log("No medications detected; generating prescription with placeholders");
@@ -85,18 +86,21 @@ Name: ${patientInfo.name || "[Patient Name]"}
 CLINICAL NOTES:
 Patient presenting with: ${symptoms.join(', ') || "N/A"}
 
-MEDICATIONS:
-${medications.map((med, index) => `${index + 1}. ${med}`).join('\n')}
-
-INSTRUCTIONS:
-- Take medications as directed
-- Return for follow-up in 2 weeks
-- Contact immediately if symptoms worsen
-
-------------------------------------------------------------------
-${doctorName}
-Registration No: DCT-12345
-Department of General Medicine
+      MEDICATIONS:
+      ${medications.length ? medications.map((med, index) => `${index + 1}. ${med}`).join('\n') : 'N/A'}
+      
+      RECOMMENDATIONS/TESTS:
+      ${recommendations.length ? recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n') : 'N/A'}
+      
+      INSTRUCTIONS:
+      - Take medications as directed
+      - Return for follow-up in 2 weeks
+      - Contact immediately if symptoms worsen
+      
+      ------------------------------------------------------------------
+      ${doctorName}
+      Registration No: DCT-12345
+      Department of General Medicine
       `.trim();
       
       setPrescription(generatedPrescription);
@@ -204,47 +208,92 @@ Department of General Medicine
 
   const extractSymptoms = (text: string): string[] => {
     const symptoms: Set<string> = new Set();
-    
-    // Look for symptoms in patient speech
-    const patientLines = text.split('\n')
-      .filter(line => line.trim().startsWith('[Patient]:'));
-    
+    // Only consider patient lines to avoid false positives from doctor questions
+    const patientLines = text.split('\n').filter(line => line.trim().startsWith('[Patient]:'));
+
+    // More specific symptom list (avoid generic "pain" to reduce noise)
     const commonSymptoms = [
-      'fever', 'headache', 'pain', 'cough', 'cold', 
-      'nausea', 'dizziness', 'fatigue', 'weakness', 'sore throat',
-      'stomach ache', 'vomiting', 'diarrhea', 'chest pain', 'back pain',
-      'shortness of breath', 'difficulty breathing', 'rash', 'itching'
+      'fever', 'headache', 'cough', 'cold', 'nausea', 'dizziness', 'fatigue',
+      'weakness', 'sore throat', 'stomach ache', 'vomiting', 'diarrhea',
+      'chest pain', 'back pain', 'shortness of breath', 'difficulty breathing',
+      'rash', 'itching'
     ];
-    
-    // Look for mentions of symptoms in patient lines
-    for (const line of patientLines) {
+
+    for (const rawLine of patientLines) {
+      const line = rawLine.replace(/^\s*\[Patient\]:\s*/i, '');
       const lineLower = line.toLowerCase();
-      
-      // Check for symptom patterns like "I have a headache" or "My head hurts"
+
+      // Chest pain variants
+      if (/(chest\s*(pain|discomfort|tightness))|((pain|discomfort|tightness)\s*(in|around)\s*(my\s*)?chest)/i.test(line)) {
+        symptoms.add('Chest pain');
+      }
+
+      // Generic body part pain e.g., "my lower back hurts"
+      const bodyPain = line.match(/(?:my|the)\s+([a-z ]+?)\s+(?:hurts|aches|is\s+(?:painful|sore)|pain)/i);
+      if (bodyPain) {
+        const part = bodyPain[1].trim();
+        const titled = part.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        symptoms.add(`${titled} pain`);
+      }
+
+      // Direct mentions while handling negations like "no fever/cough"
       for (const symptom of commonSymptoms) {
-        if (lineLower.includes(symptom)) {
-          symptoms.add(symptom.charAt(0).toUpperCase() + symptom.slice(1));
+        const symPattern = symptom.replace(/\s+/g, '\\s+');
+        const negRegex = new RegExp(`\\b(no|not|don't|do not|without|hasn't|haven't|none)\\b[^.]*\\b(${symPattern})\\b`, 'i');
+        const posRegex = new RegExp(`\\b(${symPattern})\\b`, 'i');
+        if (negRegex.test(lineLower)) continue; // skip negated mentions
+        if (posRegex.test(lineLower)) {
+          symptoms.add(symptom
+            .split(' ')
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+          );
         }
       }
-      
-      // Check for pain patterns like "my stomach hurts" or "pain in my back"
-      const painMatches = line.match(/my (\w+) (hurts|aches|is painful|is sore)/i);
-      if (painMatches) {
-        const bodyPart = painMatches[1];
-        symptoms.add(`${bodyPart.charAt(0).toUpperCase() + bodyPart.slice(1)} pain`);
-      }
     }
-    
-    // If no symptoms found through patient lines, check entire transcript
-    if (symptoms.size === 0) {
-      for (const symptom of commonSymptoms) {
-        if (text.toLowerCase().includes(symptom)) {
-          symptoms.add(symptom.charAt(0).toUpperCase() + symptom.slice(1));
-        }
-      }
-    }
-    
+
     return Array.from(symptoms);
+  };
+
+  const extractRecommendations = (text: string): string[] => {
+    const recs: Set<string> = new Set();
+    const doctorLines = text.split('\n').filter(line => line.trim().startsWith('[Doctor]:'));
+
+    const tests = [
+      'ECG', 'EKG', 'ECHO', 'stress test', 'treadmill test', 'X-ray', 'chest X-ray',
+      'CT scan', 'MRI', 'ultrasound', 'USG', 'blood test', 'CBC', 'lipid profile',
+      'LFT', 'KFT', 'kidney function test', 'liver function test', 'thyroid', 'TSH',
+      'T3', 'T4', 'glucose', 'blood sugar', 'CRP', 'D-dimer', 'troponin'
+    ];
+
+    for (const rawLine of doctorLines) {
+      const line = rawLine.replace(/^\s*\[Doctor\]:\s*/i, '');
+      const lower = line.toLowerCase();
+
+      // Detect tests/investigations mentioned with typical action verbs
+      const actionRegex = /(order|recommend|suggest|advise|get|schedule|arrange|do|perform|request|take)/i;
+      for (const t of tests) {
+        if (lower.includes(t.toLowerCase())) {
+          // Add the test name in its canonical form
+          recs.add(t);
+        }
+      }
+
+      // Follow-up timing
+      const fu = line.match(/follow[- ]?up[^.]*?(?:in|after)\s+(\d+)\s+(days?|weeks?|months?)/i);
+      if (fu) {
+        recs.add(`Follow-up in ${fu[1]} ${fu[2]}`);
+      }
+
+      // Referral detection
+      const refer = line.match(/refer(?:\s+you)?\s+to\s+(?:the\s+)?([a-z ]+?)(?:\s+department|\s+clinic)?\b/i);
+      if (refer) {
+        const dept = refer[1].trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        recs.add(`Referral to ${dept}`);
+      }
+    }
+
+    return Array.from(recs);
   };
 
   const handleEdit = () => {
