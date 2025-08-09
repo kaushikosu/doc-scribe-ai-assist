@@ -4,10 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Save, Copy } from 'lucide-react';
+import { Edit, Save, Copy, MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-
-
 
 interface TranscriptEditorProps {
   transcript: string;
@@ -125,32 +124,29 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             )}
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              aria-label="Copy transcript"
-              title="Copy transcript"
-              onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}
-              disabled={!transcript.length}
-              className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="default"
-              size="sm"
-              aria-label={isEditing ? "Save transcript" : "Edit transcript"}
-              title={isEditing ? "Save transcript" : "Edit transcript"}
-              onClick={isEditing ? handleSave : handleEdit}
-              disabled={!transcript.length}
-              className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isEditing ? (
-                <Save className="h-4 w-4" />
-              ) : (
-                <Edit className="h-4 w-4" />
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Transcript actions"
+                  title="Transcript actions"
+                  className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!transcript.length}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={isEditing ? handleSave : handleEdit} disabled={!transcript.length}>
+                  {isEditing ? 'Save transcript' : 'Edit transcript'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')} disabled={!transcript.length}>
+                  Copy transcript
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent className="p-3">
