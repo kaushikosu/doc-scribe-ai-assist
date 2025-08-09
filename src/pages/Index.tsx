@@ -54,6 +54,7 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
+        <StatusBanner status={status} />
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
@@ -107,9 +108,11 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
     transcript={transcript} 
     patientInfo={patientInfo} 
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => toast.info('Prescription is being generated...')}
+    onGeneratingStart={() => setStatus({ type: 'generating', message: 'Generating prescription...' })}
     onGenerated={() => {
+      setStatus({ type: 'ready', message: 'Prescription ready' });
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => setStatus(prev => (prev.type === 'ready' ? { type: 'idle' } : prev)), 1500);
     }}
   />
 </div>
