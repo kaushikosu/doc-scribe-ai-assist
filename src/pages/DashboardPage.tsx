@@ -147,7 +147,7 @@ const DashboardPage = () => {
     setPatientInfo(newPatientInfo);
   };
   
-const handleRecordingStateChange = (recordingState: boolean) => {
+const handleRecordingStateChange = useCallback((recordingState: boolean) => {
   console.log("Recording state changed to:", recordingState);
   setIsRecording(recordingState);
   
@@ -160,7 +160,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     setDisplayMode('revised');
     setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
-};
+}, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
