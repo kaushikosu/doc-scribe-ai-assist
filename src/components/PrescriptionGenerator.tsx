@@ -60,8 +60,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
       const symptoms = extractSymptoms(transcriptText);
       
       if (medications.length === 0) {
-        console.log("No medications found in transcript, skipping prescription generation");
-        return;
+        console.log("No medications detected; generating prescription with placeholders");
       }
       
       const currentDate = new Date().toLocaleDateString('en-US', {
@@ -166,6 +165,22 @@ Department of General Medicine
           }
           
           medications.add(`${med} - ${dosageInfo.trim()}`);
+        }
+      }
+    }
+    
+    // Additional pattern-based detection: capture generic "Name 500 mg ..." forms
+    if (medications.size === 0) {
+      for (const line of doctorLines) {
+        const pattern = /([A-Z][a-zA-Z0-9\-\/]{2,})\s+(\d+)\s*(mg|mcg|g|ml)\b/gi;
+        let match;
+        while ((match = pattern.exec(line)) !== null) {
+          const medName = match[1];
+          const dose = `${match[2]} ${match[3]}`;
+          // Frequency and schedule detection
+          const freqMatch = line.match(/\b(OD|BD|TID|QID|HS|PRN|STAT|once daily|twice daily|thrice daily|three times daily|four times daily|1-0-1|1-1-1|1-0-0|0-1-0|0-0-1)\b/i);
+          const freq = freqMatch ? freqMatch[0] : '';
+          medications.add(`${medName} - ${dose}${freq ? ' ' + freq : ''}`);
         }
       }
     }
@@ -294,7 +309,8 @@ Department of General Medicine
   };
   
   // Determine if prescription actions should be disabled
-  const isPrescriptionDisabled = isClassifying || isGenerating || !classifiedTranscript;
+  const hasAnyTranscript = Boolean(classifiedTranscript || transcript);
+  const isPrescriptionDisabled = isClassifying || isGenerating || !hasAnyTranscript;
 
   return (
     <Card 
