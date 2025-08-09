@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Globe, RotateCw } from 'lucide-react';
+import { Mic, MicOff, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/lib/toast';
 import useDualTranscription from '@/hooks/useDualTranscription';
@@ -26,7 +26,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [diarizedTranscript, setDiarizedTranscript] = useState('');
   const [isNewSession, setIsNewSession] = useState(true);
   const [pauseThreshold, setPauseThreshold] = useState(1500); // 1.5 seconds
-  const [showPatientIdentified, setShowPatientIdentified] = useState(false);
+  
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -34,9 +34,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Refs
   const currentTranscriptRef = useRef<string>('');
   const diarizedMessagesRef = useRef<string[]>([]);
-  const isFirstInteractionRef = useRef<boolean>(true);
-  const patientIdentifiedRef = useRef<boolean>(false);
-  const patientNameScanAttempts = useRef<number>(0);
   const transcriptUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Handle silence - add a line break to separate utterances
@@ -150,10 +147,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         return newRawTranscript;
       });
       
-      // Check for patient identification in initial conversations
-      if (isNewSession && !patientIdentifiedRef.current) {
-        attemptPatientIdentification(result);
-      }
     } else {
       // For non-final results, show them as temporary text in real-time
       const updatedTranscript = currentTranscriptRef.current + 
@@ -165,77 +158,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   }
   
-  // Try to extract patient name from greeting patterns
-  const extractPatientName = (text: string): string | null => {
-    return null;
-  };
-  
-  // Multiple attempts to identify patient name
-  function attemptPatientIdentification(text: string) {
-    console.log("Checking for patient name in:", text);
-    
-    // Try to extract patient name
-    patientNameScanAttempts.current += 1;
-    const extractedName = extractPatientName(text);
-    
-    if (extractedName) {
-      const currentTime = new Date().toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-      
-      const identifiedPatient = {
-        name: extractedName,
-        time: currentTime
-      };
-      
-      console.log("Patient identified through extraction:", identifiedPatient);
-      onPatientInfoUpdate(identifiedPatient);
-      setIsNewSession(false);
-      patientIdentifiedRef.current = true;
-      
-      // Show success notification using setTimeout to avoid render-time state changes
-      setShowPatientIdentified(true);
-      setTimeout(() => {
-        setShowPatientIdentified(false);
-      }, 3000);
-      
-      showSuccessToast(`Patient identified: ${extractedName}`);
-      isFirstInteractionRef.current = false;
-      return;
-    }
-    
-    // After several attempts, try capitalized words
-    if (patientNameScanAttempts.current > 3) {
-      const capitalizedWords = text.match(/\b[A-Z][a-z]{2,}\b/g);
-      if (capitalizedWords && capitalizedWords.length > 0) {
-        const possibleName = capitalizedWords[0];
-        const currentTime = new Date().toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-        
-        const suggestedPatient = {
-          name: possibleName,
-          time: currentTime
-        };
-        
-        console.log("Suggested patient from capitalized words:", suggestedPatient);
-        onPatientInfoUpdate(suggestedPatient);
-        setIsNewSession(false);
-        patientIdentifiedRef.current = true;
-        
-        // Show notification
-        setShowPatientIdentified(true);
-        setTimeout(() => {
-          setShowPatientIdentified(false);
-        }, 3000);
-        
-        showSuccessToast(`Patient identified: ${possibleName}`);
-        isFirstInteractionRef.current = false;
-      }
-    }
-  }
 
   // Start a new session
   const startNewSession = async () => {
@@ -268,13 +190,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     if (onDiarizedTranscriptUpdate) onDiarizedTranscriptUpdate('');
     
     setIsNewSession(true);
-    isFirstInteractionRef.current = true;
-    patientIdentifiedRef.current = false;
-    patientNameScanAttempts.current = 0;
     currentTranscriptRef.current = '';
-    setShowPatientIdentified(false);
-    
-    showSuccessToast('Ready for new patient');
+    showSuccessToast('Ready for new session');
   };
 
   // Handle stopping recording
@@ -365,35 +282,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     }
   };
 
-  // Get connection status display info
-  const getConnectionStatusInfo = () => {
-    if (processingTranscript) {
-      return {
-        color: "bg-blue-500",
-        text: "Processing",
-        subtext: "Processing transcript with Deepgram...",
-        icon: <RotateCw className="h-4 w-4 animate-spin" />
-      };
-    }
-
-    if (isRecording) {
-      return {
-        color: "bg-green-500",
-        text: "Recording",
-        subtext: `Using Web Speech (${detectedLanguage})`,
-        icon: <Globe className="h-4 w-4" />
-      };
-    } else {
-      return {
-        color: "bg-slate-400",
-        text: "Ready",
-        subtext: "Press record to start",
-        icon: <Globe className="h-4 w-4" />
-      };
-    }
-  };
-
-  const statusInfo = getConnectionStatusInfo();
 
   // Component UI with improved feedback on connection status
   return (
@@ -435,9 +323,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="h-3 w-3 rounded-full animate-pulse bg-destructive"></span>
                     <span className="font-medium">Recording</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Using Web Speech ({detectedLanguage})
-                  </div>
                 </div>
               ) : processingTranscript ? (
                 <div className="flex flex-col items-center gap-2">
@@ -451,10 +336,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 </div>
               ) : (
                 <span className="text-muted-foreground">
-                  {isNewSession ? 
-                    "Start with 'Hello [patient name]' or 'Hi [patient name]'" : 
-                    "Press to resume recording"
-                  }
+                  Press record to start a new session
                 </span>
               )}
             </div>
