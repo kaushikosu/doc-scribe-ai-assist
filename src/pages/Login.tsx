@@ -9,6 +9,7 @@ import { Stethoscope, ArrowLeft, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
+import { signInWithGoogleAndLinkSupabase } from '@/lib/firebase';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -30,12 +31,11 @@ const Login = () => {
   };
   const handleGoogleSignIn = async () => {
     try {
-      const redirectTo = `${window.location.origin}/`;
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-      if (error) throw error;
-      toast({ title: 'Redirecting to Google', description: 'Complete sign-in and return here.' });
+      await signInWithGoogleAndLinkSupabase();
+      toast({ title: 'Login successful', description: 'Welcome back to DocScribe!' });
+      navigate('/app');
     } catch (error: any) {
-      toast({ title: 'Login failed', description: error.message || 'Could not sign in with Google.', variant: 'destructive' });
+      toast({ title: 'Login failed', description: error?.message || 'Could not sign in with Google.', variant: 'destructive' });
       console.error(error);
     }
   };

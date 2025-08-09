@@ -78,7 +78,7 @@ const Profile: React.FC = () => {
         toast("Not signed in", { description: "Sign in with Supabase to manage your profile." });
         return;
       }
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("doctor_profiles")
         .select("*")
         .eq("user_id", userId)
@@ -123,7 +123,7 @@ const Profile: React.FC = () => {
       ...values,
       registration_year: values.registration_year ? parseInt(values.registration_year, 10) : null
     };
-    const { error } = await supabase.from("doctor_profiles").upsert(payload, { onConflict: "user_id" });
+    const { error } = await (supabase as any).from("doctor_profiles").upsert(payload, { onConflict: "user_id" });
     if (error) {
       console.error(error);
       toast("Save failed", { description: error.message });

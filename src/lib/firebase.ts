@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { toast } from "./toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Your web app's Firebase configuration
 // Replace these with your actual Firebase config values
@@ -49,10 +50,28 @@ export const signInWithGoogle = async () => {
   }
 };
 
+// Link Firebase Google sign-in to Supabase session
+export const signInWithGoogleAndLinkSupabase = async () => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const token = await result.user.getIdToken();
+    await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token
+    });
+    return result.user;
+  } catch (error: any) {
+    console.error('Error linking Firebase to Supabase:', error);
+    toast.error('Google sign-in failed. Please try again.');
+    throw error;
+  }
+};
+
 // Function to handle sign out
 export const signOutUser = async () => {
   try {
     await signOut(auth);
+    await supabase.auth.signOut();
     toast.success("Signed out successfully");
   } catch (error) {
     console.error("Error signing out:", error);

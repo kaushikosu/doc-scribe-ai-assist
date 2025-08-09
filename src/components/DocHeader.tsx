@@ -12,6 +12,7 @@ import { toast } from '@/lib/toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { signOutUser } from '@/lib/firebase';
 interface DocHeaderProps {
   patientInfo: {
     name: string;
@@ -26,8 +27,9 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   
   const handleLogout = async () => {
     try {
+      await signOutUser();
       await supabase.auth.signOut();
-      toast.success("Signed out successfully");
+      // Success toast handled in signOutUser
     } catch (error) {
       console.error("Error in handleLogout:", error);
       toast.error("Failed to sign out");
