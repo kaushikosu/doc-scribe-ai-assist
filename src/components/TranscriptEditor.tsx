@@ -123,31 +123,32 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               </Badge>
             )}
           </div>
-          <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Transcript actions"
-                  title="Transcript actions"
-                  className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!transcript.length}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={isEditing ? handleSave : handleEdit} disabled={!transcript.length}>
-                  {isEditing ? 'Save transcript' : 'Edit transcript'}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')} disabled={!transcript.length}>
-                  Copy transcript
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {transcript.length > 0 && (
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="Transcript actions"
+                    title="Transcript actions"
+                    className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={isEditing ? handleSave : handleEdit}>
+                    {isEditing ? 'Save transcript' : 'Edit transcript'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}>
+                    Copy transcript
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-3">
           {isEditing ? (

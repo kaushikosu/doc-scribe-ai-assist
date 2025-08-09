@@ -606,21 +606,22 @@ const handleGenerateAI = () => {
             </Dialog>
 
             <div className="flex gap-2">
-              <Button 
-                variant="default" 
-                size="sm"
-                aria-label={isEditing ? "Save prescription" : "Edit prescription"}
-                title={isEditing ? "Save prescription" : "Edit prescription"}
-                onClick={isEditing ? handleSave : handleEdit}
-                disabled={!prescription.length || isPrescriptionDisabled}
-                className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isEditing ? (
-                  <Save className="h-4 w-4" />
-                ) : (
-                  <Edit className="h-4 w-4" />
-                )}
-              </Button>
+              {(!isPrescriptionDisabled && prescription.length > 0) && (
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  aria-label={isEditing ? "Save prescription" : "Edit prescription"}
+                  title={isEditing ? "Save prescription" : "Edit prescription"}
+                  onClick={isEditing ? handleSave : handleEdit}
+                  className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90"
+                >
+                  {isEditing ? (
+                    <Save className="h-4 w-4" />
+                  ) : (
+                    <Edit className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
