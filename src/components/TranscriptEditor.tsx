@@ -98,7 +98,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [transcript]);
 
-  const overlayMsg = (status?.type === 'processing' && mode !== 'revised') ? 'Revising transcription' : null;
+  const overlayMsg = (status?.type === 'processing' && mode === 'revised') ? 'Revising transcription' : null;
 
   const placeholderText = isRecording
     ? 'Capturing live transcript...'
