@@ -11,8 +11,8 @@ import StatusStepsBar from '@/components/StatusStepsBar';
 const Index = () => {
   const [transcript, setTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
-    name: '',
-    time: ''
+    name: 'John Doe',
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
 const [isRecording, setIsRecording] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');

@@ -331,7 +331,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Processing</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Processing transcript with Deepgram...
+                    Processing for classification...
                   </div>
                 </div>
               ) : (
@@ -339,27 +339,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                   Press record to start a new session
                 </span>
               )}
-            </div>
-            
-            {/* Patient identified animation - only shows temporarily */}
-            {showPatientIdentified && (
-              <div className="animate-fade-in text-sm font-medium text-doctor-accent">
-                Patient identified!
-              </div>
-            )}
-            
-            {/* Connection status indicator */}
-            <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-gray-50">
-              <div className={cn("h-3 w-3 rounded-full", statusInfo.color)}></div>
-              <div className="flex flex-col">
-                <div className="text-sm font-medium flex items-center gap-1">
-                  {statusInfo.icon}
-                  <span>{statusInfo.text}</span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {statusInfo.subtext}
-                </div>
-              </div>
             </div>
           </div>
         </CardContent>
