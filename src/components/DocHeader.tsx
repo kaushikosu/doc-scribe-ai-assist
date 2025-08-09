@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
 import { useAuth } from '@/hooks/useAuth';
-import { signOutUser } from '@/lib/firebase';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 interface DocHeaderProps {
   patientInfo: {
@@ -26,17 +26,18 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   
   const handleLogout = async () => {
     try {
-      await signOutUser();
+      await supabase.auth.signOut();
+      toast.success("Signed out successfully");
     } catch (error) {
       console.error("Error in handleLogout:", error);
+      toast.error("Failed to sign out");
     }
   };
-
   // Get user display information with fallbacks
-  const userName = currentUser?.displayName || "Doctor";
+  const userName = (currentUser?.user_metadata?.full_name as string) || (currentUser?.email?.split('@')[0] ?? "Doctor");
   const userEmail = currentUser?.email || "";
   const userInitials = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase() : "DR";
-  const photoURL = currentUser?.photoURL || "";
+  const photoURL = (currentUser?.user_metadata?.avatar_url as string) || "";
 
   return (
     <div className="flex flex-col gap-2 mb-6">

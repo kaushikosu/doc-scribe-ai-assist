@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Stethoscope, ArrowLeft, CheckCircle2, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { signInWithGoogle } from '@/lib/firebase';
+import { supabase } from '@/integrations/supabase/client';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -20,32 +20,34 @@ const Signup = () => {
   
   const [plan, setPlan] = useState(initialPlan);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // In a real app, we would register the user here
-    toast({
-      title: "Account created!",
-      description: "Welcome to DocScribe. Your free trial has been activated.",
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const full_name = String(formData.get('name') || '');
+    const email = String(formData.get('email') || '');
+    const password = String(formData.get('password') || '');
+    const redirectUrl = `${window.location.origin}/`;
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectUrl, data: { full_name } }
     });
-    navigate('/app');
+    if (error) {
+      toast({ title: 'Sign up failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Check your email', description: 'Confirm your email to complete sign up.' });
+    navigate('/login');
   };
-
   const handleGoogleSignUp = async () => {
     try {
-      const user = await signInWithGoogle();
-      
-      toast({
-        title: "Account created with Google!",
-        description: `Welcome to DocScribe, ${user.displayName || 'user'}! Your free trial has been activated.`,
-      });
-      
-      navigate('/app');
-    } catch (error) {
-      toast({
-        title: "Sign up failed",
-        description: "Could not sign up with Google. Please try again.",
-        variant: "destructive",
-      });
+      const redirectTo = `${window.location.origin}/`;
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) throw error;
+      toast({ title: 'Redirecting to Google', description: 'Complete sign-up and return here.' });
+    } catch (error: any) {
+      toast({ title: 'Sign up failed', description: error.message || 'Could not sign up with Google.', variant: 'destructive' });
       console.error(error);
     }
   };
@@ -102,6 +104,7 @@ const Signup = () => {
               <Label htmlFor="name">Full Name</Label>
               <Input 
                 id="name" 
+                name="name"
                 type="text" 
                 placeholder="Dr. John Smith" 
                 required 
@@ -112,6 +115,7 @@ const Signup = () => {
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
+                name="email"
                 type="email" 
                 placeholder="doctor@example.com" 
                 required 

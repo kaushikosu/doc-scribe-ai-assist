@@ -8,39 +8,34 @@ import { Card } from '@/components/ui/card';
 import { Stethoscope, ArrowLeft, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { signInWithGoogle } from '@/lib/firebase';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // In a real app, we would authenticate the user here
-    // For now, we'll just navigate to the main app
-    toast({
-      title: "Login successful",
-      description: "Welcome back to DocScribe!",
-    });
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const email = String(formData.get('email') || '');
+    const password = String(formData.get('password') || '');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Login successful', description: 'Welcome back to DocScribe!' });
     navigate('/app');
   };
-
   const handleGoogleSignIn = async () => {
     try {
-      const user = await signInWithGoogle();
-      
-      toast({
-        title: "Google login successful",
-        description: `Welcome to DocScribe, ${user.displayName || 'user'}!`,
-      });
-      
-      navigate('/app');
-    } catch (error) {
-      toast({
-        title: "Login failed",
-        description: "Could not sign in with Google. Please try again.",
-        variant: "destructive",
-      });
+      const redirectTo = `${window.location.origin}/`;
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) throw error;
+      toast({ title: 'Redirecting to Google', description: 'Complete sign-in and return here.' });
+    } catch (error: any) {
+      toast({ title: 'Login failed', description: error.message || 'Could not sign in with Google.', variant: 'destructive' });
       console.error(error);
     }
   };
@@ -97,6 +92,7 @@ const Login = () => {
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
+                name="email"
                 type="email" 
                 placeholder="doctor@example.com" 
                 required 
@@ -112,6 +108,7 @@ const Login = () => {
               </div>
               <Input 
                 id="password" 
+                name="password"
                 type="password" 
                 required 
               />
