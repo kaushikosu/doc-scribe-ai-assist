@@ -54,6 +54,11 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [doctorDept, setDoctorDept] = useState('General Medicine');
   const [doctorQualification, setDoctorQualification] = useState('MBBS, MD');
 
+  // Patient identifiers (per visit)
+  const [patientBeneficiaryId, setPatientBeneficiaryId] = useState('');
+  const [patientAbha, setPatientAbha] = useState('');
+  const [patientAadhaar, setPatientAadhaar] = useState('');
+
   // Load header details from localStorage
   useEffect(() => {
     try {
@@ -70,6 +75,10 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
         setDoctorRegId(d.doctorRegId ?? doctorRegId);
         setDoctorDept(d.doctorDept ?? doctorDept);
         setDoctorQualification(d.doctorQualification ?? doctorQualification);
+        // Patient IDs (if previously entered)
+        setPatientBeneficiaryId(d.patientBeneficiaryId ?? '');
+        setPatientAbha(d.patientAbha ?? '');
+        setPatientAadhaar(d.patientAadhaar ?? '');
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,6 +100,10 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
       doctorRegId,
       doctorDept,
       doctorQualification,
+      // Patient IDs
+      patientBeneficiaryId,
+      patientAbha,
+      patientAadhaar,
     };
     localStorage.setItem('pmjayHeader', JSON.stringify(data));
     toast.success('Header details saved');
@@ -179,8 +192,9 @@ Date: ${currentDate}    Time: ${patientInfo.time || ''}
 PATIENT DETAILS
 - Name: ${patientInfo.name || '[Patient Name]'}
 - Age/Sex: [Age]/[Sex]
-- PM-JAY Beneficiary ID: [Beneficiary ID]
-- ABHA (Health ID): [ABHA Number]
+- PM-JAY Beneficiary ID: ${patientBeneficiaryId || '[Beneficiary ID]'}
+- ABHA (Health ID): ${patientAbha || '[ABHA Number]'}
+- Aadhaar: ${patientAadhaar || '[Aadhaar Number]'}
 
 CLINICAL SUMMARY
 - Presenting complaints (from patient): ${symptoms.join(', ') || 'N/A'}
@@ -446,6 +460,10 @@ Department of ${doctorDept}
     setEditablePrescription(e.target.value);
   };
 
+  const handleFetchPatientDetails = () => {
+    toast.info('To fetch patient details from IDs, please connect Supabase first.');
+  };
+
   const handleGenerateAI = () => {
     if (classifiedTranscript) {
       setIsGenerating(true);
@@ -563,9 +581,26 @@ Department of ${doctorDept}
                     <Label>Qualification</Label>
                     <Input value={doctorQualification} onChange={(e) => setDoctorQualification(e.target.value)} />
                   </div>
+
+                  <div className="sm:col-span-2 mt-2">
+                    <Label className="text-muted-foreground">Patient Identifiers (per visit)</Label>
+                  </div>
+                  <div>
+                    <Label>PM-JAY Beneficiary ID</Label>
+                    <Input value={patientBeneficiaryId} onChange={(e) => setPatientBeneficiaryId(e.target.value)} placeholder="e.g., PMJAY-XXXXXXXX" />
+                  </div>
+                  <div>
+                    <Label>ABHA (Health ID)</Label>
+                    <Input value={patientAbha} onChange={(e) => setPatientAbha(e.target.value)} placeholder="e.g., 14-digit ABHA" />
+                  </div>
+                  <div>
+                    <Label>Aadhaar Number</Label>
+                    <Input value={patientAadhaar} onChange={(e) => setPatientAadhaar(e.target.value)} placeholder="12-digit Aadhaar" />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={handleFetchPatientDetails}>Fetch details</Button>
                   <Button className="bg-doctor-accent hover:bg-doctor-accent/90" onClick={saveHeaderDetails}>Save</Button>
                 </DialogFooter>
               </DialogContent>
