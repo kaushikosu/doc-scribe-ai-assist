@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { Edit, Save, Copy, AlignJustify } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,12 +13,14 @@ interface TranscriptEditorProps {
   transcript: string;
   onTranscriptChange: (transcript: string) => void;
   isRecording: boolean;
+  mode?: 'live' | 'revised';
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 
   transcript, 
   onTranscriptChange,
-  isRecording
+  isRecording,
+  mode
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
@@ -97,9 +100,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     <>
       <Card className={`border-2 border-doctor-secondary/30 transition-all`}>
         <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <AlignJustify className="h-4 w-4 text-doctor-secondary" />
-            <CardTitle className="text-base text-doctor-secondary font-medium">Live Transcript</CardTitle>
+            <CardTitle className="text-base text-doctor-secondary font-medium">Transcript</CardTitle>
+            <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50">
+              {mode === 'revised' ? 'Revised' : 'Live'}
+            </Badge>
           </div>
           <div className="flex gap-1">
             <Button 

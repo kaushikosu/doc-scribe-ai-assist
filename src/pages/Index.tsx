@@ -16,8 +16,9 @@ const Index = () => {
     name: '',
     time: ''
   });
-  const [isRecording, setIsRecording] = useState(false);
-  const [classifiedTranscript, setClassifiedTranscript] = useState('');
+const [isRecording, setIsRecording] = useState(false);
+const [classifiedTranscript, setClassifiedTranscript] = useState('');
+const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     setTranscript(newTranscript);
@@ -27,15 +28,19 @@ const Index = () => {
     setPatientInfo(newPatientInfo);
   };
   
-  const handleRecordingStateChange = (recordingState: boolean) => {
-    setIsRecording(recordingState);
-  };
+const handleRecordingStateChange = (recordingState: boolean) => {
+  setIsRecording(recordingState);
+  if (recordingState) setDisplayMode('live');
+};
 
-  // Receive Deepgram diarized transcript, map speakers to roles, and store classified text
-  const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
-    if (!deepgramTranscript) return;
-    const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(deepgramTranscript, { 0: 'Doctor', 1: 'Patient' });
-  };
+// Receive Deepgram diarized transcript, map speakers to roles, and store classified text
+const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
+  if (!deepgramTranscript) return;
+  const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(deepgramTranscript, { 0: 'Doctor', 1: 'Patient' });
+  setTranscript(mapped);
+  setClassifiedTranscript(mapped);
+  setDisplayMode('revised');
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
@@ -81,11 +86,12 @@ const Index = () => {
           
           {/* Main Content Column */}
           <div className="md:col-span-8 space-y-6">
-            <TranscriptEditor 
-              transcript={transcript} 
-              onTranscriptChange={setTranscript}
-              isRecording={isRecording}
-            />
+<TranscriptEditor 
+  transcript={transcript} 
+  onTranscriptChange={setTranscript}
+  isRecording={isRecording}
+  mode={displayMode}
+/>
             
             <PrescriptionGenerator 
               transcript={transcript} 

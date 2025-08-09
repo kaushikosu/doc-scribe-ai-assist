@@ -8,7 +8,6 @@ import { Toaster } from '@/components/ui/sonner';
 
 import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 
@@ -20,6 +19,7 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   
   
   const [isDiarizing, setIsDiarizing] = useState(false);
@@ -117,6 +117,8 @@ const DashboardPage = () => {
         // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
+        setTranscript(mapped);
+        setDisplayMode('revised');
       }
       
       setIsDiarizing(false);
@@ -143,17 +145,18 @@ const DashboardPage = () => {
     setPatientInfo(newPatientInfo);
   };
   
-  const handleRecordingStateChange = (recordingState: boolean) => {
-    console.log("Recording state changed to:", recordingState);
-    setIsRecording(recordingState);
-    
-    if (recordingState) {
-    }
-    
-    if (!recordingState && transcript) {
-      toast.info('Processing transcript...');
-    }
-  };
+const handleRecordingStateChange = (recordingState: boolean) => {
+  console.log("Recording state changed to:", recordingState);
+  setIsRecording(recordingState);
+  
+  if (recordingState) {
+    setDisplayMode('live');
+  }
+  
+  if (!recordingState && transcript) {
+    toast.info('Processing transcript...');
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
@@ -200,20 +203,14 @@ const DashboardPage = () => {
           </div>
           
           <div className="md:col-span-8 space-y-6">
-            <TranscriptEditor 
-              transcript={transcript} 
-              onTranscriptChange={setTranscript}
-              isRecording={isRecording}
-            />
-            
-            <DiarizedTranscriptView 
-              diarizedData={diarizedTranscription}
-              isProcessing={isDiarizing}
-              recordingDuration={formattedDuration}
-              isRecording={isAudioRecording}
-              audioBlob={audioBlob}
-            />
-            
+<TranscriptEditor 
+  transcript={transcript} 
+  onTranscriptChange={setTranscript}
+  isRecording={isRecording}
+  mode={displayMode}
+/>
+
+
             <PrescriptionGenerator 
               transcript={transcript} 
               patientInfo={patientInfo}
