@@ -73,24 +73,24 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     
     // Process transcript to highlight speaker labels if they exist
       const processedTranscript = paragraphs.map(paragraph => {
-        const speakerMatch = paragraph.match(/^\[(Doctor|Patient|Identifying)\]:/);
+        const speakerMatch = paragraph.match(/^\s*\[(Doctor|Patient|Identifying)\]\s*:/i);
         
         if (speakerMatch) {
-          const speaker = speakerMatch[1];
-          const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
+          const speaker = (speakerMatch[1] || '').toLowerCase();
+          const content = paragraph.replace(/^\s*\[(Doctor|Patient|Identifying)\]\s*:/i, '').trim();
           
-          const rowClass = speaker === 'Doctor' ? 'text-doctor-primary' :
-                           (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
-          const labelClass = speaker === 'Doctor' ? 'text-doctor-primary' :
-                             (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
+          const rowClass = speaker === 'doctor' ? 'text-doctor-primary' :
+                           (speaker === 'patient' ? 'text-doctor-accent' : 'text-muted-foreground');
+          const labelClass = rowClass;
+          const speakerLabel = speaker.charAt(0).toUpperCase() + speaker.slice(1);
           
           return `<div class="transcript-row ${rowClass}">
-            <span class="transcript-label ${labelClass}">[${speaker}]:</span>
+            <span class="transcript-label ${labelClass}">[${speakerLabel}]:</span>
             <span class="transcript-content">${content}</span>
           </div>`;
         }
         
-        return `<div class="transcript-row"><span class="transcript-content">${paragraph}</span></div>`;
+        return `<div class=\"transcript-row\"><span class=\"transcript-content\">${paragraph.trim()}</span></div>`;
       }).join('');
     
     return processedTranscript;
