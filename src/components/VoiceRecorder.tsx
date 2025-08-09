@@ -30,6 +30,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [justStopped, setJustStopped] = useState(false);
   
   // Refs
   const currentTranscriptRef = useRef<string>('');
@@ -196,6 +197,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   // Handle stopping recording
   const handleStopRecording = async () => {
+    setJustStopped(true);
+    setTimeout(() => setJustStopped(false), 900);
     // Clear any pending transcript timeouts
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);
@@ -324,14 +327,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                     <span className="font-medium">Recording</span>
                   </div>
                 </div>
-              ) : processingTranscript ? (
+              ) : (justStopped || processingTranscript) ? (
                 <div className="flex flex-col items-center gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-blue-500 animate-pulse"></span>
-                    <span className="font-medium">Processing</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Processing for classification...
+                    <span className="h-3 w-3 rounded-full bg-doctor-secondary animate-pulse"></span>
+                    <span className="font-medium">Recording stopped</span>
                   </div>
                 </div>
               ) : (

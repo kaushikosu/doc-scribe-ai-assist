@@ -665,7 +665,7 @@ const handleGenerateAI = () => {
         {isGenerating ? (
           <div className="min-h-[300px] bg-muted p-3 rounded-md flex flex-col justify-center items-center">
             <RotateCw className="h-8 w-8 text-doctor-accent animate-spin mb-2" />
-            <p className="font-medium text-doctor-accent">Creating prescription</p>
+            <p className="font-medium text-doctor-accent">Generating prescription</p>
             <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
           </div>
         ) : isEditing ? (

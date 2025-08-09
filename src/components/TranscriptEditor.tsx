@@ -14,18 +14,22 @@ interface TranscriptEditorProps {
   onTranscriptChange: (transcript: string) => void;
   isRecording: boolean;
   mode?: 'live' | 'revised';
+  status?: { type: 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error'; message?: string };
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 
   transcript, 
   onTranscriptChange,
   isRecording,
-  mode
+  mode,
+  status
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const prevRecordingRef = useRef<boolean>(isRecording);
+  const [showStopped, setShowStopped] = useState(false);
 
   useEffect(() => {
     setEditableTranscript(transcript);
@@ -37,7 +41,16 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     }
   }, [transcript]);
   
-
+  // Show 'Recording stopped' briefly when recording ends
+  useEffect(() => {
+    if (prevRecordingRef.current && !isRecording) {
+      setShowStopped(true);
+      const t = setTimeout(() => setShowStopped(false), 900);
+      return () => clearTimeout(t);
+    }
+    prevRecordingRef.current = isRecording;
+  }, [isRecording]);
+  
   const handleEdit = () => {
     setIsEditing(true);
   };
@@ -95,6 +108,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [transcript]);
 
+  const overlayMsg = showStopped ? "Recording stopped" : (status?.type === 'processing' ? 'Revising transcription' : null);
 
   return (
     <>
@@ -157,12 +171,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             />
           ) : (
             <div 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[70vh] min-h-[120px] overflow-y-auto`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto`}
               ref={scrollAreaRef}
             >
               <div 
                 ref={contentRef} 
-                className="p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words animate-fade-in"
+                className={cn(
+                  "p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words transition-opacity duration-300 animate-fade-in",
+                  overlayMsg ? "opacity-50" : "opacity-100"
+                )}
               >
                 {transcript ? (
                   transcript
@@ -172,6 +189,14 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   </div>
                 )}
               </div>
+              {overlayMsg && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-md" aria-live="polite">
+                  {overlayMsg === 'Revising transcription' && (
+                    <span className="h-5 w-5 rounded-full border-2 border-doctor-secondary border-t-transparent animate-spin mb-2" />
+                  )}
+                  <p className="text-doctor-secondary font-medium">{overlayMsg}</p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

@@ -84,7 +84,7 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: 'processing', message: 'Updating transcript...' });
+    setStatus({ type: 'processing', message: 'Revising transcription' });
     
     try {
       // Process audio with Deepgram
@@ -157,7 +157,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   }
   
   if (!recordingState && transcript) {
-    setStatus({ type: 'processing', message: 'Updating transcript...' });
+    setStatus({ type: 'processing', message: 'Revising transcription' });
   }
 };
 
@@ -211,6 +211,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   onTranscriptChange={setTranscript}
   isRecording={isRecording}
   mode={displayMode}
+  status={status}
 />
 
 
