@@ -4,6 +4,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
+import StatusBanner from '@/components/StatusBanner';
 
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
@@ -84,7 +85,7 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: 'processing', message: 'Revising transcription' });
+    setStatus({ type: 'updated', message: 'Transcript updated' });
     
     try {
       // Process audio with Deepgram
@@ -119,8 +120,6 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
          setDisplayMode('revised');
-         setStatus({ type: 'ready', message: 'Revised transcript ready' });
-         setTimeout(() => setStatus({ type: 'idle' }), 800);
       }
       
       setIsDiarizing(false);
@@ -156,14 +155,15 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     setStatus({ type: 'recording', message: 'Recording in progress' });
   }
   
-  if (!recordingState && transcript) {
-    // no status change here; processing state will be set when diarization starts
+  if (!recordingState) {
+    setStatus({ type: 'updated', message: 'Recording stopped' });
   }
 };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
+        <StatusBanner status={status} />
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
@@ -216,6 +216,8 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}
+    onGeneratingStart={() => setStatus({ type: 'generating' })}
+    onGenerated={() => setStatus({ type: 'ready', message: 'Prescription generated' })}
   />
 </div>
           </div>
