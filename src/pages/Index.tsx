@@ -79,7 +79,7 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Press the Record button to begin a new session</span>
+                  <span>Press Record to start/stop recording for the current patient</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
@@ -92,6 +92,10 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
                   <span>A prescription will be automatically generated based on the conversation</span>
+                </li>
+                <li className="flex gap-2 items-start">
+                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">6</span>
+                  <span>Press the "New Patient" button for the next consultation</span>
                 </li>
               </ol>
             </Card>
