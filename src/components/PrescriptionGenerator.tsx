@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 interface PrescriptionGeneratorProps {
   transcript: string;
@@ -529,11 +529,6 @@ const handleGenerateAI = () => {
           <CardTitle className="text-lg font-semibold text-foreground">Prescription</CardTitle>
 
           <div className="flex items-center gap-3 ml-auto">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="pmjay-format" className="text-sm text-muted-foreground">PM-JAY format</Label>
-              <Switch id="pmjay-format" checked={usePmjayFormat} onCheckedChange={setUsePmjayFormat} />
-            </div>
-
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogContent className="sm:max-w-[640px]">
                 <DialogHeader>
@@ -608,12 +603,12 @@ const handleGenerateAI = () => {
             <div className="flex gap-2">
               {(!isPrescriptionDisabled && prescription.length > 0) && (
                 <Button 
-                  variant="default" 
+                  variant="ghost" 
                   size="sm"
                   aria-label={isEditing ? "Save prescription" : "Edit prescription"}
                   title={isEditing ? "Save prescription" : "Edit prescription"}
                   onClick={isEditing ? handleSave : handleEdit}
-                  className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                 >
                   {isEditing ? (
                     <Save className="h-4 w-4" />
@@ -625,11 +620,11 @@ const handleGenerateAI = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     aria-label="More actions"
                     title="More actions"
-                    className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
@@ -641,6 +636,13 @@ const handleGenerateAI = () => {
                   <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                     Header settings
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={usePmjayFormat}
+                    onCheckedChange={(v) => setUsePmjayFormat(Boolean(v))}
+                  >
+                    PM-JAY format
+                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
