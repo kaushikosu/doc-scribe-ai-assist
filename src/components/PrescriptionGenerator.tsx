@@ -474,7 +474,6 @@ const handleGenerateAI = () => {
   if (classifiedTranscript) {
     onGeneratingStart?.();
     setIsGenerating(true);
-    toast.success('Regenerating prescription with AI...');
     
     setTimeout(() => {
       generatePrescription(classifiedTranscript);
@@ -484,7 +483,7 @@ const handleGenerateAI = () => {
   } else if (transcript && !isClassifying) {
     onGeneratingStart?.();
     setIsGenerating(true);
-    toast.success('Regenerating prescription with AI...');
+    
     
     setTimeout(() => {
       generatePrescription(transcript);

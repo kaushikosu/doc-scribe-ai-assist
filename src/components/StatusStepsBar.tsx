@@ -33,14 +33,14 @@ export default function StatusStepsBar({ currentStep, className }: StatusStepsBa
                       "flex h-7 w-7 items-center justify-center rounded-full border text-xs sm:text-sm font-semibold",
                       isDone && "bg-doctor-primary text-white border-doctor-primary",
                       isActive && "bg-doctor-secondary text-white border-doctor-secondary animate-pulse",
-                      !isDone && !isActive && "bg-muted text-foreground/80 border-border"
+                      !isDone && !isActive && "bg-muted text-foreground border-border"
                     )}
                     aria-current={isActive ? "step" : undefined}
                   >
                     {isDone ? "✓" : idx + 1}
                   </div>
                   {idx < steps.length - 1 && (
-                    <div className="absolute left-8 right-0 h-1.5 rounded-full bg-muted/70">
+                    <div className="absolute left-8 right-0 h-1.5 rounded-full bg-border">
                       <div
                         className={cn(
                           "h-1.5 rounded-full transition-all",
@@ -53,7 +53,7 @@ export default function StatusStepsBar({ currentStep, className }: StatusStepsBa
                 </div>
                 <span className={cn(
                   "text-[11px] sm:text-sm md:text-base font-medium truncate",
-                  isActive ? "text-doctor-secondary" : isDone ? "text-doctor-primary" : "text-muted-foreground"
+                  isActive ? "text-doctor-secondary" : isDone ? "text-doctor-primary" : "text-foreground"
                 )}>
                   {step.label}
                 </span>

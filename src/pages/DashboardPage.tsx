@@ -21,8 +21,8 @@ const DashboardPage = () => {
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
-  type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
-  const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
+  type ProgressStep = 'idle' | 'recording' | 'processing' | 'generating' | 'generated';
+  const [progressStep, setProgressStep] = useState<ProgressStep>('idle');
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
@@ -121,9 +121,10 @@ const DashboardPage = () => {
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
-        setDisplayMode('revised');
-        setStatus({ type: 'updated', message: 'Transcript updated' });
-        setTimeout(() => setStatus((prev) => (prev.type === 'updated' ? { type: 'idle' } : prev)), 1200);
+         setDisplayMode('revised');
+         setStatus({ type: 'updated', message: 'Transcript updated' });
+         setProgressStep('generating');
+         setTimeout(() => setStatus((prev) => (prev.type === 'updated' ? { type: 'idle' } : prev)), 1200);
       }
       
       setIsDiarizing(false);
@@ -170,7 +171,9 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
         <DocHeader patientInfo={patientInfo} />
-        <StatusStepsBar currentStep={progressStep} />
+        {progressStep !== 'idle' && (
+          <StatusStepsBar currentStep={progressStep} />
+        )}
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
