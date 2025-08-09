@@ -79,9 +79,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           const speaker = (speakerMatch[1] || '').toLowerCase();
           const content = paragraph.replace(/^\s*\[(Doctor|Patient|Identifying)\]\s*:/i, '').trim();
           
-          const rowClass = speaker === 'doctor' ? 'text-doctor-primary' :
-                           (speaker === 'patient' ? 'text-doctor-accent' : 'text-muted-foreground');
-          const labelClass = rowClass;
+          const rowClass = speaker === 'doctor' ? 'text-doctor-primary/80' :
+                           (speaker === 'patient' ? 'text-doctor-accent/80' : 'text-muted-foreground');
+          const labelClass = speaker === 'doctor' ? 'text-doctor-primary/90' :
+                             (speaker === 'patient' ? 'text-doctor-accent/90' : 'text-muted-foreground');
           const speakerLabel = speaker.charAt(0).toUpperCase() + speaker.slice(1);
           
           return `<div class="transcript-row ${rowClass}">
