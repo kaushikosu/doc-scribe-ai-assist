@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Stethoscope, FileText, Building, LogOut, User } from 'lucide-react';
+import { Stethoscope, FileText, Building, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   DropdownMenu, 
@@ -10,9 +10,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/lib/toast';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
 import { signOutUser } from '@/lib/firebase';
+
 interface DocHeaderProps {
   patientInfo: {
     name: string;
@@ -22,24 +21,21 @@ interface DocHeaderProps {
 
 const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
   const hospitalName = "Arogya General Hospital";
   
   const handleLogout = async () => {
     try {
       await signOutUser();
-      await supabase.auth.signOut();
-      // Success toast handled in signOutUser
     } catch (error) {
       console.error("Error in handleLogout:", error);
-      toast.error("Failed to sign out");
     }
   };
+
   // Get user display information with fallbacks
-  const userName = (currentUser?.user_metadata?.full_name as string) || (currentUser?.email?.split('@')[0] ?? "Doctor");
+  const userName = currentUser?.displayName || "Doctor";
   const userEmail = currentUser?.email || "";
   const userInitials = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase() : "DR";
-  const photoURL = (currentUser?.user_metadata?.avatar_url as string) || "";
+  const photoURL = currentUser?.photoURL || "";
 
   return (
     <div className="flex flex-col gap-2 mb-6">
@@ -86,10 +82,6 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/profile')}>
-                  <User className="h-4 w-4 mr-2" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   <span>Log out</span>

@@ -8,7 +8,6 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import DashboardPage from "./pages/DashboardPage";
 import NotFound from "./pages/NotFound";
-import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -44,14 +43,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
-      <Route 
-        path="/profile" 
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
+      
       {/* Catch-all route */}
       <Route path="*" element={<NotFound />} />
     </Routes>

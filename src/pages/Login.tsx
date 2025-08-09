@@ -8,34 +8,39 @@ import { Card } from '@/components/ui/card';
 import { Stethoscope, ArrowLeft, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { supabase } from '@/integrations/supabase/client';
-import { signInWithGoogleAndLinkSupabase } from '@/lib/firebase';
+import { signInWithGoogle } from '@/lib/firebase';
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const email = String(formData.get('email') || '');
-    const password = String(formData.get('password') || '');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
-      return;
-    }
-    toast({ title: 'Login successful', description: 'Welcome back to DocScribe!' });
+    // In a real app, we would authenticate the user here
+    // For now, we'll just navigate to the main app
+    toast({
+      title: "Login successful",
+      description: "Welcome back to DocScribe!",
+    });
     navigate('/app');
   };
+
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithGoogleAndLinkSupabase();
-      toast({ title: 'Login successful', description: 'Welcome back to DocScribe!' });
+      const user = await signInWithGoogle();
+      
+      toast({
+        title: "Google login successful",
+        description: `Welcome to DocScribe, ${user.displayName || 'user'}!`,
+      });
+      
       navigate('/app');
-    } catch (error: any) {
-      toast({ title: 'Login failed', description: error?.message || 'Could not sign in with Google.', variant: 'destructive' });
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description: "Could not sign in with Google. Please try again.",
+        variant: "destructive",
+      });
       console.error(error);
     }
   };
@@ -92,7 +97,6 @@ const Login = () => {
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email" 
-                name="email"
                 type="email" 
                 placeholder="doctor@example.com" 
                 required 
@@ -108,7 +112,6 @@ const Login = () => {
               </div>
               <Input 
                 id="password" 
-                name="password"
                 type="password" 
                 required 
               />
