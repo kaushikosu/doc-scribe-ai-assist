@@ -98,7 +98,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [transcript]);
 
-  const overlayMsg = (status?.type === 'processing' && mode === 'revised') ? 'Revising transcription' : null;
+  const overlayMsg = (status?.type === 'processing' && mode === 'revised') ? 'Updating transcript...' : null;
 
   const placeholderText = isRecording
     ? 'Capturing live transcript...'
@@ -194,9 +194,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               </div>
               {overlayMsg && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-md" aria-live="polite">
-                  {overlayMsg === 'Revising transcription' && (
-                    <span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2" />
-                  )}
+                  <span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2" />
                   <p className="text-foreground font-medium">{overlayMsg}</p>
                 </div>
               )}

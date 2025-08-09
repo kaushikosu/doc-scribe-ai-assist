@@ -5,6 +5,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
+import StatusBanner from '@/components/StatusBanner';
 import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 import StatusStepsBar from '@/components/StatusStepsBar';
 
@@ -18,6 +19,10 @@ const [isRecording, setIsRecording] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
 const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
 // Top progress bar state
+// Status banner state
+type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
+// Progress step
 type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
 const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
 
@@ -36,8 +41,11 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   if (recordingState) {
     setDisplayMode('live');
     setProgressStep('recording');
-  } else if (!recordingState && transcript) {
+    setStatus({ type: 'recording', message: 'Recording in progress' });
+  } else {
+    setDisplayMode('revised');
     setProgressStep('processing');
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
 };
 
@@ -49,14 +57,14 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   setClassifiedTranscript(mapped);
   setDisplayMode('revised');
   // Move to generating step after processing is complete
-  if (progressStep === 'processing') {
-    setProgressStep('generating');
-  }
+  setProgressStep('generating');
+  setStatus({ type: 'generating', message: 'Generating prescription...' });
 };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
+        <StatusBanner status={status} />
         <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
         
@@ -104,6 +112,7 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   onTranscriptChange={setTranscript}
   isRecording={isRecording}
   mode={displayMode}
+  status={status}
 />
             
 <div ref={prescriptionRef} className="animate-fade-in">
@@ -111,9 +120,13 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
     transcript={transcript} 
     patientInfo={patientInfo} 
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => setProgressStep('generating')}
+    onGeneratingStart={() => {
+      setProgressStep('generating');
+      setStatus({ type: 'generating', message: 'Generating prescription...' });
+    }}
     onGenerated={() => {
       setProgressStep('generated');
+      setStatus({ type: 'ready', message: 'Prescription generated' });
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }}
   />

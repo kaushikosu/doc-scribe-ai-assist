@@ -120,6 +120,7 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
          setDisplayMode('revised');
+         setStatus({ type: 'generating', message: 'Generating prescription...' });
       }
       
       setIsDiarizing(false);
@@ -156,7 +157,8 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   }
   
   if (!recordingState) {
-    setStatus({ type: 'updated', message: 'Recording stopped' });
+    setDisplayMode('revised');
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
 };
 

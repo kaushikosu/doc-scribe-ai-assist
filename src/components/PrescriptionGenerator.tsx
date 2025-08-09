@@ -130,10 +130,14 @@ useEffect(() => {
     console.log("Classified transcript changed, generating prescription");
     onGeneratingStart?.();
     setIsGenerating(true);
-    generatePrescription(classifiedTranscript);
-    setLastProcessedTranscript(classifiedTranscript);
-    setIsGenerating(false);
-    onGenerated?.();
+    // Delay 1.2s to provide clear feedback in UI
+    const timeoutId = setTimeout(() => {
+      generatePrescription(classifiedTranscript);
+      setLastProcessedTranscript(classifiedTranscript);
+      setIsGenerating(false);
+      onGenerated?.();
+    }, 1200);
+    return () => clearTimeout(timeoutId);
   }
 }, [classifiedTranscript, isClassifying]);
 
