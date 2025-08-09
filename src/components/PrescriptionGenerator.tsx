@@ -521,11 +521,11 @@ const handleGenerateAI = () => {
 
   return (
     <Card 
-      className={`border-2 border-doctor-accent/30 transition-all ${isClassifying ? 'opacity-60' : ''}`}
+      className={cn("border rounded-lg transition-all", isClassifying ? 'opacity-60' : '')}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className="px-3 py-2 border-b">
         <div className="flex flex-wrap justify-between items-center gap-3">
-          <CardTitle className="text-xl text-doctor-accent">Prescription</CardTitle>
+          <CardTitle className="text-lg font-semibold text-foreground">Prescription</CardTitle>
 
           <div className="flex items-center gap-3 ml-auto">
             <div className="flex items-center gap-2">
@@ -535,7 +535,7 @@ const handleGenerateAI = () => {
 
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10">
+                <Button variant="outline" size="sm" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10">
                   <Settings className="h-4 w-4 mr-2" />
                   Header
                 </Button>
@@ -616,7 +616,7 @@ const handleGenerateAI = () => {
                 size="sm"
                 onClick={handleGenerateAI}
                 disabled={isPrescriptionDisabled}
-                className="border-doctor-accent text-doctor-accent hover:bg-doctor-accent/10"
+                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
               >
                 {isGenerating ? (
                   <>
@@ -636,8 +636,8 @@ const handleGenerateAI = () => {
                 onClick={isEditing ? handleSave : handleEdit}
                 disabled={!prescription.length || isPrescriptionDisabled}
                 className={cn(
-                  "border-doctor-accent text-doctor-accent",
-                  isEditing ? "hover:bg-doctor-accent hover:text-white" : "hover:bg-doctor-accent/10"
+                  "border-doctor-primary text-doctor-primary",
+                  isEditing ? "hover:bg-doctor-primary hover:text-white" : "hover:bg-doctor-primary/10"
                 )}
               >
                 {isEditing ? (
@@ -659,15 +659,15 @@ const handleGenerateAI = () => {
       <CardContent>
         {isGenerating ? (
           <div className="min-h-[300px] bg-muted p-3 rounded-md flex flex-col justify-center items-center">
-            <RotateCw className="h-8 w-8 text-doctor-accent animate-spin mb-2" />
-            <p className="font-medium text-doctor-accent">Generating prescription</p>
+            <RotateCw className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
+            <p className="font-medium text-doctor-primary">Generating prescription</p>
             <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
           </div>
         ) : isEditing ? (
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
-            className="min-h-[300px] font-mono text-sm resize-none focus-visible:ring-doctor-accent"
+            className="min-h-[300px] font-mono text-sm resize-none focus-visible:ring-primary"
             placeholder="Prescription will be generated here..."
           />
         ) : (
@@ -683,7 +683,7 @@ const handleGenerateAI = () => {
       {prescription && !isEditing && !isPrescriptionDisabled && (
         <CardFooter className="pt-0 flex gap-2">
           <Button 
-            className="mt-2 flex-1 bg-doctor-accent hover:bg-doctor-accent/90"
+            className="mt-2 flex-1 bg-doctor-primary hover:bg-doctor-primary/90"
             onClick={() => {
             }}
           >

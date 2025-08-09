@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Save, Copy, AlignJustify } from 'lucide-react';
+import { Edit, Save, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 
@@ -103,16 +103,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   return (
     <>
-      <Card className={cn("border-2 transition-all", mode === 'revised' ? "border-doctor-secondary/30" : "border-doctor-primary/50 ring-1 ring-doctor-primary/30")}>
-        <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
+      <Card className={cn("border rounded-lg transition-all")}>
+        <CardHeader className="px-3 py-2 border-b flex flex-row justify-between items-center">
           <div className="flex items-center gap-2">
-            <AlignJustify className="h-4 w-4 text-doctor-secondary" />
-            <CardTitle className="text-base text-doctor-secondary font-medium">Transcript</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">Transcript</CardTitle>
             {status?.type === 'processing' ? null : (
-              <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50 flex items-center gap-1">
+              <Badge variant="outline" className="h-5 px-2 text-[11px] text-muted-foreground border-muted flex items-center gap-1">
                 {mode === 'revised' ? 'Revised' : (
                   <>
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-doctor-secondary pulse" />
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary pulse" />
                     Live
                   </>
                 )}
@@ -125,9 +124,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               size="sm"
               onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}
               disabled={!transcript.length}
-              className="h-7 text-doctor-primary hover:text-doctor-primary/80 hover:bg-doctor-primary/10 border-doctor-primary"
+              className="h-7 text-foreground hover:text-foreground hover:bg-muted border-muted"
             >
-              <Copy className="h-3.5 w-3.5 mr-1" />
+              <Copy className="h-4 w-4 mr-1" />
               Copy
             </Button>
             <Button 
@@ -136,18 +135,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               onClick={isEditing ? handleSave : handleEdit}
               disabled={!transcript.length}
               className={cn(
-                "h-7 border-doctor-secondary text-doctor-secondary",
-                isEditing ? "hover:bg-doctor-secondary hover:text-white" : "hover:bg-doctor-secondary/10"
+                "h-7 border-muted text-foreground",
+                isEditing ? "hover:bg-primary hover:text-primary-foreground" : "hover:bg-muted"
               )}
             >
               {isEditing ? (
                 <>
-                  <Save className="h-3.5 w-3.5 mr-1" />
+                  <Save className="h-4 w-4 mr-1" />
                   Save
                 </>
               ) : (
                 <>
-                  <Edit className="h-3.5 w-3.5 mr-1" />
+                  <Edit className="h-4 w-4 mr-1" />
                   Edit
                 </>
               )}
@@ -159,7 +158,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             <Textarea
               value={editableTranscript}
               onChange={handleChange}
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-doctor-secondary p-2 bg-muted`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[400px] min-h-[120px] border-0 rounded-none resize-none focus-visible:ring-primary p-2 bg-muted`}
               placeholder="Transcript will appear here..."
             />
           ) : (
@@ -189,9 +188,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               {overlayMsg && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-md" aria-live="polite">
                   {overlayMsg === 'Revising transcription' && (
-                    <span className="h-5 w-5 rounded-full border-2 border-doctor-secondary border-t-transparent animate-spin mb-2" />
+                    <span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2" />
                   )}
-                  <p className="text-doctor-secondary font-medium">{overlayMsg}</p>
+                  <p className="text-foreground font-medium">{overlayMsg}</p>
                 </div>
               )}
             </div>
