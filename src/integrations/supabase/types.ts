@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      doctor_profiles: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          created_at: string
+          district: string | null
+          dob: string | null
+          email: string | null
+          facility_id: string | null
+          facility_name: string | null
+          full_name: string
+          gender: string | null
+          id: string
+          phone: string | null
+          pincode: string | null
+          qualifications: string | null
+          registration_council: string | null
+          registration_number: string | null
+          registration_year: number | null
+          signature_url: string | null
+          speciality: string | null
+          stamp_url: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          created_at?: string
+          district?: string | null
+          dob?: string | null
+          email?: string | null
+          facility_id?: string | null
+          facility_name?: string | null
+          full_name: string
+          gender?: string | null
+          id?: string
+          phone?: string | null
+          pincode?: string | null
+          qualifications?: string | null
+          registration_council?: string | null
+          registration_number?: string | null
+          registration_year?: number | null
+          signature_url?: string | null
+          speciality?: string | null
+          stamp_url?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          created_at?: string
+          district?: string | null
+          dob?: string | null
+          email?: string | null
+          facility_id?: string | null
+          facility_name?: string | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          phone?: string | null
+          pincode?: string | null
+          qualifications?: string | null
+          registration_council?: string | null
+          registration_number?: string | null
+          registration_year?: number | null
+          signature_url?: string | null
+          speciality?: string | null
+          stamp_url?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           created_at: string
@@ -35,6 +113,60 @@ export type Database = {
           message?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      patient_records: {
+        Row: {
+          audio_path: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          language: string | null
+          live_transcript: string | null
+          patient_age: number | null
+          patient_gender: string | null
+          patient_identifier: string | null
+          patient_name: string | null
+          prescription: string | null
+          revised_transcript: string | null
+          updated_at: string
+          user_id: string
+          visit_date: string
+        }
+        Insert: {
+          audio_path?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          language?: string | null
+          live_transcript?: string | null
+          patient_age?: number | null
+          patient_gender?: string | null
+          patient_identifier?: string | null
+          patient_name?: string | null
+          prescription?: string | null
+          revised_transcript?: string | null
+          updated_at?: string
+          user_id: string
+          visit_date?: string
+        }
+        Update: {
+          audio_path?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          language?: string | null
+          live_transcript?: string | null
+          patient_age?: number | null
+          patient_gender?: string | null
+          patient_identifier?: string | null
+          patient_name?: string | null
+          prescription?: string | null
+          revised_transcript?: string | null
+          updated_at?: string
+          user_id?: string
+          visit_date?: string
         }
         Relationships: []
       }
