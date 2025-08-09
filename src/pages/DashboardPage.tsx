@@ -26,6 +26,7 @@ const DashboardPage = () => {
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   
   const mountedRef = useRef(true);
+  const prescriptionRef = useRef<HTMLDivElement>(null);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
@@ -84,7 +85,7 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    toast.info("Processing audio with Deepgram...");
+    toast.info("Updating transcript...");
     
     try {
       // Process audio with Deepgram
@@ -119,6 +120,7 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
         setDisplayMode('revised');
+        toast.success('Transcript updated');
       }
       
       setIsDiarizing(false);
@@ -211,11 +213,17 @@ const handleRecordingStateChange = (recordingState: boolean) => {
 />
 
 
-            <PrescriptionGenerator 
-              transcript={transcript} 
-              patientInfo={patientInfo}
-              classifiedTranscript={classifiedTranscript}
-            />
+<div ref={prescriptionRef} className="animate-fade-in">
+  <PrescriptionGenerator 
+    transcript={transcript} 
+    patientInfo={patientInfo}
+    classifiedTranscript={classifiedTranscript}
+    onGeneratingStart={() => toast.info('Prescription is being generated...')}
+    onGenerated={() => {
+      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }}
+  />
+</div>
           </div>
         </div>
       </div>

@@ -98,13 +98,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   return (
     <>
-      <Card className={`border-2 border-doctor-secondary/30 transition-all`}>
+      <Card className={cn("border-2 transition-all", mode === 'revised' ? "border-doctor-secondary/30" : "border-doctor-primary/50 ring-1 ring-doctor-primary/30")}>
         <CardHeader className="pb-1 pt-2 px-3 bg-gradient-to-r from-doctor-secondary/10 to-transparent flex flex-row justify-between items-center">
           <div className="flex items-center gap-2">
             <AlignJustify className="h-4 w-4 text-doctor-secondary" />
             <CardTitle className="text-base text-doctor-secondary font-medium">Transcript</CardTitle>
-            <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50">
-              {mode === 'revised' ? 'Revised' : 'Live'}
+            <Badge variant="outline" className="h-5 px-2 text-[11px] text-doctor-secondary border-doctor-secondary/50 flex items-center gap-1">
+              {mode === 'revised' ? 'Revised' : (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-doctor-secondary pulse" />
+                  Live
+                </>
+              )}
             </Badge>
           </div>
           <div className="flex gap-1">
@@ -157,7 +162,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             >
               <div 
                 ref={contentRef} 
-                className="p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words"
+                className="p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words animate-fade-in"
               >
                 {transcript ? (
                   transcript

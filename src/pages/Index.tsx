@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -19,6 +19,8 @@ const Index = () => {
 const [isRecording, setIsRecording] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
 const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
+
+  const prescriptionRef = useRef<HTMLDivElement>(null);
 
   const handleTranscriptUpdate = (newTranscript: string) => {
     setTranscript(newTranscript);
@@ -93,11 +95,17 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   mode={displayMode}
 />
             
-            <PrescriptionGenerator 
-              transcript={transcript} 
-              patientInfo={patientInfo} 
-              classifiedTranscript={classifiedTranscript}
-            />
+<div ref={prescriptionRef} className="animate-fade-in">
+  <PrescriptionGenerator 
+    transcript={transcript} 
+    patientInfo={patientInfo} 
+    classifiedTranscript={classifiedTranscript}
+    onGeneratingStart={() => toast.info('Prescription is being generated...')}
+    onGenerated={() => {
+      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }}
+  />
+</div>
           </div>
         </div>
       </div>

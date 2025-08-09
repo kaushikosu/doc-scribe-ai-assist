@@ -19,13 +19,17 @@ interface PrescriptionGeneratorProps {
   };
   classifiedTranscript?: string;
   isClassifying?: boolean;
+  onGeneratingStart?: () => void;
+  onGenerated?: () => void;
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
   transcript, 
   patientInfo,
   classifiedTranscript,
-  isClassifying = false
+  isClassifying = false,
+  onGeneratingStart,
+  onGenerated
 }) => {
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -119,22 +123,24 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usePmjayFormat]);
 
-  useEffect(() => {
-    // Generate prescription when classified transcript becomes available or changes
-    if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
-      console.log("Classified transcript changed, generating prescription");
-      setIsGenerating(true);
-      
-      // Add a slight delay for better visual feedback
-      const timeoutId = setTimeout(() => {
-        generatePrescription(classifiedTranscript);
-        setLastProcessedTranscript(classifiedTranscript);
-        setIsGenerating(false);
-      }, 800);
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [classifiedTranscript, isClassifying]);
+useEffect(() => {
+  // Generate prescription when classified transcript becomes available or changes
+  if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
+    console.log("Classified transcript changed, generating prescription");
+    onGeneratingStart?.();
+    setIsGenerating(true);
+    
+    // Add a slight delay for better visual feedback
+    const timeoutId = setTimeout(() => {
+      generatePrescription(classifiedTranscript);
+      setLastProcessedTranscript(classifiedTranscript);
+      setIsGenerating(false);
+      onGenerated?.();
+    }, 800);
+    
+    return () => clearTimeout(timeoutId);
+  }
+}, [classifiedTranscript, isClassifying]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
@@ -464,27 +470,31 @@ Department of ${doctorDept}
     toast.info('To fetch patient details from IDs, please connect Supabase first.');
   };
 
-  const handleGenerateAI = () => {
-    if (classifiedTranscript) {
-      setIsGenerating(true);
-      toast.success('Regenerating prescription with AI...');
-      
-      setTimeout(() => {
-        generatePrescription(classifiedTranscript);
-        setIsGenerating(false);
-      }, 800);
-    } else if (transcript && !isClassifying) {
-      setIsGenerating(true);
-      toast.success('Regenerating prescription with AI...');
-      
-      setTimeout(() => {
-        generatePrescription(transcript);
-        setIsGenerating(false);
-      }, 800);
-    } else {
-      toast.error('No transcript available for prescription generation');
-    }
-  };
+const handleGenerateAI = () => {
+  if (classifiedTranscript) {
+    onGeneratingStart?.();
+    setIsGenerating(true);
+    toast.success('Regenerating prescription with AI...');
+    
+    setTimeout(() => {
+      generatePrescription(classifiedTranscript);
+      setIsGenerating(false);
+      onGenerated?.();
+    }, 800);
+  } else if (transcript && !isClassifying) {
+    onGeneratingStart?.();
+    setIsGenerating(true);
+    toast.success('Regenerating prescription with AI...');
+    
+    setTimeout(() => {
+      generatePrescription(transcript);
+      setIsGenerating(false);
+      onGenerated?.();
+    }, 800);
+  } else {
+    toast.error('No transcript available for prescription generation');
+  }
+};
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
