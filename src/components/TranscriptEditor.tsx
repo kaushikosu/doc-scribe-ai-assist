@@ -150,12 +150,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             </div>
           )}
         </CardHeader>
-        <CardContent className="p-3">
+        <CardContent className="p-0">
           {isEditing ? (
             <Textarea
               value={editableTranscript}
               onChange={handleChange}
-              className="min-h-[300px] bg-muted p-3 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+              className="min-h-[300px] bg-muted p-0 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
                placeholder={placeholderText}
             />
           ) : (
@@ -167,7 +167,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                 key={`content-${mode}-${Boolean(transcript)}`}
                 ref={contentRef} 
                 className={cn(
-                  "p-3 w-full bg-muted rounded-md min-h-[300px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
+                  "p-0 w-full bg-muted rounded-md min-h-[300px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
                   overlayMsg ? "opacity-50" : "opacity-100"
                 )}
               >

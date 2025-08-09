@@ -647,9 +647,9 @@ const handleGenerateAI = () => {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-3">
+      <CardContent className="p-0">
         {isGenerating ? (
-          <div className="min-h-[300px] bg-muted p-3 rounded-md flex flex-col justify-center items-center">
+          <div className="min-h-[300px] bg-muted p-0 rounded-md flex flex-col justify-center items-center">
             <RotateCw className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
             <p className="font-medium text-doctor-primary">Generating prescription</p>
             <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
@@ -658,11 +658,11 @@ const handleGenerateAI = () => {
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
-            className="min-h-[300px] bg-muted p-3 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+            className="min-h-[300px] bg-muted p-0 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
             placeholder="Prescription will be generated here..."
           />
         ) : (
-          <div className="bg-muted p-3 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
+          <div className="bg-muted p-0 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
             {prescription ? (
               prescription
             ) : (
