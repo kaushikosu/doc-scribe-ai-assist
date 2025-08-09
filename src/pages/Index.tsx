@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -37,19 +37,19 @@ const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
     setPatientInfo(newPatientInfo);
   };
   
-const handleRecordingStateChange = useCallback((recordingState: boolean) => {
+const handleRecordingStateChange = (recordingState: boolean) => {
   setIsRecording(recordingState);
   if (recordingState) {
-    setHasRecordingStarted(true);
+    if (!hasRecordingStarted) setHasRecordingStarted(true);
     setDisplayMode('live');
     setProgressStep('recording');
     setStatus({ type: 'recording', message: 'Recording in progress' });
-  } else {
+  } else if (hasRecordingStarted) {
     setDisplayMode('revised');
     setProgressStep('processing');
     setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
-}, []);
+};
 
 // Receive Deepgram diarized transcript, map speakers to roles, and store classified text
 const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {

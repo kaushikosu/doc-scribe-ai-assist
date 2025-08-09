@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -148,21 +148,19 @@ const DashboardPage = () => {
     setPatientInfo(newPatientInfo);
   };
   
-const handleRecordingStateChange = useCallback((recordingState: boolean) => {
+const handleRecordingStateChange = (recordingState: boolean) => {
   console.log("Recording state changed to:", recordingState);
   setIsRecording(recordingState);
   
   if (recordingState) {
-    setHasRecordingStarted(true);
+    if (!hasRecordingStarted) setHasRecordingStarted(true);
     setDisplayMode('live');
     setStatus({ type: 'recording', message: 'Recording in progress' });
-  }
-  
-  if (!recordingState) {
+  } else if (hasRecordingStarted) {
     setDisplayMode('revised');
     setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
-}, []);
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
