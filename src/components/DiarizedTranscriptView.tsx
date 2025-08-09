@@ -114,18 +114,19 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     
     return lines.map((line, index) => {
       // Identify speaker label
-      const match = line.match(/^(Speaker\s+\d+):/);
+      const match = line.match(/^\s*Speaker\s+(\d+):/);
       
       if (match) {
-        const speakerLabel = match[1];
+        const sp = parseInt(match[1], 10);
+        const role = sp === 0 ? 'Doctor' : sp === 1 ? 'Patient' : `Speaker ${sp}`;
         const content = line.substring(line.indexOf(':') + 1).trim();
         
-        // Basic styling for speaker labels
-        const labelClass = 'text-gray-600 font-semibold'; 
+        // Styling for speaker labels using design tokens
+        const labelClass = 'text-muted-foreground font-semibold'; 
         
         return (
           <div key={index} className="mb-3 pb-2 border-b border-gray-100">
-            <span className={labelClass}>[{speakerLabel}]:</span> {content}
+            <span className={labelClass}>[{role}]:</span> {content}
           </div>
         );
       }
@@ -144,6 +145,9 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
           <CardTitle className="text-base text-doctor-accent font-medium">
             Deepgram Diarized Transcript {recordingDuration && `(${recordingDuration})`}
           </CardTitle>
+          {diarizedData?.transcript && (
+            <span className="text-xs text-muted-foreground ml-2">(Speaker 0 → Doctor, Speaker 1 → Patient)</span>
+          )}
         </div>
         <div className="flex gap-1">
           {audioBlob && (

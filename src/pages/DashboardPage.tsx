@@ -84,6 +84,11 @@ const DashboardPage = () => {
       return;
     }
     
+    // If we already have a diarized transcript from Deepgram, skip the legacy classification
+    if (diarizedTranscription?.transcript) {
+      return;
+    }
+    
     setIsClassifying(true);
     
     if (timeoutIdRef.current) {
@@ -110,7 +115,7 @@ const DashboardPage = () => {
         }
       }
     }, 800);
-  }, [transcript]);
+  }, [transcript, diarizedTranscription]);
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!deepgramApiKey) {
@@ -160,6 +165,7 @@ const DashboardPage = () => {
         // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
+        setIsClassifying(false);
         toast.success('Assigned roles: Speaker 0 → Doctor, Speaker 1 → Patient');
       }
       
