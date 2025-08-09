@@ -79,20 +79,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           const speaker = speakerMatch[1];
           const content = paragraph.replace(/^\[(Doctor|Patient|Identifying)\]:/, '').trim();
           
-          // Apply different styling based on speaker
-          const labelClass = speaker === 'Doctor' ? 'text-doctor-primary font-semibold' : 
-                             (speaker === 'Patient' ? 'text-doctor-accent font-semibold' : 
-                             'text-muted-foreground font-semibold');
-          const lineClass = speaker === 'Doctor' ? 'text-doctor-primary' :
-                            (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
+          const rowClass = speaker === 'Doctor' ? 'text-doctor-primary' :
+                           (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
+          const labelClass = speaker === 'Doctor' ? 'text-doctor-primary' :
+                             (speaker === 'Patient' ? 'text-doctor-accent' : 'text-muted-foreground');
           
-          return `<div class="transcript-paragraph ${lineClass}">
-            <span class="${labelClass}">[${speaker}]:</span> ${content}
+          return `<div class="transcript-row ${rowClass}">
+            <span class="transcript-label ${labelClass}">[${speaker}]:</span>
+            <span class="transcript-content">${content}</span>
           </div>`;
         }
         
-        // Regular paragraph without speaker label
-        return `<div class="transcript-paragraph">${paragraph}</div>`;
+        return `<div class="transcript-row"><span class="transcript-content">${paragraph}</span></div>`;
       }).join('');
     
     return processedTranscript;
@@ -200,11 +198,21 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
       <style>
         {`
-        .transcript-paragraph {
-          margin-bottom: 0.5rem;
-          padding-bottom: 0.25rem;
-          border-bottom: 1px dotted rgba(0,0,0,0.05);
-          line-height: 1.55;
+        .transcript-row {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          column-gap: 0.5rem;
+          padding: 0.125rem 0; /* tighter spacing */
+          margin: 0;
+          line-height: 1.45;
+        }
+        .transcript-label {
+          font-weight: 600;
+          white-space: nowrap;
+        }
+        .transcript-content {
+          white-space: pre-wrap;
+          word-break: break-word;
         }
         
         @keyframes fadeIn {
