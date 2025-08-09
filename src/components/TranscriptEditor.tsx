@@ -118,26 +118,23 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               </Badge>
             )}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-2">
             <Button 
               variant="outline" 
               size="sm"
               onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}
               disabled={!transcript.length}
-              className="h-7 text-foreground hover:text-foreground hover:bg-muted border-muted"
+              className="h-8 px-3 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
             >
               <Copy className="h-4 w-4 mr-1" />
               Copy
             </Button>
             <Button 
-              variant="outline" 
+              variant="default"
               size="sm"
               onClick={isEditing ? handleSave : handleEdit}
               disabled={!transcript.length}
-              className={cn(
-                "h-7 border-muted text-foreground",
-                isEditing ? "hover:bg-primary hover:text-primary-foreground" : "hover:bg-muted"
-              )}
+              className="h-8 px-3 bg-doctor-primary hover:bg-doctor-primary/90"
             >
               {isEditing ? (
                 <>
