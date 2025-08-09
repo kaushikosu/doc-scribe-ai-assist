@@ -27,14 +27,11 @@ const Login = () => {
 
   const handleGoogleSignIn = async () => {
     try {
-      const user = await signInWithGoogle();
-      
+      await signInWithGoogle();
       toast({
-        title: "Google login successful",
-        description: `Welcome to DocScribe, ${user.displayName || 'user'}!`,
+        title: "Redirecting to Google",
+        description: "Please complete sign-in and you'll return to DocScribe.",
       });
-      
-      navigate('/app');
     } catch (error) {
       toast({
         title: "Login failed",

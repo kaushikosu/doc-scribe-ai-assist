@@ -32,14 +32,11 @@ const Signup = () => {
 
   const handleGoogleSignUp = async () => {
     try {
-      const user = await signInWithGoogle();
-      
+      await signInWithGoogle();
       toast({
-        title: "Account created with Google!",
-        description: `Welcome to DocScribe, ${user.displayName || 'user'}! Your free trial has been activated.`,
+        title: "Redirecting to Google",
+        description: "Complete sign-in and you'll return to DocScribe.",
       });
-      
-      navigate('/app');
     } catch (error) {
       toast({
         title: "Sign up failed",
