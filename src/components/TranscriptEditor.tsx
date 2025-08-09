@@ -160,14 +160,14 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             />
           ) : (
             <div 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto bg-muted p-2`}
               ref={scrollAreaRef}
             >
               <div 
                 key={`content-${mode}-${Boolean(transcript)}`}
                 ref={contentRef} 
                 className={cn(
-                  "p-2 w-full bg-muted rounded-md whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
+                  "w-full min-h-[120px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
                   overlayMsg ? "opacity-50" : "opacity-100"
                 )}
               >
