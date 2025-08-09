@@ -29,6 +29,8 @@ const DashboardPage = () => {
   const mountedRef = useRef(true);
   const prescriptionRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState(0);
+  const sessionRef = useRef(0);
+  useEffect(() => { sessionRef.current = sessionId; }, [sessionId]);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
@@ -87,12 +89,18 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: 'processing' });
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
+    const startSession = sessionRef.current;
     
     try {
       // Process audio with Deepgram
       const { transcript: diarizedText, error } = await processCompleteAudio(audioBlob, deepgramApiKey);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
+      if (sessionRef.current !== startSession) {
+        console.log("Stale diarization result ignored");
+        setIsDiarizing(false);
+        return;
+      }
       
       if (error) {
         console.error("Deepgram error:", error);
@@ -180,6 +188,16 @@ const handleRecordingStateChange = (recordingState: boolean) => {
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
+              onNewPatient={() => {
+                setIsRecording(false);
+                setHasRecordingStarted(false);
+                setDisplayMode('live');
+                setTranscript('');
+                setClassifiedTranscript('');
+                setDiarizedTranscription(null);
+                setStatus({ type: 'idle' });
+                setSessionId(id => id + 1);
+              }}
             />
             
             <Card className="p-5 border rounded-lg shadow-sm">
