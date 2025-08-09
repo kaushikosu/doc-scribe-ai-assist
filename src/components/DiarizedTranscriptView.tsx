@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,7 +21,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   isRecording = false,
   audioBlob = null
 }) => {
-  const [showMappedRoles, setShowMappedRoles] = useState(true);
+  
   
   // Format the diarized transcript - use transcript directly from diarizedData
   const formattedTranscript = React.useMemo(() => {
@@ -32,7 +32,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   const handleCopyTranscript = () => {
     if (formattedTranscript) {
       navigator.clipboard.writeText(formattedTranscript);
-      toast.success('Diarized transcript copied to clipboard');
+      toast.success('Revised transcript copied to clipboard');
     }
   };
   
@@ -143,11 +143,8 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         <div className="flex items-center gap-1.5">
           <FileText className="h-4 w-4 text-doctor-accent" />
           <CardTitle className="text-base text-doctor-accent font-medium">
-            Deepgram Diarized Transcript {recordingDuration && `(${recordingDuration})`}
+            Revised Transcript {recordingDuration && `(${recordingDuration})`}
           </CardTitle>
-          {diarizedData?.transcript && (
-            <span className="text-xs text-muted-foreground ml-2">(Speaker 0 → Doctor, Speaker 1 → Patient)</span>
-          )}
         </div>
         <div className="flex gap-1">
           {audioBlob && (

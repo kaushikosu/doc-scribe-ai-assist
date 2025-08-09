@@ -5,7 +5,7 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
-import { classifyTranscript } from '@/utils/speaker';
+
 import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import DiarizedTranscriptView from '@/components/DiarizedTranscriptView';
@@ -20,14 +20,12 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
-  const [isClassifying, setIsClassifying] = useState(false);
+  
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   
-  const lastProcessedTranscriptRef = useRef('');
   const mountedRef = useRef(true);
-  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
@@ -49,9 +47,6 @@ const DashboardPage = () => {
   useEffect(() => {
     return () => {
       mountedRef.current = false;
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-      }
     };
   }, []);
 
@@ -59,12 +54,6 @@ const DashboardPage = () => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
-  useEffect(() => {
-    if (!isRecording && transcript && transcript !== lastProcessedTranscriptRef.current) {
-      console.log("Recording stopped, auto-classifying transcript");
-      handleTranscriptClassification();
-    }
-  }, [isRecording, transcript]);
   
   useEffect(() => {
     if (isRecording && !isAudioRecording) {
@@ -79,43 +68,6 @@ const DashboardPage = () => {
     }
   }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
 
-  const handleTranscriptClassification = useCallback(() => {
-    if (!transcript || transcript.trim().length === 0 || transcript === lastProcessedTranscriptRef.current) {
-      return;
-    }
-    
-    // If we already have a diarized transcript from Deepgram, skip the legacy classification
-    if (diarizedTranscription?.transcript) {
-      return;
-    }
-    
-    setIsClassifying(true);
-    
-    if (timeoutIdRef.current) {
-      clearTimeout(timeoutIdRef.current);
-    }
-    
-    timeoutIdRef.current = setTimeout(() => {
-      if (!mountedRef.current) return;
-      
-      try {
-        const classified = classifyTranscript(transcript);
-        lastProcessedTranscriptRef.current = transcript;
-        
-        if (mountedRef.current) {
-          setClassifiedTranscript(classified);
-          setIsClassifying(false);
-          console.log("Transcript classified successfully");
-        }
-      } catch (error) {
-        console.error("Error classifying transcript:", error);
-        if (mountedRef.current) {
-          setIsClassifying(false);
-          toast.error("Failed to classify transcript");
-        }
-      }
-    }, 800);
-  }, [transcript, diarizedTranscription]);
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!deepgramApiKey) {
@@ -165,8 +117,6 @@ const DashboardPage = () => {
         // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
-        setIsClassifying(false);
-        toast.success('Assigned roles: Speaker 0 → Doctor, Speaker 1 → Patient');
       }
       
       setIsDiarizing(false);
@@ -235,7 +185,7 @@ const DashboardPage = () => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>When you stop recording, the transcript will be classified automatically</span>
+                  <span>When you stop recording, a revised transcript will appear</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
@@ -268,7 +218,6 @@ const DashboardPage = () => {
               transcript={transcript} 
               patientInfo={patientInfo}
               classifiedTranscript={classifiedTranscript}
-              isClassifying={isClassifying}
             />
           </div>
         </div>

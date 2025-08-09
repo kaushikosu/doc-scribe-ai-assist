@@ -35,8 +35,6 @@ const Index = () => {
   const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
     if (!deepgramTranscript) return;
     const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(deepgramTranscript, { 0: 'Doctor', 1: 'Patient' });
-    setClassifiedTranscript(mapped);
-    toast.success('Assigned roles: Speaker 0 → Doctor, Speaker 1 → Patient');
   };
 
   return (
