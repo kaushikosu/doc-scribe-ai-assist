@@ -101,6 +101,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   const overlayMsg = (status?.type === 'processing' && mode !== 'revised') ? 'Revising transcription' : null;
 
+  const placeholderText = isRecording
+    ? 'Capturing live transcript...'
+    : (status?.type === 'processing'
+        ? 'Revised transcript will appear here...'
+        : 'Press Record to start capturing the conversation.');
+
   return (
     <>
       <Card className={cn("border rounded-lg transition-all")}>
@@ -153,7 +159,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
               value={editableTranscript}
               onChange={handleChange}
               className="min-h-[300px] bg-muted p-3 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
-               placeholder="Transcript will appear here..."
+               placeholder={placeholderText}
             />
           ) : (
             <div 
@@ -175,7 +181,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   )
                 ) : (
                   <div className="text-muted-foreground text-center italic h-full flex items-center justify-center">
-                    Transcript will appear here...
+                    {placeholderText}
                   </div>
                 )}
               </div>
