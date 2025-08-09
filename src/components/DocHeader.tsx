@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Stethoscope, FileText, Building, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useNavigate } from 'react-router-dom';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -22,6 +23,7 @@ interface DocHeaderProps {
 const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
   const { currentUser } = useAuth();
   const hospitalName = "Arogya General Hospital";
+  const navigate = useNavigate();
   
   const handleLogout = async () => {
     try {
@@ -82,6 +84,10 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/profile')}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  <span>Edit profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   <span>Log out</span>
