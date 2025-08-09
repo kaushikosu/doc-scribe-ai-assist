@@ -535,9 +535,8 @@ const handleGenerateAI = () => {
 
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Header
+                <Button variant="outline" size="sm" aria-label="Header settings" title="Header settings" className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10">
+                  <Settings className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[640px]">
@@ -614,42 +613,31 @@ const handleGenerateAI = () => {
               <Button 
                 variant="outline" 
                 size="sm"
+                aria-label="Generate prescription"
+                title="Generate prescription"
                 onClick={handleGenerateAI}
                 disabled={isPrescriptionDisabled}
-                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
+                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 h-8 w-8 p-0"
               >
                 {isGenerating ? (
-                  <>
-                    <RotateCw className="h-4 w-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
+                  <RotateCw className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Generate
-                  </>
+                  <MessageSquare className="h-4 w-4" />
                 )}
               </Button>
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm"
+                aria-label={isEditing ? "Save prescription" : "Edit prescription"}
+                title={isEditing ? "Save prescription" : "Edit prescription"}
                 onClick={isEditing ? handleSave : handleEdit}
                 disabled={!prescription.length || isPrescriptionDisabled}
-                className={cn(
-                  "border-doctor-primary text-doctor-primary",
-                  isEditing ? "hover:bg-doctor-primary hover:text-white" : "hover:bg-doctor-primary/10"
-                )}
+                className="h-8 w-8 p-0 bg-doctor-primary hover:bg-doctor-primary/90"
               >
                 {isEditing ? (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </>
+                  <Save className="h-4 w-4" />
                 ) : (
-                  <>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </>
+                  <Edit className="h-4 w-4" />
                 )}
               </Button>
             </div>
