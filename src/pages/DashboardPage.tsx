@@ -4,8 +4,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
-import StatusBanner from '@/components/StatusBanner';
-import { Toaster } from '@/components/ui/sonner';
+import StatusStepsBar from '@/components/StatusStepsBar';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -20,9 +19,10 @@ const DashboardPage = () => {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
-  // Prominent status banner state
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
+  type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
+  const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
@@ -157,17 +157,19 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   if (recordingState) {
     setDisplayMode('live');
     setStatus({ type: 'recording', message: 'Recording in progress' });
+    setProgressStep('recording');
   }
   
   if (!recordingState && transcript) {
     setStatus({ type: 'processing', message: 'Updating transcript...' });
+    setProgressStep('processing');
   }
 };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
-        <StatusBanner status={status} />
+        <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
@@ -187,7 +189,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Say "Hi [patient name]" to begin a new session</span>
+                  <span>Press the Record button to begin a new session</span>
                 </li>
                 <li className="flex gap-2 items-start">
                   <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
@@ -223,11 +225,10 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => setStatus({ type: 'generating', message: 'Generating prescription...' })}
+    onGeneratingStart={() => setProgressStep('generating')}
     onGenerated={() => {
-      setStatus({ type: 'ready', message: 'Prescription ready' });
+      setProgressStep('generated');
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => setStatus((prev) => (prev.type === 'ready' ? { type: 'idle' } : prev)), 1500);
     }}
   />
 </div>
@@ -235,7 +236,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
         </div>
       </div>
       
-      <Toaster />
     </div>
   );
 };

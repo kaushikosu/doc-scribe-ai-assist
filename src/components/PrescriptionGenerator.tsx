@@ -148,7 +148,7 @@ useEffect(() => {
         return; // Don't generate for empty transcript
       }
 
-      toast.info('Generating prescription...');
+      
 
       const medications = extractMedications(transcriptText);
       const symptoms = extractSymptoms(transcriptText);
@@ -261,7 +261,7 @@ Department of ${doctorDept}
 
       setPrescription(generatedPrescription);
       setEditablePrescription(generatedPrescription);
-      toast.success('Prescription generated');
+      
     } catch (error) {
       console.error('Error generating prescription:', error);
       toast.error('Error generating prescription template');
