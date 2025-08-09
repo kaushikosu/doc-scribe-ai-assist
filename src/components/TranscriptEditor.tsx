@@ -155,12 +155,12 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             <Textarea
               value={editableTranscript}
               onChange={handleChange}
-              className="min-h-[120px] max-h-[60vh] overflow-y-auto bg-muted p-2 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+              className="min-h-[120px] max-h-[60vh] overflow-y-auto bg-muted p-4 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
                placeholder={placeholderText}
             />
           ) : (
             <div 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto p-2`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} relative max-h-[70vh] min-h-[120px] overflow-y-auto p-4`}
               ref={scrollAreaRef}
             >
               <div 
