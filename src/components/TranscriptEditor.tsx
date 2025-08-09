@@ -146,18 +146,21 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             />
           ) : (
             <div 
-              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[60vh] min-h-[120px] overflow-y-auto`}
+              className={`${transcript ? 'h-auto' : 'h-[120px]'} max-h-[70vh] min-h-[120px] overflow-y-auto`}
               ref={scrollAreaRef}
             >
               <div 
                 ref={contentRef} 
-                className="p-3 w-full bg-muted rounded-md"
-                style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-                dangerouslySetInnerHTML={{ 
-                  __html: formattedTranscript || 
-                  "<div class='text-muted-foreground text-center italic h-full flex items-center justify-center'>Transcript will appear here...</div>"
-                }}
-              />
+                className="p-3 w-full bg-muted rounded-md whitespace-pre-wrap break-words"
+              >
+                {transcript ? (
+                  transcript
+                ) : (
+                  <div className="text-muted-foreground text-center italic h-full flex items-center justify-center">
+                    Transcript will appear here...
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
