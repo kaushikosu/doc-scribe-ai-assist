@@ -520,7 +520,7 @@ const handleGenerateAI = () => {
 
   return (
     <Card 
-      className={cn("border rounded-lg transition-all", isClassifying ? 'opacity-60' : '')}
+      className={cn("border rounded-lg transition-all bg-transparent shadow-none", isClassifying ? 'opacity-60' : '')}
     >
       <CardHeader className="px-3 py-2 border-b border-doctor-primary/25 bg-doctor-primary/10 shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-3">
@@ -649,7 +649,7 @@ const handleGenerateAI = () => {
       </CardHeader>
       <CardContent className="p-0">
         {isGenerating ? (
-          <div className="min-h-[300px] bg-muted p-2 rounded-md flex flex-col justify-center items-center">
+          <div className="min-h-[300px] p-2 rounded-md flex flex-col justify-center items-center">
             <RotateCw className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
             <p className="font-medium text-doctor-primary">Generating prescription</p>
             <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
@@ -658,11 +658,11 @@ const handleGenerateAI = () => {
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
-            className="min-h-[300px] bg-muted p-2 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+            className="min-h-[300px] p-2 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
             placeholder="Prescription will be generated here..."
           />
         ) : (
-          <div className="bg-muted p-2 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
+          <div className="p-2 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
             {prescription ? (
               prescription
             ) : (

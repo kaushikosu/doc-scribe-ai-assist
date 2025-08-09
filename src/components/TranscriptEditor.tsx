@@ -108,7 +108,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   return (
     <>
-      <Card className={cn("border rounded-lg transition-all")}>
+      <Card className={cn("border rounded-lg transition-all bg-transparent shadow-none")}>
         <CardHeader className="px-3 py-2 border-b border-doctor-primary/25 bg-doctor-primary/10 shadow-sm flex flex-row justify-between items-center">
           <div className="flex items-center gap-2">
             <CardTitle className="text-lg font-semibold text-foreground">Transcript</CardTitle>
