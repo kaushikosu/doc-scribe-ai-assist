@@ -666,7 +666,7 @@ const handleGenerateAI = () => {
             {prescription ? (
               prescription
             ) : (
-              <span className="font-sans text-muted-foreground">
+              <span className="font-sans text-muted-foreground block text-center">
                 {isClassifying
                   ? "Waiting for transcript classification to complete..."
                   : "Prescription will be generated automatically after transcript is processed..."}
