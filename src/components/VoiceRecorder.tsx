@@ -76,6 +76,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Update local recording state when dual recording state changes
   useEffect(() => {
     setIsRecording(dualIsRecording);
+    if (dualIsRecording) setJustStopped(false);
     
     if (onRecordingStateChange) {
       onRecordingStateChange(dualIsRecording);
@@ -162,6 +163,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
   // Start a new session
   const startNewSession = async () => {
+    setJustStopped(false);
     // Process final audio for improved diarization if we have recorded audio
     if (audioBlob) {
       setProcessingTranscript(true);
@@ -198,7 +200,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Handle stopping recording
   const handleStopRecording = async () => {
     setJustStopped(true);
-    setTimeout(() => setJustStopped(false), 900);
     // Clear any pending transcript timeouts
     if (transcriptUpdateTimeoutRef.current) {
       clearTimeout(transcriptUpdateTimeoutRef.current);

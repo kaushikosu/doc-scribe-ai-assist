@@ -28,8 +28,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const [editableTranscript, setEditableTranscript] = useState(transcript);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const prevRecordingRef = useRef<boolean>(isRecording);
-  const [showStopped, setShowStopped] = useState(false);
 
   useEffect(() => {
     setEditableTranscript(transcript);
@@ -41,15 +39,6 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     }
   }, [transcript]);
   
-  // Show 'Recording stopped' briefly when recording ends
-  useEffect(() => {
-    if (prevRecordingRef.current && !isRecording) {
-      setShowStopped(true);
-      const t = setTimeout(() => setShowStopped(false), 900);
-      return () => clearTimeout(t);
-    }
-    prevRecordingRef.current = isRecording;
-  }, [isRecording]);
   
   const handleEdit = () => {
     setIsEditing(true);
@@ -108,7 +97,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     return processedTranscript;
   }, [transcript]);
 
-  const overlayMsg = showStopped ? 'Recording stopped' : (status?.type === 'processing' && mode !== 'revised' ? 'Revising transcription' : null);
+  const overlayMsg = (status?.type === 'processing' && mode !== 'revised') ? 'Revising transcription' : null;
 
   return (
     <>
