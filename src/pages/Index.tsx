@@ -48,6 +48,10 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   setTranscript(mapped);
   setClassifiedTranscript(mapped);
   setDisplayMode('revised');
+  // Move to generating step after processing is complete
+  if (progressStep === 'processing') {
+    setProgressStep('generating');
+  }
 };
 
   return (
