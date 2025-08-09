@@ -88,7 +88,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           const speakerLabel = speaker.charAt(0).toUpperCase() + speaker.slice(1);
           
           return `<div class="transcript-row ${rowClass}">
-            <span class="transcript-label ${labelClass}">[${speakerLabel}]:</span>
+            <span class="transcript-label ${labelClass}">${speakerLabel}:</span>
             <span class="transcript-content">${content}</span>
           </div>`;
         }
