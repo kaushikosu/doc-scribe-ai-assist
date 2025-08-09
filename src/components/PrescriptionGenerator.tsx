@@ -535,11 +535,6 @@ const handleGenerateAI = () => {
             </div>
 
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Header settings" title="Header settings" className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
               <DialogContent className="sm:max-w-[640px]">
                 <DialogHeader>
                   <DialogTitle>PM-JAY Header Details</DialogTitle>
@@ -612,21 +607,6 @@ const handleGenerateAI = () => {
 
             <div className="flex gap-2">
               <Button 
-                variant="outline" 
-                size="sm"
-                aria-label="Generate prescription"
-                title="Generate prescription"
-                onClick={handleGenerateAI}
-                disabled={isPrescriptionDisabled}
-                className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10 h-8 w-8 p-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <RotateCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MessageSquare className="h-4 w-4" />
-                )}
-              </Button>
-              <Button 
                 variant="default" 
                 size="sm"
                 aria-label={isEditing ? "Save prescription" : "Edit prescription"}
@@ -641,6 +621,27 @@ const handleGenerateAI = () => {
                   <Edit className="h-4 w-4" />
                 )}
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    aria-label="More actions"
+                    title="More actions"
+                    className="h-8 w-8 p-0 border-doctor-primary text-doctor-primary hover:bg-doctor-primary/10"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleGenerateAI} disabled={isPrescriptionDisabled}>
+                    Generate prescription
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                    Header settings
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
