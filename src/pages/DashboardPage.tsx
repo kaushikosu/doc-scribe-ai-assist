@@ -151,14 +151,19 @@ const DashboardPage = () => {
 const handleRecordingStateChange = (recordingState: boolean) => {
   console.log("Recording state changed to:", recordingState);
   setIsRecording(recordingState);
-  
+
   if (recordingState) {
     if (!hasRecordingStarted) setHasRecordingStarted(true);
     setDisplayMode('live');
-    setStatus({ type: 'recording', message: 'Recording in progress' });
+    if (status.type !== 'recording') {
+      setStatus({ type: 'recording', message: 'Recording in progress' });
+    }
   } else if (hasRecordingStarted) {
     setDisplayMode('revised');
-    setStatus({ type: 'processing', message: 'Updating transcript...' });
+    setStatus(prev => {
+      if (prev.type === 'generating' || prev.type === 'ready') return prev;
+      return { type: 'processing', message: 'Updating transcript...' };
+    });
   }
 };
 
