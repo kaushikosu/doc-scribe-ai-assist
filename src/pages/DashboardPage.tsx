@@ -4,9 +4,9 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
+import StatusBanner from '@/components/StatusBanner';
 import { Toaster } from '@/components/ui/sonner';
 
-import { toast } from '@/lib/toast';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
@@ -20,7 +20,9 @@ const DashboardPage = () => {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
-  
+  // Prominent status banner state
+  type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+  const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
   
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
@@ -73,19 +75,19 @@ const DashboardPage = () => {
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!deepgramApiKey) {
       console.error("Deepgram API key is missing");
-      toast.error("Deepgram API key is not configured");
+      setStatus({ type: 'error', message: 'Deepgram API key is not configured' });
       return;
     }
     
     if (!audioBlob || audioBlob.size === 0) {
       console.error("No audio data to process");
-      toast.error("No audio recorded for diarization");
+      setStatus({ type: 'error', message: 'No audio recorded for diarization' });
       return;
     }
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    toast.info("Updating transcript...");
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
     
     try {
       // Process audio with Deepgram
@@ -98,14 +100,14 @@ const DashboardPage = () => {
           transcript: "Deepgram error",
           error: error
         });
-        toast.error("Diarization error: " + error);
+        setStatus({ type: 'error', message: 'Diarization error: ' + error });
       } else if (!diarizedText || diarizedText.trim().length === 0) {
         console.warn("No speech detected by Deepgram");
         setDiarizedTranscription({
           transcript: "No speech detected by deepgram",
           error: "No speech detected"
         });
-        toast.warning("No speech detected in the audio");
+        setStatus({ type: 'error', message: 'No speech detected in the audio' });
       } else {
         const result: DiarizedTranscription = {
           transcript: diarizedText,
@@ -120,7 +122,8 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
         setDisplayMode('revised');
-        toast.success('Transcript updated');
+        setStatus({ type: 'updated', message: 'Transcript updated' });
+        setTimeout(() => setStatus((prev) => (prev.type === 'updated' ? { type: 'idle' } : prev)), 1200);
       }
       
       setIsDiarizing(false);
@@ -132,7 +135,7 @@ const DashboardPage = () => {
         transcript: "Error in deepgram transcription",
         error: error.message || "Unknown error processing audio"
       });
-      toast.error("Failed to process diarized transcription with Deepgram");
+      setStatus({ type: 'error', message: 'Failed to process diarized transcription with Deepgram' });
     }
   };
 
@@ -153,16 +156,18 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   
   if (recordingState) {
     setDisplayMode('live');
+    setStatus({ type: 'recording', message: 'Recording in progress' });
   }
   
   if (!recordingState && transcript) {
-    toast.info('Processing transcript...');
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
   }
 };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
+        <StatusBanner status={status} />
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">
@@ -218,9 +223,11 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => toast.info('Prescription is being generated...')}
+    onGeneratingStart={() => setStatus({ type: 'generating', message: 'Generating prescription...' })}
     onGenerated={() => {
+      setStatus({ type: 'ready', message: 'Prescription ready' });
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => setStatus((prev) => (prev.type === 'ready' ? { type: 'idle' } : prev)), 1500);
     }}
   />
 </div>

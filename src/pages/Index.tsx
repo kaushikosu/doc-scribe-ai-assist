@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import { Toaster } from '@/components/ui/sonner';
 import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
-import { toast } from '@/lib/toast';
+import StatusBanner from '@/components/StatusBanner';
 
 const Index = () => {
   const [transcript, setTranscript] = useState('');
@@ -19,6 +18,9 @@ const Index = () => {
 const [isRecording, setIsRecording] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
 const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
+// Prominent status banner state
+type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
 
   const prescriptionRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +34,12 @@ const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   
 const handleRecordingStateChange = (recordingState: boolean) => {
   setIsRecording(recordingState);
-  if (recordingState) setDisplayMode('live');
+  if (recordingState) {
+    setDisplayMode('live');
+    setStatus({ type: 'recording', message: 'Recording in progress' });
+  } else if (!recordingState && transcript) {
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
+  }
 };
 
 // Receive Deepgram diarized transcript, map speakers to roles, and store classified text
