@@ -12,13 +12,15 @@ interface VoiceRecorderProps {
   onDiarizedTranscriptUpdate?: (transcript: string) => void;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
+  onNewPatient?: () => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
   onDiarizedTranscriptUpdate,
   onPatientInfoUpdate,
-  onRecordingStateChange
+  onRecordingStateChange,
+  onNewPatient
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
@@ -186,6 +188,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     diarizedMessagesRef.current = [];
     onTranscriptUpdate('');
     if (onDiarizedTranscriptUpdate) onDiarizedTranscriptUpdate('');
+    onNewPatient?.();
   };
 
   // Handle stopping recording

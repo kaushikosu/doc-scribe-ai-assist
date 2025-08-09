@@ -28,6 +28,7 @@ const DashboardPage = () => {
   
   const mountedRef = useRef(true);
   const prescriptionRef = useRef<HTMLDivElement>(null);
+  const [sessionId, setSessionId] = useState(0);
   
   const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
@@ -220,6 +221,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
 
 <div ref={prescriptionRef} className="animate-fade-in">
   <PrescriptionGenerator 
+    key={sessionId}
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}

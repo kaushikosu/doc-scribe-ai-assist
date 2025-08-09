@@ -26,6 +26,8 @@ const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ t
 // Progress step
 type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
 const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
+// Session id to reset child components
+const [sessionId, setSessionId] = useState(0);
 
   const prescriptionRef = useRef<HTMLDivElement>(null);
 
@@ -51,16 +53,16 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   }
 };
 
-// Receive Deepgram diarized transcript, map speakers to roles, and store classified text
-const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
-  if (!deepgramTranscript) return;
-  const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(deepgramTranscript, { 0: 'Doctor', 1: 'Patient' });
-  setTranscript(mapped);
-  setClassifiedTranscript(mapped);
-  setDisplayMode('revised');
-  // Move to generating step after processing is complete
-  setProgressStep('generating');
-  setStatus({ type: 'generating', message: 'Generating prescription...' });
+// New Patient handler: reset everything to initial state
+const handleNewPatient = () => {
+  setIsRecording(false);
+  setHasRecordingStarted(false);
+  setDisplayMode('live');
+  setTranscript('');
+  setClassifiedTranscript('');
+  setProgressStep('recording');
+  setStatus({ type: 'idle' });
+  setSessionId((id) => id + 1);
 };
 
   return (
@@ -75,9 +77,9 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
               onTranscriptUpdate={handleTranscriptUpdate} 
-              onDiarizedTranscriptUpdate={handleDiarizedTranscriptUpdate}
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
+              onNewPatient={handleNewPatient}
             />
             
             <Card className="p-5 border rounded-lg shadow-sm">
@@ -119,6 +121,7 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
             
 <div ref={prescriptionRef} className="animate-fade-in">
   <PrescriptionGenerator 
+    key={sessionId}
     transcript={transcript} 
     patientInfo={patientInfo} 
     classifiedTranscript={classifiedTranscript}
