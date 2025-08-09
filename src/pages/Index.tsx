@@ -16,6 +16,7 @@ const Index = () => {
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
 const [isRecording, setIsRecording] = useState(false);
+const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
 const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
 // Top progress bar state
@@ -39,6 +40,7 @@ const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
 const handleRecordingStateChange = useCallback((recordingState: boolean) => {
   setIsRecording(recordingState);
   if (recordingState) {
+    setHasRecordingStarted(true);
     setDisplayMode('live');
     setProgressStep('recording');
     setStatus({ type: 'recording', message: 'Recording in progress' });
@@ -64,7 +66,7 @@ const handleDiarizedTranscriptUpdate = (deepgramTranscript: string) => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
-        <StatusBanner status={status} />
+        {hasRecordingStarted && <StatusBanner status={status} />}
         <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
         

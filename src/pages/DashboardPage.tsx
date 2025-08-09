@@ -19,6 +19,7 @@ const DashboardPage = () => {
     time: ''
   });
   const [isRecording, setIsRecording] = useState(false);
+  const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
@@ -152,6 +153,7 @@ const handleRecordingStateChange = useCallback((recordingState: boolean) => {
   setIsRecording(recordingState);
   
   if (recordingState) {
+    setHasRecordingStarted(true);
     setDisplayMode('live');
     setStatus({ type: 'recording', message: 'Recording in progress' });
   }
@@ -165,7 +167,7 @@ const handleRecordingStateChange = useCallback((recordingState: boolean) => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
-        <StatusBanner status={status} />
+        {hasRecordingStarted && <StatusBanner status={status} />}
         <DocHeader patientInfo={patientInfo} />
         
         <div className="grid gap-6 md:grid-cols-12">

@@ -48,7 +48,7 @@ export default function StatusBanner({ status }: StatusBannerProps) {
     }[status.type];
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-3 sm:px-0">
+    <div className="fixed bottom-4 right-4 z-50 px-3 sm:px-0">
       <div
         className={cn(
           "flex items-center gap-2 sm:gap-3 rounded-full border shadow-lg backdrop-blur",
