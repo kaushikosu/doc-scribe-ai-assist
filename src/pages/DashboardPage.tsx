@@ -5,24 +5,34 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
-
+import PatientSessionBar from '@/components/PatientSessionBar';
+import StatusStepsBar from '@/components/StatusStepsBar';
+import PatientInfoBar from '@/components/PatientInfoBar';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
+import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
+import { createPatient, Patient } from '@/integrations/supabase/patients';
+import { createConsultationSession, ConsultationSession, updateConsultationSession } from '@/integrations/supabase/consultationSessions';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
     name: '',
-    time: ''
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
+  const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
+  const [currentPatientRecord, setCurrentPatientRecord] = useState<Patient | null>(null);
+  const [currentSessionRecord, setCurrentSessionRecord] = useState<ConsultationSession | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+  type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
+  const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
   
@@ -156,6 +166,52 @@ const DashboardPage = () => {
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
     setPatientInfo(newPatientInfo);
   };
+
+  // Handle recording start - create patient if none exists
+  const handleRecordingStart = async () => {
+    if (!currentPatientRecord) {
+      await generateNewPatient();
+    }
+  };
+
+  // Generate new patient with mock data and save to database
+  const generateNewPatient = async () => {
+    const mockPatient = generateMockPatient();
+    setCurrentPatient(mockPatient);
+    setPatientInfo({
+      name: mockPatient.name,
+      time: mockPatient.sessionStartTime
+    });
+
+    try {
+      // Create patient in the database with all ABDM-required details
+      const patient = await createPatient({
+        name: mockPatient.name,
+        abha_id: mockPatient.abhaId,
+        age: mockPatient.age,
+        gender: mockPatient.gender,
+        phone: mockPatient.phone,
+        address: mockPatient.address,
+        emergency_contact: mockPatient.emergencyContact,
+        medical_history: mockPatient.medicalHistory,
+        blood_group: mockPatient.bloodGroup,
+        allergies: mockPatient.allergies,
+      });
+      setCurrentPatientRecord(patient);
+      
+      // Create initial consultation session
+      const session = await createConsultationSession({
+        patient_id: patient.id,
+        live_transcript: '',
+        updated_transcript: '',
+        prescription: '',
+        audio_path: null
+      });
+      setCurrentSessionRecord(session);
+    } catch (error) {
+      console.error('Failed to create patient and session:', error);
+    }
+  };
   
 const handleRecordingStateChange = (recordingState: boolean) => {
   console.log("Recording state changed to:", recordingState);
@@ -164,11 +220,13 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   if (recordingState) {
     if (!hasRecordingStarted) setHasRecordingStarted(true);
     setDisplayMode('live');
+    setProgressStep('recording');
     if (status.type !== 'recording') {
       setStatus({ type: 'recording', message: 'Recording in progress' });
     }
   } else if (hasRecordingStarted) {
     setDisplayMode('revised');
+    setProgressStep('processing');
     setStatus(prev => {
       if (prev.type === 'generating' || prev.type === 'ready') return prev;
       return { type: 'processing', message: 'Updating transcript...' };
@@ -178,9 +236,15 @@ const handleRecordingStateChange = (recordingState: boolean) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
+      <PatientSessionBar 
+        patient={currentPatientRecord} 
+        sessionStartTime={patientInfo.time}
+      />
       <div className="container py-8 max-w-6xl">
         {hasRecordingStarted && <StatusBanner status={status} />}
+        <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
+        <PatientInfoBar patientData={currentPatient} />
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
@@ -188,6 +252,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
               onTranscriptUpdate={handleTranscriptUpdate} 
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
+              onRecordingStart={handleRecordingStart}
               onNewPatient={() => {
                 setIsRecording(false);
                 setHasRecordingStarted(false);
@@ -195,8 +260,10 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setTranscript('');
                 setClassifiedTranscript('');
                 setDiarizedTranscription(null);
+                setProgressStep('recording');
                 setStatus({ type: 'idle' });
                 setSessionId(id => id + 1);
+                generateNewPatient();
               }}
             />
             
@@ -243,8 +310,31 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     transcript={transcript} 
     patientInfo={patientInfo}
     classifiedTranscript={classifiedTranscript}
-    onGeneratingStart={() => setStatus({ type: 'generating' })}
-    onGenerated={() => setStatus({ type: 'ready', message: 'Prescription generated' })}
+    currentPatient={currentPatientRecord}
+    sessionId={currentSessionRecord?.id}
+    onGeneratingStart={() => {
+      setProgressStep('generating');
+      setStatus({ type: 'generating', message: 'Generating prescription...' });
+    }}
+    onGenerated={async () => {
+      setProgressStep('generated');
+      setStatus({ type: 'ready', message: 'Prescription generated' });
+      
+      // Update consultation session with transcripts
+      if (currentSessionRecord) {
+        try {
+          await updateConsultationSession(currentSessionRecord.id, {
+            live_transcript: transcript,
+            updated_transcript: classifiedTranscript,
+            session_ended_at: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Failed to update consultation session:', error);
+        }
+      }
+      
+      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }}
   />
 </div>
           </div>
