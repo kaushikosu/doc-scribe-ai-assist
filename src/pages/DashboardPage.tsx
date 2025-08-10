@@ -88,6 +88,7 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
+    setStatus({ type: "processing", message: "Processing audio..." });
     const startSession = sessionRef.current;
     
     try {
@@ -97,17 +98,20 @@ const DashboardPage = () => {
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");
         setIsDiarizing(false);
+        setStatus({ type: "idle" });
         return;
       }
       
       if (error) {
         console.error("Deepgram error:", error);
+        setStatus({ type: "error", message: "Failed to process audio" });
         setDiarizedTranscription({
           transcript: "Deepgram error",
           error: error
         });
       } else if (!diarizedText || diarizedText.trim().length === 0) {
         console.warn("No speech detected by Deepgram");
+        setStatus({ type: "error", message: "No speech detected" });
         setDiarizedTranscription({
           transcript: "No speech detected by deepgram",
           error: "No speech detected"
@@ -125,6 +129,7 @@ const DashboardPage = () => {
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
         setDisplayMode('revised');
+        setStatus({ type: "updated", message: "Transcript updated successfully" });
       }
       
       setIsDiarizing(false);
@@ -132,6 +137,7 @@ const DashboardPage = () => {
     } catch (error: any) {
       console.error("Error in Deepgram diarized transcription:", error);
       setIsDiarizing(false);
+      setStatus({ type: "error", message: "Error processing audio" });
       setDiarizedTranscription({
         transcript: "Error in deepgram transcription",
         error: error.message || "Unknown error processing audio"
@@ -207,8 +213,10 @@ const DashboardPage = () => {
     if (recordingState) {
       if (!hasRecordingStarted) setHasRecordingStarted(true);
       setDisplayMode('live');
+      setStatus({ type: "recording", message: "Recording in progress..." });
     } else if (hasRecordingStarted) {
       setDisplayMode('revised');
+      setStatus({ type: "processing", message: "Processing recording..." });
     }
   };
 
@@ -282,9 +290,11 @@ const DashboardPage = () => {
                 sessionId={currentSessionRecord?.id}
                 onGeneratingStart={() => {
                   console.log('Prescription generation started');
+                  setStatus({ type: "generating", message: "Generating prescription..." });
                 }}
                 onGenerated={async () => {
                   console.log('Prescription generated');
+                  setStatus({ type: "ready", message: "Prescription ready" });
                   
                   if (currentSessionRecord) {
                     try {
