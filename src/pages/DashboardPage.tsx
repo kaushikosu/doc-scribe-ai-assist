@@ -5,6 +5,7 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
+import DebugPanel from '@/components/DebugPanel';
 
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
@@ -28,6 +29,11 @@ const DashboardPage = () => {
   const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   const [enableAICorrection, setEnableAICorrection] = useState(true);
+  
+  // Debug panel states
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [deepgramTranscript, setDeepgramTranscript] = useState('');
+  const [claudeTranscript, setClaudeTranscript] = useState('');
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
@@ -105,6 +111,11 @@ const DashboardPage = () => {
       // Process audio with Deepgram and AI correction
       const { transcript: diarizedText, error, correctionResult } = await processCompleteAudioWithCorrection(audioBlob, deepgramApiKey, enableAICorrection);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
+      
+      // Update debug panel with Deepgram result
+      if (diarizedText) {
+        setDeepgramTranscript(diarizedText);
+      }
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");
         setIsDiarizing(false);
@@ -138,8 +149,9 @@ const DashboardPage = () => {
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
-         setDisplayMode('revised');
-         setStatus({ type: 'generating', message: 'Generating prescription...' });
+        setClaudeTranscript(mapped); // Update debug panel with Claude result
+        setDisplayMode('revised');
+        setStatus({ type: 'generating', message: 'Generating prescription...' });
 
         // Upload audio to storage after successful processing
         if (currentSessionRecord) {
@@ -178,6 +190,7 @@ const DashboardPage = () => {
     console.log("handleTranscriptUpdate called with:", newTranscript?.length);
     if (newTranscript !== undefined) {
       setTranscript(newTranscript);
+      setLiveTranscript(newTranscript); // Update debug panel
     }
   };
 
@@ -272,6 +285,9 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setTranscript('');
                 setClassifiedTranscript('');
                 setDiarizedTranscription(null);
+                setLiveTranscript('');
+                setDeepgramTranscript('');
+                setClaudeTranscript('');
                 setProgressStep('recording');
                 setStatus({ type: 'idle' });
                 setSessionId(id => id + 1);
@@ -353,6 +369,16 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   />
 </div>
           </div>
+        </div>
+        
+        {/* Debug Panel */}
+        <div className="mt-8">
+          <DebugPanel
+            liveTranscript={liveTranscript}
+            deepgramTranscript={deepgramTranscript}
+            claudeTranscript={claudeTranscript}
+            isRecording={isRecording}
+          />
         </div>
       </div>
       
