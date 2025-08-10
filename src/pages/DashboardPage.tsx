@@ -9,7 +9,7 @@ import StatusBanner from '@/components/StatusBanner';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
-import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
+import { processCompleteAudioWithCorrection, mapDeepgramSpeakersToRoles, processCompleteAudio } from '@/utils/deepgramSpeechToText';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
 import { createPatient, Patient } from '@/integrations/supabase/patients';
 import { createConsultationSession, ConsultationSession, updateConsultationSession, uploadSessionAudio } from '@/integrations/supabase/consultationSessions';
@@ -27,6 +27,7 @@ const DashboardPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
+  const [enableAICorrection, setEnableAICorrection] = useState(true);
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
@@ -101,8 +102,8 @@ const DashboardPage = () => {
     const startSession = sessionRef.current;
     
     try {
-      // Process audio with Deepgram
-      const { transcript: diarizedText, error } = await processCompleteAudio(audioBlob, deepgramApiKey);
+      // Process audio with Deepgram and AI correction
+      const { transcript: diarizedText, error, correctionResult } = await processCompleteAudioWithCorrection(audioBlob, deepgramApiKey, enableAICorrection);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");

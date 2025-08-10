@@ -192,7 +192,96 @@ export const mapDeepgramSpeakersToRoles = (
     return line;
   });
 
-  // Join paragraphs with single newline to align with other components
+// Join paragraphs with single newline to align with other components
   const classifiedTranscript = mappedLines.join('\n\n').trim();
   return { classifiedTranscript, mapping: roleOfSpeaker };
 };
+
+// Speaker correction with AI
+export interface SpeakerCorrectionResult {
+  correctedTranscript: string;
+  confidence: number;
+  corrections: Array<{
+    original: string;
+    corrected: string;
+    reason: string;
+  }>;
+  analysis: string;
+}
+
+export async function correctSpeakersWithAI(transcript: string): Promise<SpeakerCorrectionResult> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    const { data, error } = await supabase.functions.invoke('correct-transcript-speakers', {
+      body: { transcript }
+    });
+
+    if (error) {
+      console.error('Error calling speaker correction function:', error);
+      return {
+        correctedTranscript: transcript,
+        confidence: 0.0,
+        corrections: [],
+        analysis: 'Error occurred during AI correction'
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in correctSpeakersWithAI:', error);
+    return {
+      correctedTranscript: transcript,
+      confidence: 0.0,
+      corrections: [],
+      analysis: 'Error occurred during AI correction'
+    };
+  }
+}
+
+// Enhanced processing with optional AI correction
+export async function processCompleteAudioWithCorrection(
+  audioBlob: Blob, 
+  apiKey: string, 
+  enableAICorrection: boolean = false
+): Promise<{transcript: string, error?: string, correctionResult?: SpeakerCorrectionResult}> {
+  try {
+    // First get the standard Deepgram result
+    const result = await processCompleteAudio(audioBlob, apiKey);
+    
+    if (result.error || !result.transcript) {
+      return result;
+    }
+
+    // Apply AI correction if enabled and transcript has speaker labels
+    if (enableAICorrection && result.transcript.includes('Speaker')) {
+      console.log('Applying AI speaker correction...');
+      const correctionResult = await correctSpeakersWithAI(result.transcript);
+      
+      // Only use corrected transcript if confidence is high enough
+      if (correctionResult.confidence >= 0.85) {
+        return {
+          transcript: correctionResult.correctedTranscript,
+          correctionResult
+        };
+      } else {
+        console.log('AI correction confidence too low, keeping original:', correctionResult.confidence);
+        return {
+          ...result,
+          correctionResult
+        };
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error in processCompleteAudioWithCorrection:', error);
+    return {
+      transcript: '',
+      error: `Processing failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+// Export the utilities
+export { postProcessDeepgramResponse };

@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Save, Copy, MoreHorizontal } from 'lucide-react';
+import { Edit, Save, Copy, MoreHorizontal, Wand2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { correctSpeakersWithAI, type SpeakerCorrectionResult } from '@/utils/deepgramSpeechToText';
 import { cn } from '@/lib/utils';
 
 interface TranscriptEditorProps {
@@ -25,6 +25,8 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editableTranscript, setEditableTranscript] = useState(transcript);
+  const [isCorrectingSpeakers, setIsCorrectingSpeakers] = useState(false);
+  const [correctionResult, setCorrectionResult] = useState<SpeakerCorrectionResult | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +57,27 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     navigator.clipboard.writeText(text);
   };
 
+  const handleCorrectSpeakers = async () => {
+    if (!transcript.trim() || !transcript.includes('Speaker')) {
+      return; // No speakers to correct
+    }
+
+    setIsCorrectingSpeakers(true);
+    try {
+      const result = await correctSpeakersWithAI(transcript);
+      setCorrectionResult(result);
+      
+      // If confidence is high enough, apply the correction
+      if (result.confidence >= 0.85) {
+        setEditableTranscript(result.correctedTranscript);
+        onTranscriptChange(result.correctedTranscript);
+      }
+    } catch (error) {
+      console.error('Error correcting speakers:', error);
+    } finally {
+      setIsCorrectingSpeakers(false);
+    }
+  };
 
   // Process and format the transcript with improved chunking and speaker labels
   const formattedTranscript = React.useMemo(() => {
@@ -121,6 +144,15 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                 )}
               </Badge>
             )}
+            {correctionResult && (
+              <Badge 
+                variant={correctionResult.confidence >= 0.85 ? "default" : "secondary"}
+                className="text-xs"
+              >
+                AI {correctionResult.confidence >= 0.85 ? 'Corrected' : 'Analyzed'} 
+                ({Math.round(correctionResult.confidence * 100)}%)
+              </Badge>
+            )}
           </div>
           {transcript.length > 0 && (
             <div className="flex gap-2">
@@ -144,6 +176,18 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   <DropdownMenuItem onClick={() => copyToClipboard(transcript, 'Transcript copied to clipboard')}>
                     Copy transcript
                   </DropdownMenuItem>
+                  {transcript.includes('Speaker') && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={handleCorrectSpeakers}
+                        disabled={isCorrectingSpeakers}
+                      >
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        {isCorrectingSpeakers ? 'Correcting...' : 'Correct Speakers'}
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
