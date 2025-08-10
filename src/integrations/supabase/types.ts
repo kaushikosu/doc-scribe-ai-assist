@@ -93,7 +93,16 @@ export type Database = {
           doctor_id: string
           id: string
           live_transcript: string | null
+          patient_abha_id: string | null
+          patient_address: string | null
+          patient_age: number | null
+          patient_allergies: string | null
+          patient_blood_group: string | null
+          patient_emergency_contact: string | null
+          patient_gender: string | null
+          patient_medical_history: string | null
           patient_name: string | null
+          patient_phone: string | null
           prescription: string | null
           session_ended_at: string | null
           session_started_at: string
@@ -106,7 +115,16 @@ export type Database = {
           doctor_id: string
           id?: string
           live_transcript?: string | null
+          patient_abha_id?: string | null
+          patient_address?: string | null
+          patient_age?: number | null
+          patient_allergies?: string | null
+          patient_blood_group?: string | null
+          patient_emergency_contact?: string | null
+          patient_gender?: string | null
+          patient_medical_history?: string | null
           patient_name?: string | null
+          patient_phone?: string | null
           prescription?: string | null
           session_ended_at?: string | null
           session_started_at?: string
@@ -119,7 +137,16 @@ export type Database = {
           doctor_id?: string
           id?: string
           live_transcript?: string | null
+          patient_abha_id?: string | null
+          patient_address?: string | null
+          patient_age?: number | null
+          patient_allergies?: string | null
+          patient_blood_group?: string | null
+          patient_emergency_contact?: string | null
+          patient_gender?: string | null
+          patient_medical_history?: string | null
           patient_name?: string | null
+          patient_phone?: string | null
           prescription?: string | null
           session_ended_at?: string | null
           session_started_at?: string
