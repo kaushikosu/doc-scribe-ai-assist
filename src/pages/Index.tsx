@@ -10,7 +10,8 @@ import PatientInfoBar from '@/components/PatientInfoBar';
 import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 import StatusStepsBar from '@/components/StatusStepsBar';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
-import { createPatientRecord, PatientRecordResult } from '@/integrations/supabase/patientRecords';
+import { createPatient, Patient } from '@/integrations/supabase/patients';
+import { createConsultationSession, ConsultationSession, updateConsultationSession } from '@/integrations/supabase/consultationSessions';
 
 const Index = () => {
   const [transcript, setTranscript] = useState('');
@@ -19,7 +20,8 @@ const Index = () => {
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
   const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
-  const [currentSession, setCurrentSession] = useState<PatientRecordResult | null>(null);
+  const [currentPatientRecord, setCurrentPatientRecord] = useState<Patient | null>(null);
+  const [currentSessionRecord, setCurrentSessionRecord] = useState<ConsultationSession | null>(null);
 const [isRecording, setIsRecording] = useState(false);
 const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
@@ -68,26 +70,32 @@ const generateNewPatient = async () => {
   });
 
   try {
-    // Create patient and consultation session in the database
-    const result = await createPatientRecord({
-      patient_name: mockPatient.name,
-      patient_abha_id: mockPatient.abhaId,
-      patient_age: mockPatient.age,
-      patient_gender: mockPatient.gender,
-      patient_phone: mockPatient.phone,
-      patient_address: mockPatient.address,
-      patient_emergency_contact: mockPatient.emergencyContact,
-      patient_medical_history: mockPatient.medicalHistory,
-      patient_blood_group: mockPatient.bloodGroup,
-      patient_allergies: mockPatient.allergies,
-      prescription: '', // Will be filled when prescription is generated
+    // Create patient in the database with all ABDM-required details
+    const patient = await createPatient({
+      name: mockPatient.name,
+      abha_id: mockPatient.abhaId,
+      age: mockPatient.age,
+      gender: mockPatient.gender,
+      phone: mockPatient.phone,
+      address: mockPatient.address,
+      emergency_contact: mockPatient.emergencyContact,
+      medical_history: mockPatient.medicalHistory,
+      blood_group: mockPatient.bloodGroup,
+      allergies: mockPatient.allergies,
+    });
+    setCurrentPatientRecord(patient);
+    
+    // Create initial consultation session
+    const session = await createConsultationSession({
+      patient_id: patient.id,
       live_transcript: '',
       updated_transcript: '',
+      prescription: '',
       audio_path: null
     });
-    setCurrentSession(result);
+    setCurrentSessionRecord(session);
   } catch (error) {
-    console.error('Failed to save initial patient record:', error);
+    console.error('Failed to create patient and session:', error);
   }
 };
 
@@ -174,9 +182,24 @@ useEffect(() => {
       setProgressStep('generating');
       setStatus({ type: 'generating', message: 'Generating prescription...' });
     }}
-    onGenerated={() => {
+    onGenerated={async () => {
       setProgressStep('generated');
       setStatus({ type: 'ready', message: 'Prescription generated' });
+      
+      // Update consultation session with prescription and transcripts
+      if (currentSessionRecord) {
+        try {
+          await updateConsultationSession(currentSessionRecord.id, {
+            live_transcript: transcript,
+            updated_transcript: classifiedTranscript,
+            prescription: 'Generated', // The actual prescription content is managed in the component
+            session_ended_at: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Failed to update consultation session:', error);
+        }
+      }
+      
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }}
   />

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { createPatientRecord } from '@/integrations/supabase/patientRecords';
+
 
 interface PrescriptionGeneratorProps {
   transcript: string;
@@ -40,7 +40,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [recordSaved, setRecordSaved] = useState(false);
+  
 
   // PM-JAY format toggle and header details (persisted locally)
   const [usePmjayFormat, setUsePmjayFormat] = useState<boolean>(() => {
@@ -143,29 +143,6 @@ useEffect(() => {
   }
 }, [classifiedTranscript, isClassifying]);
 
-// Auto-create patient record once a prescription is available (single entry per interaction)
-const [isSavingRecord, setIsSavingRecord] = useState(false);
-
-useEffect(() => {
-  if (prescription && !recordSaved && !isGenerating) {
-    (async () => {
-      try {
-        setIsSavingRecord(true);
-        await createPatientRecord({
-          patient_name: patientInfo?.name || null,
-          prescription,
-          live_transcript: transcript || null,
-          updated_transcript: classifiedTranscript || null,
-        });
-        setRecordSaved(true);
-      } catch (e) {
-        console.error('Failed to save patient record:', e);
-      } finally {
-        setIsSavingRecord(false);
-      }
-    })();
-  }
-}, [prescription]);
 
   const generatePrescription = (transcriptText: string) => {
     try {
