@@ -1,5 +1,6 @@
 import { supabase } from "./client";
 import { toast } from "@/lib/toast";
+import { uploadAudioRecording, updateSessionAudioPath } from '@/utils/audioStorage';
 
 export type CreateConsultationSessionInput = {
   patient_id: string;
@@ -89,4 +90,64 @@ export async function endConsultationSession(id: string): Promise<ConsultationSe
   return updateConsultationSession(id, {
     session_ended_at: new Date().toISOString()
   });
+}
+
+/**
+ * Upload audio recording and update consultation session with the audio path
+ * @param sessionId - The consultation session ID
+ * @param audioBlob - The audio blob to upload
+ * @returns Promise with the updated consultation session
+ */
+export async function uploadSessionAudio(
+  sessionId: string, 
+  audioBlob: Blob
+): Promise<{ success: boolean; error: string | null; session?: ConsultationSession }> {
+  try {
+    // Get current user
+    const { data: userRes, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userRes.user) {
+      return { success: false, error: "User must be signed in to upload audio" };
+    }
+
+    // Upload audio to storage
+    const { path, error: uploadError } = await uploadAudioRecording(
+      audioBlob, 
+      sessionId, 
+      userRes.user.id
+    );
+
+    if (uploadError || !path) {
+      return { success: false, error: uploadError || "Failed to upload audio" };
+    }
+
+    // Update session with audio path
+    const { success: updateSuccess, error: updateError } = await updateSessionAudioPath(
+      sessionId, 
+      path
+    );
+
+    if (!updateSuccess) {
+      return { success: false, error: updateError || "Failed to update session with audio path" };
+    }
+
+    // Fetch updated session
+    const { data: session, error: fetchError } = await supabase
+      .from("consultation_sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .single();
+
+    if (fetchError) {
+      return { success: false, error: "Failed to fetch updated session" };
+    }
+
+    return { success: true, error: null, session };
+
+  } catch (error) {
+    console.error('Error in uploadSessionAudio:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    };
+  }
 }
