@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -18,6 +18,39 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
   isRecording
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Helper function to format text as paragraphs
+  const formatParagraphs = (text: string) => {
+    if (!text) return [];
+    return text.split('\n').filter(p => p.trim().length > 0);
+  };
+
+  // Calculate differences between Deepgram and Claude transcripts
+  const claudeWithHighlights = useMemo(() => {
+    if (!deepgramTranscript || !claudeTranscript) return formatParagraphs(claudeTranscript);
+    
+    const deepgramParagraphs = formatParagraphs(deepgramTranscript);
+    const claudeParagraphs = formatParagraphs(claudeTranscript);
+    
+    return claudeParagraphs.map((claudePara, index) => {
+      const deepgramPara = deepgramParagraphs[index] || '';
+      
+      // Simple word-level diff
+      const claudeWords = claudePara.split(' ');
+      const deepgramWords = deepgramPara.split(' ');
+      
+      return claudeWords.map((word, wordIndex) => {
+        const deepgramWord = deepgramWords[wordIndex] || '';
+        const isChanged = word !== deepgramWord;
+        
+        return {
+          word,
+          isChanged,
+          key: `${index}-${wordIndex}`
+        };
+      });
+    });
+  }, [deepgramTranscript, claudeTranscript]);
 
   return (
     <div className="w-full">
@@ -48,7 +81,13 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {liveTranscript || (
+                  {liveTranscript ? (
+                    formatParagraphs(liveTranscript).map((paragraph, index) => (
+                      <p key={index} className="mb-2 last:mb-0">
+                        {paragraph}
+                      </p>
+                    ))
+                  ) : (
                     <span className="text-muted-foreground italic">
                       {isRecording ? 'Listening...' : 'No live transcript yet'}
                     </span>
@@ -68,7 +107,13 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {deepgramTranscript || (
+                  {deepgramTranscript ? (
+                    formatParagraphs(deepgramTranscript).map((paragraph, index) => (
+                      <p key={index} className="mb-2 last:mb-0">
+                        {paragraph}
+                      </p>
+                    ))
+                  ) : (
                     <span className="text-muted-foreground italic">
                       Waiting for audio processing...
                     </span>
@@ -88,7 +133,20 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {claudeTranscript || (
+                  {claudeTranscript ? (
+                    claudeWithHighlights.map((paragraph, index) => (
+                      <p key={index} className="mb-2 last:mb-0">
+                        {paragraph.map(({ word, isChanged, key }) => (
+                          <span
+                            key={key}
+                            className={isChanged ? 'bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded' : ''}
+                          >
+                            {word}{' '}
+                          </span>
+                        ))}
+                      </p>
+                    ))
+                  ) : (
                     <span className="text-muted-foreground italic">
                       Waiting for AI correction...
                     </span>
