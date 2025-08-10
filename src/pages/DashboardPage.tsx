@@ -3,7 +3,9 @@ import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
-import PatientSessionBar from '@/components/PatientSessionBar';
+import StatusBanner from '@/components/StatusBanner';
+import PatientInfoBar from '@/components/PatientInfoBar';
+import DocHeader from '@/components/DocHeader';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -27,6 +29,7 @@ const DashboardPage = () => {
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
+  const [status, setStatus] = useState<{ type: "idle" | "recording" | "processing" | "updated" | "generating" | "ready" | "error"; message?: string }>({ type: "idle" });
   
   const mountedRef = useRef(true);
   const prescriptionRef = useRef<HTMLDivElement>(null);
@@ -204,10 +207,9 @@ const DashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
-      <PatientSessionBar 
-        patient={currentPatientRecord} 
-        sessionStartTime={patientInfo.time}
-      />
+      <DocHeader patientInfo={patientInfo} />
+      <PatientInfoBar patientData={currentPatient} />
+      <StatusBanner status={status} />
       <div className="container py-8 max-w-6xl">
         
         <div className="grid gap-6 md:grid-cols-12">
