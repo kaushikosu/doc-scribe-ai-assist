@@ -195,82 +195,57 @@ useEffect(() => {
 ${hospitalName.toUpperCase()}
 ${hospitalAddress}
 Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
-${empanelmentId ? `Empanelment ID (if applicable): ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
-==================================================================
-ABDM-compliant Prescription
+${empanelmentId ? `Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
+================================================================
 
-Date: ${currentDate}    Time: ${patientInfo.time || ''}
+Date: ${currentDate}                                  Time: ${patientInfo.time || ''}
 
-PATIENT DETAILS
-- Name: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
-- Age/Sex: ${currentPatient?.age || '[Age]'}/${currentPatient?.gender || '[Sex]'}
-- Phone: ${currentPatient?.phone || '[Phone]'}
-- Address: ${currentPatient?.address || '[Address]'}
-- ABHA (Health ID): ${currentPatient?.abha_id || patientAbha || '[ABHA Number]'}
-- Blood Group: ${currentPatient?.blood_group || '[Blood Group]'}
-- Allergies: ${currentPatient?.allergies || 'None known'}
-- Medical History: ${currentPatient?.medical_history || 'None documented'}
+PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+Age/Sex: ${currentPatient?.age || '[Age]'}/${currentPatient?.gender || '[Sex]'}
+ABHA ID: ${currentPatient?.abha_id || patientAbha || '[ABHA Number]'}
 
-CLINICAL SUMMARY
-- Presenting complaints (from patient): ${symptoms.join(', ') || 'N/A'}
-- Provisional diagnosis:${diagnosis.map(d => ` ${d.text}${d.icd && d.icd !== '-' ? ` (ICD-10: ${d.icd})` : ''}`).join('; ') || ' To be coded'}
+PRESENTING COMPLAINTS:
+${symptoms.join(', ') || 'N/A'}
 
-INVESTIGATIONS/PROCEDURES ADVISED
+DIAGNOSIS:
+${diagnosis.map(d => `${d.text}${d.icd && d.icd !== '-' ? ` (${d.icd})` : ''}`).join('; ') || 'To be coded'}
+
+Rx.
+${medications.length ? medications.map((med, idx) => `${idx + 1}. ${med}`).join('\n') : 'None prescribed'}
+
+INVESTIGATIONS:
 ${recommendations.length ? recommendations.map((rec, idx) => `${idx + 1}. ${rec}`).join('\n') : 'None'}
 
-MEDICATIONS (Generic preferred under PM-JAY)
-${medications.length ? medications.map((med, idx) => `${idx + 1}. ${med} | Route: [oral] | Duration: [days] | Instructions: [before/after food]`).join('\n') : 'None prescribed'}
+ADVICE: Rest, adequate hydration, follow medication schedule
+FOLLOW-UP: ${recommendations.find(r => r.toLowerCase().includes('follow-up')) || 'As needed'}
 
-ADVICE AND FOLLOW-UP
-- Lifestyle/Non-pharmacological advice: [Advice]
-- Follow-up: ${recommendations.find(r => r.toLowerCase().includes('follow-up')) || '[Follow-up plan]'}
-
-DOCTOR DETAILS AND DIGITAL SIGNATURE
-- ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}
-- Reg./HPR ID: ${doctorRegId}
-- Department: ${doctorDept}
-This is a digitally generated prescription.
-==================================================================
+Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}
+Reg. No: ${doctorRegId} | ${doctorDept}
+================================================================
         `.trim();
       } else {
         // Fallback to simple template
         generatedPrescription = `
 ${hospitalName.toUpperCase()}
 ------------------------------------------------------------------
-${hospitalName}, ${hospitalAddress}
-Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
-
-PRESCRIPTION
-
 Date: ${currentDate}                     Time: ${patientInfo.time || ''}
 
-PATIENT INFORMATION:
-Name: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
-Age: ${currentPatient?.age || '[Age]'}
-Gender: ${currentPatient?.gender || '[Gender]'}
-Phone: ${currentPatient?.phone || '[Phone]'}
-ABHA ID: ${currentPatient?.abha_id || '[ABHA ID]'}
-Blood Group: ${currentPatient?.blood_group || '[Blood Group]'}
-Allergies: ${currentPatient?.allergies || 'None known'}
- 
-CLINICAL NOTES:
-Patient presenting with: ${symptoms.join(', ') || 'N/A'}
+PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+Age: ${currentPatient?.age || '[Age]'}  Gender: ${currentPatient?.gender || '[Gender]'}
 
-MEDICATIONS:
+COMPLAINTS: ${symptoms.join(', ') || 'N/A'}
+
+Rx.
 ${medications.length ? medications.map((med, index) => `${index + 1}. ${med}`).join('\n') : 'N/A'}
 
-RECOMMENDATIONS/TESTS:
+INVESTIGATIONS:
 ${recommendations.length ? recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n') : 'N/A'}
 
-INSTRUCTIONS:
-- Take medications as directed
-- Return for follow-up in 2 weeks
-- Contact immediately if symptoms worsen
+ADVICE: Take medications as directed, follow-up as needed
 
-------------------------------------------------------------------
-${doctorName}
+Dr. ${doctorName}
 Registration No: ${doctorRegId}
-Department of ${doctorDept}
+------------------------------------------------------------------
         `.trim();
       }
 
@@ -674,11 +649,11 @@ const handleGenerateAI = () => {
           <Textarea
             value={editablePrescription}
             onChange={handleChange}
-            className="min-h-[300px] p-4 rounded-md border-0 resize-none focus-visible:ring-primary text-sm"
+            className="min-h-[300px] p-4 rounded-md border-0 resize-none focus-visible:ring-primary text-sm font-prescription"
             placeholder="Prescription will be generated here..."
           />
         ) : (
-          <div className="p-2 rounded-md min-h-[300px] text-sm whitespace-pre-wrap">
+          <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
             {prescription ? (
               prescription
             ) : (

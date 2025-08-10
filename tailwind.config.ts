@@ -71,6 +71,9 @@ export default {
 					dark: '#1F2937',       // dark gray
 				}
 			},
+			fontFamily: {
+				'prescription': ['Source Sans Pro', 'system-ui', 'sans-serif'],
+			},
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
