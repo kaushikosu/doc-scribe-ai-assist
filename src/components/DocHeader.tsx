@@ -17,6 +17,8 @@ interface DocHeaderProps {
   patientInfo: {
     name: string;
     time: string;
+    age?: number;
+    gender?: string;
   };
 }
 
@@ -100,7 +102,11 @@ const DocHeader: React.FC<DocHeaderProps> = ({ patientInfo }) => {
       {patientInfo.name && (
         <div className="bg-gradient-to-r from-doctor-secondary/20 to-doctor-secondary/5 p-3 rounded-md shadow-sm">
           <p className="text-sm text-doctor-secondary font-medium">
-            Current patient: <span className="font-bold">{patientInfo.name}</span> | Session started: {patientInfo.time} | {new Date().toLocaleDateString()}
+            Current patient: <span className="font-bold">{patientInfo.name}</span>
+            {patientInfo.age && patientInfo.gender && (
+              <span> | {patientInfo.age} years, {patientInfo.gender}</span>
+            )}
+            <span> | Session started: {patientInfo.time} | {new Date().toLocaleDateString()}</span>
           </p>
         </div>
       )}

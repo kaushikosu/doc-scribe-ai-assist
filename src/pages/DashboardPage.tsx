@@ -4,7 +4,6 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import StatusBanner from '@/components/StatusBanner';
-import PatientInfoBar from '@/components/PatientInfoBar';
 import DocHeader from '@/components/DocHeader';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
@@ -19,7 +18,9 @@ const DashboardPage = () => {
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
     name: '',
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    age: undefined as number | undefined,
+    gender: undefined as string | undefined
   });
   const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
   const [currentPatientRecord, setCurrentPatientRecord] = useState<Patient | null>(null);
@@ -146,7 +147,11 @@ const DashboardPage = () => {
   };
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
-    setPatientInfo(newPatientInfo);
+    setPatientInfo(prev => ({
+      ...prev,
+      name: newPatientInfo.name,
+      time: newPatientInfo.time
+    }));
   };
 
   // Handle recording start - create patient if none exists
@@ -162,7 +167,9 @@ const DashboardPage = () => {
     setCurrentPatient(mockPatient);
     setPatientInfo({
       name: mockPatient.name,
-      time: mockPatient.sessionStartTime
+      time: mockPatient.sessionStartTime,
+      age: mockPatient.age,
+      gender: mockPatient.gender
     });
 
     try {
@@ -208,7 +215,6 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <DocHeader patientInfo={patientInfo} />
-      <PatientInfoBar patientData={currentPatient} />
       <StatusBanner status={status} />
       <div className="container py-8 max-w-6xl">
         
