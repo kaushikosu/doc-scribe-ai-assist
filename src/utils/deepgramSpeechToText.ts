@@ -211,14 +211,16 @@ export interface SpeakerCorrectionResult {
 
 export async function correctSpeakersWithAI(transcript: string): Promise<SpeakerCorrectionResult> {
   try {
+    console.log('🤖 Starting AI speaker correction for transcript:', transcript.substring(0, 200) + '...');
     const { supabase } = await import('@/integrations/supabase/client');
     
+    console.log('📡 Calling correct-transcript-speakers edge function...');
     const { data, error } = await supabase.functions.invoke('correct-transcript-speakers', {
       body: { transcript }
     });
 
     if (error) {
-      console.error('Error calling speaker correction function:', error);
+      console.error('❌ Error calling speaker correction function:', error);
       return {
         correctedTranscript: transcript,
         confidence: 0.0,
@@ -227,6 +229,7 @@ export async function correctSpeakersWithAI(transcript: string): Promise<Speaker
       };
     }
 
+    console.log('✅ Speaker correction successful, confidence:', data?.confidence);
     return data;
   } catch (error) {
     console.error('Error in correctSpeakersWithAI:', error);
@@ -255,7 +258,7 @@ export async function processCompleteAudioWithCorrection(
 
     // Apply AI correction if enabled and transcript has speaker labels
     if (enableAICorrection && result.transcript.includes('Speaker')) {
-      console.log('Applying AI speaker correction...');
+      console.log('🧠 AI correction enabled, found Speaker labels, applying correction...');
       const correctionResult = await correctSpeakersWithAI(result.transcript);
       
       // Only use corrected transcript if confidence is high enough
