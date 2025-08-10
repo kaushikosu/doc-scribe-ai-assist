@@ -5,11 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/lib/toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 
 const Profile: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [initialFormData, setInitialFormData] = useState<Record<string, string>>({});
   const [currentFormData, setCurrentFormData] = useState<Record<string, string>>({});
   
@@ -141,6 +142,12 @@ const Profile: React.FC = () => {
       // Update initial form data to reflect saved state
       setInitialFormData(currentFormData);
       setHasChanges(false);
+      setShowSuccess(true);
+      
+      // Hide success state after 3 seconds
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
       
       toast.success('Profile updated successfully');
     } catch (err) {
@@ -338,16 +345,27 @@ const Profile: React.FC = () => {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="justify-end">
+          <CardFooter className="justify-end flex-col items-end gap-2">
+            {showSuccess && (
+              <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                <Check className="h-4 w-4" />
+                Profile updated successfully
+              </div>
+            )}
             <Button 
               type="submit" 
-              disabled={isLoading || !hasChanges}
+              disabled={isLoading || (!hasChanges && !showSuccess)}
               className="min-w-[120px]"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Updating...
+                </>
+              ) : showSuccess ? (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Updated ✓
                 </>
               ) : (
                 'Save profile'
