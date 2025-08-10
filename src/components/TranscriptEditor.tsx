@@ -31,10 +31,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   useEffect(() => {
     setEditableTranscript(transcript);
     
-    // Scroll to bottom immediately when transcript updates
-    if (scrollAreaRef.current && contentRef.current) {
-      const scrollContainer = scrollAreaRef.current;
-      scrollContainer.scrollTop = contentRef.current.scrollHeight;
+    // Keep scroll position at top to show starter message
+    if (scrollAreaRef.current && !transcript) {
+      scrollAreaRef.current.scrollTop = 0;
     }
   }, [transcript]);
   
