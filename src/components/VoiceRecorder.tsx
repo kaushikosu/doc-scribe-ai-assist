@@ -13,6 +13,7 @@ interface VoiceRecorderProps {
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
   onNewPatient?: () => void;
+  onRecordingStart?: () => void;
 }
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
@@ -20,7 +21,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   onDiarizedTranscriptUpdate,
   onPatientInfoUpdate,
   onRecordingStateChange,
-  onNewPatient
+  onNewPatient,
+  onRecordingStart
 }) => {
   // State variables
   const [transcript, setTranscript] = useState('');
@@ -275,6 +277,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         diarizedMessagesRef.current = [];
         currentTranscriptRef.current = '';
       }
+      
+      // Trigger patient creation if needed before starting recording
+      onRecordingStart?.();
       
       dualToggleRecording();
     }

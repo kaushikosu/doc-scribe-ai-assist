@@ -60,6 +60,13 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   }
 };
 
+// Handle recording start - create patient if none exists
+const handleRecordingStart = async () => {
+  if (!currentPatientRecord) {
+    await generateNewPatient();
+  }
+};
+
 // Generate new patient with mock data and save to database
 const generateNewPatient = async () => {
   const mockPatient = generateMockPatient();
@@ -112,10 +119,7 @@ const handleNewPatient = () => {
   generateNewPatient();
 };
 
-// Generate initial patient on component mount
-useEffect(() => {
-  generateNewPatient();
-}, []);
+// Don't generate patient on component mount - wait for user action
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
@@ -133,6 +137,7 @@ useEffect(() => {
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
               onNewPatient={handleNewPatient}
+              onRecordingStart={handleRecordingStart}
             />
             
             <Card className="p-5 border rounded-lg shadow-sm">
