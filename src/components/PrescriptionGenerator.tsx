@@ -23,6 +23,8 @@ interface PrescriptionGeneratorProps {
   isClassifying?: boolean;
   onGeneratingStart?: () => void;
   onGenerated?: () => void;
+  currentPatient?: any;
+  sessionId?: string;
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
@@ -31,7 +33,9 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   classifiedTranscript,
   isClassifying = false,
   onGeneratingStart,
-  onGenerated
+  onGenerated,
+  currentPatient,
+  sessionId
 }) => {
   const [prescription, setPrescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -198,11 +202,14 @@ ABDM-compliant Prescription
 Date: ${currentDate}    Time: ${patientInfo.time || ''}
 
 PATIENT DETAILS
-- Name: ${patientInfo.name || '[Patient Name]'}
-- Age/Sex: [Age]/[Sex]
-- Beneficiary ID (optional): ${patientBeneficiaryId || '[Beneficiary ID]'}
-- ABHA (Health ID): ${patientAbha || '[ABHA Number]'}
-- Aadhaar: ${patientAadhaar || '[Aadhaar Number]'}
+- Name: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+- Age/Sex: ${currentPatient?.age || '[Age]'}/${currentPatient?.gender || '[Sex]'}
+- Phone: ${currentPatient?.phone || '[Phone]'}
+- Address: ${currentPatient?.address || '[Address]'}
+- ABHA (Health ID): ${currentPatient?.abha_id || patientAbha || '[ABHA Number]'}
+- Blood Group: ${currentPatient?.blood_group || '[Blood Group]'}
+- Allergies: ${currentPatient?.allergies || 'None known'}
+- Medical History: ${currentPatient?.medical_history || 'None documented'}
 
 CLINICAL SUMMARY
 - Presenting complaints (from patient): ${symptoms.join(', ') || 'N/A'}
@@ -238,7 +245,13 @@ PRESCRIPTION
 Date: ${currentDate}                     Time: ${patientInfo.time || ''}
 
 PATIENT INFORMATION:
-Name: ${patientInfo.name || '[Patient Name]'}
+Name: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+Age: ${currentPatient?.age || '[Age]'}
+Gender: ${currentPatient?.gender || '[Gender]'}
+Phone: ${currentPatient?.phone || '[Phone]'}
+ABHA ID: ${currentPatient?.abha_id || '[ABHA ID]'}
+Blood Group: ${currentPatient?.blood_group || '[Blood Group]'}
+Allergies: ${currentPatient?.allergies || 'None known'}
  
 CLINICAL NOTES:
 Patient presenting with: ${symptoms.join(', ') || 'N/A'}

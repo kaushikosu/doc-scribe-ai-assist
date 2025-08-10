@@ -183,6 +183,8 @@ const handleNewPatient = () => {
     transcript={transcript} 
     patientInfo={patientInfo} 
     classifiedTranscript={classifiedTranscript}
+    currentPatient={currentPatientRecord}
+    sessionId={currentSessionRecord?.id}
     onGeneratingStart={() => {
       setProgressStep('generating');
       setStatus({ type: 'generating', message: 'Generating prescription...' });
@@ -191,13 +193,12 @@ const handleNewPatient = () => {
       setProgressStep('generated');
       setStatus({ type: 'ready', message: 'Prescription generated' });
       
-      // Update consultation session with prescription and transcripts
+      // Update consultation session with transcripts only
       if (currentSessionRecord) {
         try {
           await updateConsultationSession(currentSessionRecord.id, {
             live_transcript: transcript,
             updated_transcript: classifiedTranscript,
-            prescription: 'Generated', // The actual prescription content is managed in the component
             session_ended_at: new Date().toISOString()
           });
         } catch (error) {
