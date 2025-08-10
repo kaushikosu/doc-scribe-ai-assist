@@ -3,8 +3,11 @@ import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
-import StatusBanner from '@/components/StatusBanner';
 import DocHeader from '@/components/DocHeader';
+import StatusBanner from '@/components/StatusBanner';
+import PatientSessionBar from '@/components/PatientSessionBar';
+import StatusStepsBar from '@/components/StatusStepsBar';
+import PatientInfoBar from '@/components/PatientInfoBar';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -18,9 +21,7 @@ const DashboardPage = () => {
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const [patientInfo, setPatientInfo] = useState({
     name: '',
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    age: undefined as number | undefined,
-    gender: undefined as string | undefined
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
   const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
   const [currentPatientRecord, setCurrentPatientRecord] = useState<Patient | null>(null);
@@ -28,23 +29,29 @@ const DashboardPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
+  type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+  type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
+  const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
+  const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
-  const [status, setStatus] = useState<{ type: "idle" | "recording" | "processing" | "updated" | "generating" | "ready" | "error"; message?: string }>({ type: "idle" });
   
   const mountedRef = useRef(true);
   const prescriptionRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState(0);
   const sessionRef = useRef(0);
-  
   useEffect(() => { sessionRef.current = sessionId; }, [sessionId]);
   
+  const googleApiKey = import.meta.env.VITE_GOOGLE_SPEECH_API_KEY;
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
   
   const {
     isRecording: isAudioRecording,
+    recordingDuration,
+    formattedDuration,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
+    audioBlob
   } = useAudioRecorder({
     onRecordingComplete: (blob) => {
       console.log("Full audio recording complete:", blob.size, "bytes");
@@ -62,6 +69,7 @@ const DashboardPage = () => {
     console.log("Transcript updated in DashboardPage:", transcript);
   }, [transcript]);
   
+  
   useEffect(() => {
     if (isRecording && !isAudioRecording) {
       console.log("Starting full audio recording for diarization");
@@ -75,47 +83,49 @@ const DashboardPage = () => {
     }
   }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
 
+  
   const processDiarizedTranscription = async (audioBlob: Blob) => {
     if (!deepgramApiKey) {
       console.error("Deepgram API key is missing");
+      setStatus({ type: 'error', message: 'Deepgram API key is not configured' });
       return;
     }
     
     if (!audioBlob || audioBlob.size === 0) {
       console.error("No audio data to process");
+      setStatus({ type: 'error', message: 'No audio recorded for diarization' });
       return;
     }
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: "processing", message: "Processing audio..." });
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
     const startSession = sessionRef.current;
     
     try {
+      // Process audio with Deepgram
       const { transcript: diarizedText, error } = await processCompleteAudio(audioBlob, deepgramApiKey);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
-      
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");
         setIsDiarizing(false);
-        setStatus({ type: "idle" });
         return;
       }
       
       if (error) {
         console.error("Deepgram error:", error);
-        setStatus({ type: "error", message: "Failed to process audio" });
         setDiarizedTranscription({
           transcript: "Deepgram error",
           error: error
         });
+        setStatus({ type: 'error', message: 'Diarization error: ' + error });
       } else if (!diarizedText || diarizedText.trim().length === 0) {
         console.warn("No speech detected by Deepgram");
-        setStatus({ type: "error", message: "No speech detected" });
         setDiarizedTranscription({
           transcript: "No speech detected by deepgram",
           error: "No speech detected"
         });
+        setStatus({ type: 'error', message: 'No speech detected in the audio' });
       } else {
         const result: DiarizedTranscription = {
           transcript: diarizedText,
@@ -125,11 +135,12 @@ const DashboardPage = () => {
         console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
 
+        // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
-        setDisplayMode('revised');
-        setStatus({ type: "updated", message: "Transcript updated successfully" });
+         setDisplayMode('revised');
+         setStatus({ type: 'generating', message: 'Generating prescription...' });
       }
       
       setIsDiarizing(false);
@@ -137,11 +148,11 @@ const DashboardPage = () => {
     } catch (error: any) {
       console.error("Error in Deepgram diarized transcription:", error);
       setIsDiarizing(false);
-      setStatus({ type: "error", message: "Error processing audio" });
       setDiarizedTranscription({
         transcript: "Error in deepgram transcription",
         error: error.message || "Unknown error processing audio"
       });
+      setStatus({ type: 'error', message: 'Failed to process diarized transcription with Deepgram' });
     }
   };
 
@@ -153,11 +164,7 @@ const DashboardPage = () => {
   };
 
   const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
-    setPatientInfo(prev => ({
-      ...prev,
-      name: newPatientInfo.name,
-      time: newPatientInfo.time
-    }));
+    setPatientInfo(newPatientInfo);
   };
 
   // Handle recording start - create patient if none exists
@@ -173,12 +180,11 @@ const DashboardPage = () => {
     setCurrentPatient(mockPatient);
     setPatientInfo({
       name: mockPatient.name,
-      time: mockPatient.sessionStartTime,
-      age: mockPatient.age,
-      gender: mockPatient.gender
+      time: mockPatient.sessionStartTime
     });
 
     try {
+      // Create patient in the database with all ABDM-required details
       const patient = await createPatient({
         name: mockPatient.name,
         abha_id: mockPatient.abhaId,
@@ -193,6 +199,7 @@ const DashboardPage = () => {
       });
       setCurrentPatientRecord(patient);
       
+      // Create initial consultation session
       const session = await createConsultationSession({
         patient_id: patient.id,
         live_transcript: '',
@@ -206,25 +213,38 @@ const DashboardPage = () => {
     }
   };
   
-  const handleRecordingStateChange = (recordingState: boolean) => {
-    console.log("Recording state changed to:", recordingState);
-    setIsRecording(recordingState);
+const handleRecordingStateChange = (recordingState: boolean) => {
+  console.log("Recording state changed to:", recordingState);
+  setIsRecording(recordingState);
 
-    if (recordingState) {
-      if (!hasRecordingStarted) setHasRecordingStarted(true);
-      setDisplayMode('live');
-      setStatus({ type: "recording", message: "Recording in progress..." });
-    } else if (hasRecordingStarted) {
-      setDisplayMode('revised');
-      setStatus({ type: "processing", message: "Processing recording..." });
+  if (recordingState) {
+    if (!hasRecordingStarted) setHasRecordingStarted(true);
+    setDisplayMode('live');
+    setProgressStep('recording');
+    if (status.type !== 'recording') {
+      setStatus({ type: 'recording', message: 'Recording in progress' });
     }
-  };
+  } else if (hasRecordingStarted) {
+    setDisplayMode('revised');
+    setProgressStep('processing');
+    setStatus(prev => {
+      if (prev.type === 'generating' || prev.type === 'ready') return prev;
+      return { type: 'processing', message: 'Updating transcript...' };
+    });
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
-      <DocHeader patientInfo={patientInfo} />
-      <StatusBanner status={status} />
+      <PatientSessionBar 
+        patient={currentPatientRecord} 
+        sessionStartTime={patientInfo.time}
+      />
       <div className="container py-8 max-w-6xl">
+        {hasRecordingStarted && <StatusBanner status={status} />}
+        <StatusStepsBar currentStep={progressStep} />
+        <DocHeader patientInfo={patientInfo} />
+        <PatientInfoBar patientData={currentPatient} />
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
@@ -240,6 +260,8 @@ const DashboardPage = () => {
                 setTranscript('');
                 setClassifiedTranscript('');
                 setDiarizedTranscription(null);
+                setProgressStep('recording');
+                setStatus({ type: 'idle' });
                 setSessionId(id => id + 1);
                 generateNewPatient();
               }}
@@ -273,48 +295,52 @@ const DashboardPage = () => {
           </div>
           
           <div className="md:col-span-8 space-y-6">
-            <TranscriptEditor 
-              transcript={transcript} 
-              onTranscriptChange={setTranscript}
-              isRecording={isRecording}
-              mode={displayMode}
-            />
+<TranscriptEditor 
+  transcript={transcript} 
+  onTranscriptChange={setTranscript}
+  isRecording={isRecording}
+  mode={displayMode}
+  status={status}
+/>
 
-            <div ref={prescriptionRef} className="animate-fade-in">
-              <PrescriptionGenerator 
-                key={sessionId}
-                transcript={transcript} 
-                patientInfo={patientInfo}
-                classifiedTranscript={classifiedTranscript}
-                currentPatient={currentPatientRecord}
-                sessionId={currentSessionRecord?.id}
-                onGeneratingStart={() => {
-                  console.log('Prescription generation started');
-                  setStatus({ type: "generating", message: "Generating prescription..." });
-                }}
-                onGenerated={async () => {
-                  console.log('Prescription generated');
-                  setStatus({ type: "ready", message: "Prescription ready" });
-                  
-                  if (currentSessionRecord) {
-                    try {
-                      await updateConsultationSession(currentSessionRecord.id, {
-                        live_transcript: transcript,
-                        updated_transcript: classifiedTranscript,
-                        session_ended_at: new Date().toISOString()
-                      });
-                    } catch (error) {
-                      console.error('Failed to update consultation session:', error);
-                    }
-                  }
-                  
-                  prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-              />
-            </div>
+
+<div ref={prescriptionRef} className="animate-fade-in">
+  <PrescriptionGenerator 
+    key={sessionId}
+    transcript={transcript} 
+    patientInfo={patientInfo}
+    classifiedTranscript={classifiedTranscript}
+    currentPatient={currentPatientRecord}
+    sessionId={currentSessionRecord?.id}
+    onGeneratingStart={() => {
+      setProgressStep('generating');
+      setStatus({ type: 'generating', message: 'Generating prescription...' });
+    }}
+    onGenerated={async () => {
+      setProgressStep('generated');
+      setStatus({ type: 'ready', message: 'Prescription generated' });
+      
+      // Update consultation session with transcripts
+      if (currentSessionRecord) {
+        try {
+          await updateConsultationSession(currentSessionRecord.id, {
+            live_transcript: transcript,
+            updated_transcript: classifiedTranscript,
+            session_ended_at: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('Failed to update consultation session:', error);
+        }
+      }
+      
+      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }}
+  />
+</div>
           </div>
         </div>
       </div>
+      
     </div>
   );
 };
