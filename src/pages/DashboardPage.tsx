@@ -5,7 +5,7 @@ import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
-import PatientSessionBar from '@/components/PatientSessionBar';
+
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -234,10 +234,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
-      <PatientSessionBar 
-        patient={currentPatientRecord} 
-        sessionStartTime={patientInfo.time}
-      />
       <div className="container py-8 max-w-6xl">
         {hasRecordingStarted && <StatusBanner status={status} />}
         <DocHeader patientInfo={patientInfo} />
