@@ -1,5 +1,5 @@
-import { supabase } from "./client";
-import { toast } from "@/lib/toast";
+import { createPatient, findPatientByAbhaId, Patient } from "./patients";
+import { createConsultationSession, ConsultationSession } from "./consultationSessions";
 
 export type CreatePatientRecordInput = {
   patient_name?: string | null;
@@ -12,49 +12,64 @@ export type CreatePatientRecordInput = {
   patient_medical_history?: string | null;
   patient_blood_group?: string | null;
   patient_allergies?: string | null;
-  prescription: string;
+  prescription?: string;
   live_transcript?: string | null;
   updated_transcript?: string | null;
   audio_path?: string | null;
 };
 
-export async function createPatientRecord(input: CreatePatientRecordInput) {
-  const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !userRes.user) {
-    toast.error("You must be signed in to save records.");
-    throw userErr || new Error("No Supabase user session");
+export type PatientRecordResult = {
+  patient: Patient;
+  session: ConsultationSession;
+};
+
+export async function createPatientRecord(input: CreatePatientRecordInput): Promise<PatientRecordResult> {
+  let patient: Patient;
+
+  // Check if patient already exists by ABHA ID
+  if (input.patient_abha_id) {
+    const existingPatient = await findPatientByAbhaId(input.patient_abha_id);
+    if (existingPatient) {
+      patient = existingPatient;
+    } else {
+      // Create new patient
+      patient = await createPatient({
+        name: input.patient_name || "Unknown Patient",
+        abha_id: input.patient_abha_id,
+        age: input.patient_age,
+        gender: input.patient_gender,
+        phone: input.patient_phone,
+        address: input.patient_address,
+        emergency_contact: input.patient_emergency_contact,
+        medical_history: input.patient_medical_history,
+        blood_group: input.patient_blood_group,
+        allergies: input.patient_allergies,
+      });
+    }
+  } else {
+    // Create new patient without ABHA ID (for mock patients)
+    patient = await createPatient({
+      name: input.patient_name || "Unknown Patient",
+      abha_id: input.patient_abha_id,
+      age: input.patient_age,
+      gender: input.patient_gender,
+      phone: input.patient_phone,
+      address: input.patient_address,
+      emergency_contact: input.patient_emergency_contact,
+      medical_history: input.patient_medical_history,
+      blood_group: input.patient_blood_group,
+      allergies: input.patient_allergies,
+    });
   }
 
-  const payload = {
-    doctor_id: userRes.user.id,
-    patient_name: input.patient_name ?? null,
-    patient_abha_id: input.patient_abha_id ?? null,
-    patient_age: input.patient_age ?? null,
-    patient_gender: input.patient_gender ?? null,
-    patient_phone: input.patient_phone ?? null,
-    patient_address: input.patient_address ?? null,
-    patient_emergency_contact: input.patient_emergency_contact ?? null,
-    patient_medical_history: input.patient_medical_history ?? null,
-    patient_blood_group: input.patient_blood_group ?? null,
-    patient_allergies: input.patient_allergies ?? null,
-    prescription: input.prescription,
-    live_transcript: input.live_transcript ?? null,
-    updated_transcript: input.updated_transcript ?? null,
-    audio_path: input.audio_path ?? null,
-  };
+  // Create consultation session
+  const session = await createConsultationSession({
+    patient_id: patient.id,
+    live_transcript: input.live_transcript,
+    updated_transcript: input.updated_transcript,
+    prescription: input.prescription || '',
+    audio_path: input.audio_path,
+  });
 
-  const { data, error } = await supabase
-    .from("patient_records")
-    .insert(payload)
-    .select()
-    .maybeSingle();
-
-  if (error) {
-    console.error("Failed to create patient record:", error);
-    toast.error("Failed to save patient record");
-    throw error;
-  }
-
-  toast.success("Patient record saved");
-  return data;
+  return { patient, session };
 }

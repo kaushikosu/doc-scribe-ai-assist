@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      consultation_sessions: {
+        Row: {
+          audio_path: string | null
+          created_at: string
+          doctor_id: string
+          id: string
+          live_transcript: string | null
+          patient_id: string
+          prescription: string | null
+          session_ended_at: string | null
+          session_started_at: string
+          updated_at: string
+          updated_transcript: string | null
+        }
+        Insert: {
+          audio_path?: string | null
+          created_at?: string
+          doctor_id: string
+          id?: string
+          live_transcript?: string | null
+          patient_id: string
+          prescription?: string | null
+          session_ended_at?: string | null
+          session_started_at?: string
+          updated_at?: string
+          updated_transcript?: string | null
+        }
+        Update: {
+          audio_path?: string | null
+          created_at?: string
+          doctor_id?: string
+          id?: string
+          live_transcript?: string | null
+          patient_id?: string
+          prescription?: string | null
+          session_ended_at?: string | null
+          session_started_at?: string
+          updated_at?: string
+          updated_transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_sessions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_profiles: {
         Row: {
           address_line1: string | null
@@ -152,6 +202,54 @@ export type Database = {
           session_started_at?: string
           updated_at?: string
           updated_transcript?: string | null
+        }
+        Relationships: []
+      }
+      patients: {
+        Row: {
+          abha_id: string | null
+          address: string | null
+          age: number | null
+          allergies: string | null
+          blood_group: string | null
+          created_at: string
+          emergency_contact: string | null
+          gender: string | null
+          id: string
+          medical_history: string | null
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          abha_id?: string | null
+          address?: string | null
+          age?: number | null
+          allergies?: string | null
+          blood_group?: string | null
+          created_at?: string
+          emergency_contact?: string | null
+          gender?: string | null
+          id?: string
+          medical_history?: string | null
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          abha_id?: string | null
+          address?: string | null
+          age?: number | null
+          allergies?: string | null
+          blood_group?: string | null
+          created_at?: string
+          emergency_contact?: string | null
+          gender?: string | null
+          id?: string
+          medical_history?: string | null
+          name?: string
+          phone?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

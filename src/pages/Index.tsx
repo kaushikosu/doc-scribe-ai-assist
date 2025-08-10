@@ -10,7 +10,7 @@ import PatientInfoBar from '@/components/PatientInfoBar';
 import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 import StatusStepsBar from '@/components/StatusStepsBar';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
-import { createPatientRecord } from '@/integrations/supabase/patientRecords';
+import { createPatientRecord, PatientRecordResult } from '@/integrations/supabase/patientRecords';
 
 const Index = () => {
   const [transcript, setTranscript] = useState('');
@@ -19,6 +19,7 @@ const Index = () => {
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
   const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
+  const [currentSession, setCurrentSession] = useState<PatientRecordResult | null>(null);
 const [isRecording, setIsRecording] = useState(false);
 const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
 const [classifiedTranscript, setClassifiedTranscript] = useState('');
@@ -67,8 +68,8 @@ const generateNewPatient = async () => {
   });
 
   try {
-    // Save patient record to database immediately
-    await createPatientRecord({
+    // Create patient and consultation session in the database
+    const result = await createPatientRecord({
       patient_name: mockPatient.name,
       patient_abha_id: mockPatient.abhaId,
       patient_age: mockPatient.age,
@@ -84,6 +85,7 @@ const generateNewPatient = async () => {
       updated_transcript: '',
       audio_path: null
     });
+    setCurrentSession(result);
   } catch (error) {
     console.error('Failed to save initial patient record:', error);
   }
