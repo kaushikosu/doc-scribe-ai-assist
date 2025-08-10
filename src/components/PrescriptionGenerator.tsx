@@ -125,7 +125,11 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   useEffect(() => {
     if (!isClassifying && (classifiedTranscript || transcript)) {
       const text = classifiedTranscript || transcript;
-      generatePrescription(text);
+      const generatedPrescription = generatePrescription(text);
+      // Call onGenerated with the freshly generated prescription
+      if (generatedPrescription) {
+        onGenerated?.(generatedPrescription);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usePmjayFormat]);
@@ -138,21 +142,22 @@ useEffect(() => {
     setIsGenerating(true);
     // Delay 1.2s to provide clear feedback in UI
     const timeoutId = setTimeout(() => {
-      generatePrescription(classifiedTranscript);
+      const generatedPrescription = generatePrescription(classifiedTranscript);
       setLastProcessedTranscript(classifiedTranscript);
       setIsGenerating(false);
-      // Pass the generated prescription to the callback
-      onGenerated?.(prescription);
+      // Pass the freshly generated prescription to the callback
+      console.log("Calling onGenerated with prescription:", generatedPrescription?.substring(0, 100) + "...");
+      onGenerated?.(generatedPrescription);
     }, 1200);
     return () => clearTimeout(timeoutId);
   }
-}, [classifiedTranscript, isClassifying, prescription]);
+}, [classifiedTranscript, isClassifying]);
 
 
-  const generatePrescription = (transcriptText: string) => {
+  const generatePrescription = (transcriptText: string): string => {
     try {
       if (!transcriptText.trim()) {
-        return; // Don't generate for empty transcript
+        return ''; // Don't generate for empty transcript
       }
 
       
@@ -253,7 +258,10 @@ Registration No: ${doctorRegId}
       setPrescription(generatedPrescription);
       setEditablePrescription(generatedPrescription);
       
+      return generatedPrescription;
     } catch (error) {
+      console.error('Error generating prescription:', error);
+      return '';
     }
   };
 
