@@ -144,10 +144,10 @@ const Profile: React.FC = () => {
       setHasChanges(false);
       setShowSuccess(true);
       
-      // Hide success state after 3 seconds
+      // Hide success state after 1.5 seconds
       setTimeout(() => {
         setShowSuccess(false);
-      }, 3000);
+      }, 1500);
       
       toast.success('Profile updated successfully');
     } catch (err) {
