@@ -345,14 +345,8 @@ const Profile: React.FC = () => {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="justify-end flex-col items-end gap-2">
-            {showSuccess && (
-              <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                <Check className="h-4 w-4" />
-                Profile updated successfully
-              </div>
-            )}
-            <Button 
+          <CardFooter className="justify-end">
+            <Button
               type="submit" 
               disabled={isLoading || (!hasChanges && !showSuccess)}
               className="min-w-[120px]"
