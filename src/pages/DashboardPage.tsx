@@ -6,8 +6,6 @@ import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import PatientSessionBar from '@/components/PatientSessionBar';
-import StatusStepsBar from '@/components/StatusStepsBar';
-import PatientInfoBar from '@/components/PatientInfoBar';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -242,9 +240,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
       />
       <div className="container py-8 max-w-6xl">
         {hasRecordingStarted && <StatusBanner status={status} />}
-        <StatusStepsBar currentStep={progressStep} />
         <DocHeader patientInfo={patientInfo} />
-        <PatientInfoBar patientData={currentPatient} />
         
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
