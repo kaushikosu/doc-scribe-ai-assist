@@ -143,7 +143,7 @@ useEffect(() => {
   }
 }, [classifiedTranscript, isClassifying]);
 
-// Auto-create patient record once a prescription is available
+// Auto-create patient record once a prescription is available (single entry per interaction)
 const [isSavingRecord, setIsSavingRecord] = useState(false);
 
 useEffect(() => {
@@ -702,40 +702,9 @@ const handleGenerateAI = () => {
         )}
       </CardContent>
       {prescription && !isEditing && !isPrescriptionDisabled && (
-        <CardFooter className="pt-0 flex flex-col sm:flex-row gap-2">
+        <CardFooter className="pt-0 flex justify-center">
           <Button 
-            className="flex-1 bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
-            onClick={async () => {
-              try {
-                await createPatientRecord({
-                  patient_name: patientInfo?.name || null,
-                  prescription,
-                  live_transcript: transcript || null,
-                  updated_transcript: classifiedTranscript || null,
-                });
-              } catch (e) {}
-            }}
-            disabled={recordSaved || isSavingRecord}
-          >
-            {isSavingRecord ? (
-              <>
-                <RotateCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : recordSaved ? (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                Saved ✓
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                Save to Records
-              </>
-            )}
-          </Button>
-          <Button 
-            className="flex-1 bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
+            className="bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
             onClick={handlePrint}
           >
             <Printer className="h-4 w-4 mr-2" />
