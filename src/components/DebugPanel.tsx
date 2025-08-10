@@ -35,20 +35,48 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
     return claudeParagraphs.map((claudePara, index) => {
       const deepgramPara = deepgramParagraphs[index] || '';
       
-      // Simple word-level diff
-      const claudeWords = claudePara.split(' ');
-      const deepgramWords = deepgramPara.split(' ');
+      // Extract speaker label and content separately
+      const extractSpeakerAndContent = (text: string) => {
+        // Match patterns like "Speaker 0:", "[Doctor]:", etc.
+        const speakerMatch = text.match(/^(Speaker \d+:|^\[.*?\]:)\s*(.*)/);
+        if (speakerMatch) {
+          return { speaker: speakerMatch[1], content: speakerMatch[2] };
+        }
+        return { speaker: '', content: text };
+      };
       
-      return claudeWords.map((word, wordIndex) => {
+      const claudeData = extractSpeakerAndContent(claudePara);
+      const deepgramData = extractSpeakerAndContent(deepgramPara);
+      
+      // Only compare the content part, not the speaker labels
+      const claudeWords = claudeData.content.split(' ').filter(w => w.trim());
+      const deepgramWords = deepgramData.content.split(' ').filter(w => w.trim());
+      
+      // Rebuild the full paragraph with speaker label + content
+      const result = [];
+      
+      // Add speaker label (always show, no highlighting since these are expected to change)
+      if (claudeData.speaker) {
+        result.push({
+          word: claudeData.speaker,
+          isChanged: false,
+          key: `${index}-speaker`
+        });
+      }
+      
+      // Add content words with diff highlighting
+      claudeWords.forEach((word, wordIndex) => {
         const deepgramWord = deepgramWords[wordIndex] || '';
         const isChanged = word !== deepgramWord;
         
-        return {
+        result.push({
           word,
           isChanged,
           key: `${index}-${wordIndex}`
-        };
+        });
       });
+      
+      return result;
     });
   }, [deepgramTranscript, claudeTranscript]);
 
