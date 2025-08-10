@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
 import PrescriptionGenerator from '@/components/PrescriptionGenerator';
+import PatientSessionBar from '@/components/PatientSessionBar';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import PatientInfoBar from '@/components/PatientInfoBar';
@@ -123,6 +124,10 @@ const handleNewPatient = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
+      <PatientSessionBar 
+        patient={currentPatientRecord} 
+        sessionStartTime={patientInfo.time}
+      />
       <div className="container py-8 max-w-6xl">
         {hasRecordingStarted && <StatusBanner status={status} />}
         <StatusStepsBar currentStep={progressStep} />
