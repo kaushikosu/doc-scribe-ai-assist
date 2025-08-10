@@ -22,7 +22,7 @@ interface PrescriptionGeneratorProps {
   classifiedTranscript?: string;
   isClassifying?: boolean;
   onGeneratingStart?: () => void;
-  onGenerated?: () => void;
+  onGenerated?: (prescription?: string) => void;
   currentPatient?: any;
   sessionId?: string;
 }
@@ -141,11 +141,12 @@ useEffect(() => {
       generatePrescription(classifiedTranscript);
       setLastProcessedTranscript(classifiedTranscript);
       setIsGenerating(false);
-      onGenerated?.();
+      // Pass the generated prescription to the callback
+      onGenerated?.(prescription);
     }, 1200);
     return () => clearTimeout(timeoutId);
   }
-}, [classifiedTranscript, isClassifying]);
+}, [classifiedTranscript, isClassifying, prescription]);
 
 
   const generatePrescription = (transcriptText: string) => {

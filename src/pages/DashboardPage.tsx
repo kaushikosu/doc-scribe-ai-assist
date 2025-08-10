@@ -12,7 +12,7 @@ import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { processCompleteAudio, mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
 import { createPatient, Patient } from '@/integrations/supabase/patients';
-import { createConsultationSession, ConsultationSession, updateConsultationSession } from '@/integrations/supabase/consultationSessions';
+import { createConsultationSession, ConsultationSession, updateConsultationSession, uploadSessionAudio } from '@/integrations/supabase/consultationSessions';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
@@ -139,6 +139,25 @@ const DashboardPage = () => {
         setTranscript(mapped);
          setDisplayMode('revised');
          setStatus({ type: 'generating', message: 'Generating prescription...' });
+
+        // Upload audio to storage after successful processing
+        if (currentSessionRecord) {
+          console.log("Uploading audio to storage for session:", currentSessionRecord.id);
+          try {
+            const uploadResult = await uploadSessionAudio(currentSessionRecord.id, audioBlob);
+            if (uploadResult.success) {
+              console.log("Audio uploaded successfully to storage");
+              // Update current session record with the new data
+              if (uploadResult.session) {
+                setCurrentSessionRecord(uploadResult.session);
+              }
+            } else {
+              console.error("Failed to upload audio:", uploadResult.error);
+            }
+          } catch (uploadError) {
+            console.error("Error uploading audio:", uploadError);
+          }
+        }
       }
       
       setIsDiarizing(false);
@@ -308,18 +327,21 @@ const handleRecordingStateChange = (recordingState: boolean) => {
       setProgressStep('generating');
       setStatus({ type: 'generating', message: 'Generating prescription...' });
     }}
-    onGenerated={async () => {
+    onGenerated={async (generatedPrescription?: string) => {
       setProgressStep('generated');
       setStatus({ type: 'ready', message: 'Prescription generated' });
       
       // Update consultation session with transcripts
       if (currentSessionRecord) {
         try {
+          console.log("Saving prescription to database:", generatedPrescription);
           await updateConsultationSession(currentSessionRecord.id, {
             live_transcript: transcript,
             updated_transcript: classifiedTranscript,
+            prescription: generatedPrescription || '',
             session_ended_at: new Date().toISOString()
           });
+          console.log("Consultation session updated successfully");
         } catch (error) {
           console.error('Failed to update consultation session:', error);
         }
