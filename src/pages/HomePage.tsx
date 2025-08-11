@@ -15,15 +15,15 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-doctor-light">
+    <div className="min-h-screen bg-white">
       {/* Navigation Bar */}
       <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
-        <div className="container py-4 flex justify-between items-center max-w-6xl">
+        <div className="container py-3 flex justify-between items-center max-w-6xl">
           <div className="flex items-center gap-2">
-            <Stethoscope className="h-8 w-8 text-doctor-primary" />
-            <span className="font-bold text-xl text-doctor-primary">DocScribe</span>
+            <Stethoscope className="h-7 w-7 text-doctor-primary" />
+            <span className="font-bold text-lg text-doctor-primary">DocScribe</span>
           </div>
-          <div className="space-x-4">
+          <div className="space-x-3">
             <Link to="/login">
               <Button variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">Log in</Button>
             </Link>
@@ -35,7 +35,7 @@ const HomePage = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="bg-white py-16">
+      <section className="bg-white py-8">
         <div className="container max-w-6xl">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -61,9 +61,9 @@ const HomePage = () => {
             </div>
             <div className="relative">
               <img 
-                src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
+                src="/lovable-uploads/1d45722c-6c7e-4b6a-b9cd-97b340561b0b.png" 
                 alt="Doctor and patient consultation with AI-powered documentation" 
-                className="w-full h-[400px] object-cover rounded-lg shadow-xl"
+                className="w-full h-[350px] object-cover rounded-lg shadow-xl"
               />
             </div>
           </div>
