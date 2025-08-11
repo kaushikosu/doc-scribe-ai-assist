@@ -15,9 +15,9 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
+    <div className="min-h-screen bg-white">
       {/* Navigation Bar */}
-      <nav className="bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-doctor-primary/10">
+      <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
         <div className="container py-4 flex justify-between items-center max-w-6xl">
           <div className="flex items-center gap-2">
             <Stethoscope className="h-8 w-8 text-doctor-primary" />
@@ -25,54 +25,54 @@ const HomePage = () => {
           </div>
           <div className="space-x-4">
             <Link to="/login">
-              <Button variant="outline">Log in</Button>
+              <Button variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">Log in</Button>
             </Link>
             <Link to="/signup">
-              <Button>Sign up</Button>
+              <Button className="bg-doctor-primary hover:bg-doctor-primary/90">Sign up</Button>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="container py-16 md:py-24 max-w-6xl">
+      <section className="relative">
         <div className="relative">
           {/* Hero Image with Text Overlay */}
-          <div className="relative rounded-xl overflow-hidden shadow-2xl">
+          <div className="relative">
             <img 
               src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
               alt="Doctor and patient consultation with AI-powered documentation" 
-              className="w-full h-[400px] md:h-[480px] object-cover"
+              className="w-full h-[480px] md:h-[540px] object-cover"
             />
             
             {/* Text Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent">
-              <div className="pt-8 md:pt-12 px-6 md:px-12 max-w-2xl">
-                <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
+            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent">
+              <div className="pt-12 md:pt-16 px-8 md:px-16">
+                <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6 max-w-4xl">
                   Revolutionizing Healthcare with Voice
                 </h1>
-                <p className="text-lg md:text-xl text-white/90 leading-relaxed">
+                <p className="text-xl md:text-2xl text-white/95 leading-relaxed max-w-3xl">
                   Transform Doctor-Patient Conversations into Instant Digital Prescriptions
                 </p>
               </div>
             </div>
             
             {/* CTA Button - Bottom Right */}
-            <div className="absolute bottom-6 right-6">
+            <div className="absolute bottom-8 right-8">
               <Link to="/signup">
-                <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 shadow-lg">
+                <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 shadow-xl text-lg px-8 py-3">
                   Get Started
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
             </div>
           </div>
           
           {/* Secondary CTA */}
-          <div className="mt-8 text-center">
+          <div className="bg-doctor-light py-8 text-center">
             <a href="#pricing">
               <Button size="lg" variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">
-                See Pricing Plans
+                View Pricing Plans
               </Button>
             </a>
           </div>
@@ -80,9 +80,9 @@ const HomePage = () => {
       </section>
 
       {/* Features Section */}
-      <section className="bg-doctor-light py-16">
+      <section className="bg-white py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-3xl font-bold text-center text-doctor-primary mb-12">How DocScribe Transforms Your Practice</h2>
+          <h2 className="text-4xl font-bold text-center text-doctor-primary mb-16">How DocScribe Transforms Your Practice</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="p-6 border-none shadow-md bg-white hover:shadow-lg transition-shadow">
@@ -113,23 +113,23 @@ const HomePage = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24">
+      <section id="pricing" className="bg-doctor-light py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-3xl font-bold text-center text-doctor-primary mb-4">Simple, Transparent Pricing</h2>
-          <p className="text-lg text-center text-gray-600 mb-12 max-w-2xl mx-auto">
+          <h2 className="text-4xl font-bold text-center text-doctor-primary mb-6">Simple, Transparent Pricing</h2>
+          <p className="text-xl text-center text-gray-600 mb-16 max-w-3xl mx-auto">
             Choose the plan that works best for your practice. All plans include unlimited consultations and our full feature set.
           </p>
           
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {/* Individual Plan */}
-            <Card className="border-2 border-doctor-primary/20 p-8 flex flex-col">
+            <Card className="border-2 border-doctor-primary/20 p-8 flex flex-col bg-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
                   <User className="h-5 w-5 text-doctor-primary" />
-                  <h3 className="text-xl font-bold">Individual Doctor</h3>
+                  <h3 className="text-xl font-bold text-doctor-primary">Individual Doctor</h3>
                 </div>
                 <div className="flex items-baseline mt-4">
-                  <span className="text-4xl font-bold">$20</span>
+                  <span className="text-4xl font-bold text-doctor-primary">$20</span>
                   <span className="text-gray-500 ml-2">/month</span>
                 </div>
                 <p className="text-gray-600 mt-3">Perfect for solo practitioners or small clinics.</p>
@@ -155,19 +155,19 @@ const HomePage = () => {
               </div>
               
               <Link to="/signup?plan=individual">
-                <Button className="w-full">Get Started</Button>
+                <Button className="w-full bg-doctor-primary hover:bg-doctor-primary/90">Get Started</Button>
               </Link>
             </Card>
             
             {/* Hospital Plan */}
-            <Card className="border-2 border-doctor-accent/30 bg-gradient-to-br from-white to-doctor-light/50 p-8 flex flex-col">
+            <Card className="border-2 border-doctor-primary/30 bg-white p-8 flex flex-col shadow-lg hover:shadow-xl transition-shadow">
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="h-5 w-5 text-doctor-accent" />
-                  <h3 className="text-xl font-bold">Hospital / Multi-Doctor</h3>
+                  <Building2 className="h-5 w-5 text-doctor-primary" />
+                  <h3 className="text-xl font-bold text-doctor-primary">Hospital / Multi-Doctor</h3>
                 </div>
                 <div className="flex items-baseline mt-4">
-                  <span className="text-4xl font-bold">Custom</span>
+                  <span className="text-4xl font-bold text-doctor-primary">Custom</span>
                 </div>
                 <p className="text-gray-600 mt-3">Tailored solutions for hospitals and large practices.</p>
               </div>
@@ -195,7 +195,7 @@ const HomePage = () => {
                 </div>
               </div>
               
-              <Button variant="secondary" className="w-full bg-doctor-accent text-white hover:bg-doctor-accent/90">
+              <Button variant="outline" className="w-full border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">
                 Contact Sales
               </Button>
             </Card>
