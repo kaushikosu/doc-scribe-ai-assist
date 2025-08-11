@@ -64,10 +64,11 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				doctor: {
-					primary: 'hsl(var(--doctor-primary))',
-					secondary: 'hsl(var(--doctor-secondary))',
-					accent: 'hsl(var(--doctor-accent))',
-					light: 'hsl(var(--doctor-light))',
+					primary: '#4F46E5',    // indigo
+					secondary: '#10B981',  // emerald green
+					accent: '#F97316',     // orange
+					light: '#F9FAFB',      // light gray
+					dark: '#1F2937',       // dark gray
 				}
 			},
 			fontFamily: {
