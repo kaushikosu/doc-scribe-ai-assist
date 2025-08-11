@@ -15,63 +15,65 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
+    <div className="min-h-screen bg-doctor-light">
       {/* Navigation Bar */}
-      <nav className="bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-doctor-primary/10">
-        <div className="container py-4 flex justify-between items-center max-w-6xl">
+      <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
+        <div className="container py-3 flex justify-between items-center max-w-6xl">
           <div className="flex items-center gap-2">
-            <Stethoscope className="h-8 w-8 text-doctor-primary" />
-            <span className="font-bold text-xl text-doctor-primary">DocScribe</span>
+            <Stethoscope className="h-7 w-7 text-doctor-primary" />
+            <span className="font-bold text-lg text-doctor-primary">DocScribe</span>
           </div>
-          <div className="space-x-4">
+          <div className="space-x-3">
             <Link to="/login">
-              <Button variant="outline">Log in</Button>
+              <Button variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">Log in</Button>
             </Link>
             <Link to="/signup">
-              <Button>Sign up</Button>
+              <Button className="bg-doctor-primary hover:bg-doctor-primary/90">Sign up</Button>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="container py-16 md:py-24 max-w-6xl">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-doctor-primary leading-tight">
-              AI-Powered Medical Documentation for Modern Healthcare
-            </h1>
-            <p className="text-lg text-gray-700">
-              DocScribe uses advanced AI to convert your patient conversations into accurate medical records and prescriptions, saving you hours every day.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/signup">
-                <Button size="lg" className="w-full sm:w-auto">
-                  Start Free Trial
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <a href="#pricing">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  See Pricing
-                </Button>
-              </a>
+      <section className="bg-white py-8">
+        <div className="container max-w-6xl">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h1 className="text-3xl md:text-4xl font-bold text-doctor-primary leading-tight">
+                Revolutionizing Healthcare with Voice
+              </h1>
+              <p className="text-lg text-gray-600 leading-relaxed">
+                Transform Doctor-Patient Conversations into Instant Digital Prescriptions
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/signup">
+                  <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 w-full sm:w-auto">
+                    Get Started
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <a href="#pricing">
+                  <Button size="lg" variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white w-full sm:w-auto">
+                    View Pricing
+                  </Button>
+                </a>
+              </div>
             </div>
-          </div>
-          <div className="rounded-xl overflow-hidden shadow-xl">
-            <img 
-              src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
-              alt="Doctor using DocScribe" 
-              className="w-full h-auto object-cover"
-            />
+            <div className="relative">
+              <img 
+                src="/lovable-uploads/1d45722c-6c7e-4b6a-b9cd-97b340561b0b.png" 
+                alt="Doctor and patient consultation with AI-powered documentation" 
+                className="w-full h-[350px] object-cover rounded-lg shadow-xl"
+              />
+            </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="bg-doctor-light py-16">
+      <section className="bg-white py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-3xl font-bold text-center text-doctor-primary mb-12">How DocScribe Transforms Your Practice</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-doctor-primary mb-12">How DocScribe Transforms Your Practice</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="p-6 border-none shadow-md bg-white hover:shadow-lg transition-shadow">
@@ -102,23 +104,23 @@ const HomePage = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24">
+      <section id="pricing" className="bg-doctor-light py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-3xl font-bold text-center text-doctor-primary mb-4">Simple, Transparent Pricing</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-doctor-primary mb-6">Simple, Transparent Pricing</h2>
           <p className="text-lg text-center text-gray-600 mb-12 max-w-2xl mx-auto">
             Choose the plan that works best for your practice. All plans include unlimited consultations and our full feature set.
           </p>
           
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             {/* Individual Plan */}
-            <Card className="border-2 border-doctor-primary/20 p-8 flex flex-col">
+            <Card className="border-2 border-doctor-primary/20 p-8 flex flex-col bg-white shadow-lg hover:shadow-xl transition-shadow">
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
                   <User className="h-5 w-5 text-doctor-primary" />
-                  <h3 className="text-xl font-bold">Individual Doctor</h3>
+                  <h3 className="text-xl font-bold text-doctor-primary">Individual Doctor</h3>
                 </div>
                 <div className="flex items-baseline mt-4">
-                  <span className="text-4xl font-bold">$20</span>
+                  <span className="text-4xl font-bold text-doctor-primary">$20</span>
                   <span className="text-gray-500 ml-2">/month</span>
                 </div>
                 <p className="text-gray-600 mt-3">Perfect for solo practitioners or small clinics.</p>
@@ -144,19 +146,19 @@ const HomePage = () => {
               </div>
               
               <Link to="/signup?plan=individual">
-                <Button className="w-full">Get Started</Button>
+                <Button className="w-full bg-doctor-primary hover:bg-doctor-primary/90">Get Started</Button>
               </Link>
             </Card>
             
             {/* Hospital Plan */}
-            <Card className="border-2 border-doctor-accent/30 bg-gradient-to-br from-white to-doctor-light/50 p-8 flex flex-col">
+            <Card className="border-2 border-doctor-primary/30 bg-white p-8 flex flex-col shadow-lg hover:shadow-xl transition-shadow">
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <Building2 className="h-5 w-5 text-doctor-accent" />
-                  <h3 className="text-xl font-bold">Hospital / Multi-Doctor</h3>
+                  <Building2 className="h-5 w-5 text-doctor-primary" />
+                  <h3 className="text-xl font-bold text-doctor-primary">Hospital / Multi-Doctor</h3>
                 </div>
                 <div className="flex items-baseline mt-4">
-                  <span className="text-4xl font-bold">Custom</span>
+                  <span className="text-4xl font-bold text-doctor-primary">Custom</span>
                 </div>
                 <p className="text-gray-600 mt-3">Tailored solutions for hospitals and large practices.</p>
               </div>
@@ -184,7 +186,7 @@ const HomePage = () => {
                 </div>
               </div>
               
-              <Button variant="secondary" className="w-full bg-doctor-accent text-white hover:bg-doctor-accent/90">
+              <Button variant="outline" className="w-full border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">
                 Contact Sales
               </Button>
             </Card>
