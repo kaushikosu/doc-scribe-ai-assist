@@ -35,46 +35,37 @@ const HomePage = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative">
-        <div className="relative">
-          {/* Hero Image with Text Overlay */}
-          <div className="relative">
-            <img 
-              src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
-              alt="Doctor and patient consultation with AI-powered documentation" 
-              className="w-full h-[480px] md:h-[540px] object-cover"
-            />
-            
-            {/* Text Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent">
-              <div className="pt-12 md:pt-16 px-8 md:px-16">
-                <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6 max-w-4xl">
-                  Revolutionizing Healthcare with Voice
-                </h1>
-                <p className="text-xl md:text-2xl text-white/95 leading-relaxed max-w-3xl">
-                  Transform Doctor-Patient Conversations into Instant Digital Prescriptions
-                </p>
+      <section className="bg-white py-16">
+        <div className="container max-w-6xl">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h1 className="text-4xl md:text-5xl font-bold text-doctor-primary leading-tight">
+                Revolutionizing Healthcare with Voice
+              </h1>
+              <p className="text-xl text-gray-600 leading-relaxed">
+                Transform Doctor-Patient Conversations into Instant Digital Prescriptions
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/signup">
+                  <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 w-full sm:w-auto">
+                    Get Started
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <a href="#pricing">
+                  <Button size="lg" variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white w-full sm:w-auto">
+                    View Pricing
+                  </Button>
+                </a>
               </div>
             </div>
-            
-            {/* CTA Button - Bottom Right */}
-            <div className="absolute bottom-8 right-8">
-              <Link to="/signup">
-                <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 shadow-xl text-lg px-8 py-3">
-                  Get Started
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
+            <div className="relative">
+              <img 
+                src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
+                alt="Doctor and patient consultation with AI-powered documentation" 
+                className="w-full h-[400px] object-cover rounded-lg shadow-xl"
+              />
             </div>
-          </div>
-          
-          {/* Secondary CTA */}
-          <div className="bg-doctor-light py-8 text-center">
-            <a href="#pricing">
-              <Button size="lg" variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">
-                View Pricing Plans
-              </Button>
-            </a>
           </div>
         </div>
       </section>
