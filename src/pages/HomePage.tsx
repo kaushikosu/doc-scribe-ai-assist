@@ -15,7 +15,7 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-doctor-light via-white to-doctor-light">
+    <div className="min-h-screen bg-gradient-to-br from-doctor-light via-white to-doctor-light relative">
       {/* Navigation Bar */}
       <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
         <div className="container py-3 flex justify-between items-center max-w-6xl">
@@ -39,10 +39,10 @@ const HomePage = () => {
         <div className="container max-w-6xl">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <h1 className="text-3xl md:text-4xl font-bold text-doctor-primary leading-tight">
+              <h1 className="font-bold text-doctor-primary leading-tight" style={{ fontSize: '36px' }}>
                 Revolutionizing Healthcare with Voice
               </h1>
-              <p className="text-lg text-gray-600 leading-relaxed">
+              <p className="text-gray-600 leading-relaxed" style={{ fontSize: '18px' }}>
                 Transform Doctor-Patient Conversations into Instant Digital Prescriptions
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -62,7 +62,7 @@ const HomePage = () => {
             <div className="relative">
               <img 
                 src="/lovable-uploads/1d45722c-6c7e-4b6a-b9cd-97b340561b0b.png" 
-                alt="Doctor and patient consultation with AI-powered documentation" 
+                alt="Doctor and patient discussing a prescription in a modern medical office" 
                 className="w-full h-[350px] object-cover rounded-lg shadow-xl"
               />
             </div>
@@ -70,8 +70,21 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* CTA Button - Positioned absolutely */}
+      <Button 
+        className="fixed bottom-5 right-5 z-50 text-white" 
+        style={{ 
+          backgroundColor: '#4F46E5', 
+          padding: '15px 30px',
+          fontSize: '16px',
+          fontWeight: '600'
+        }}
+      >
+        Get Started Now
+      </Button>
+
       {/* Features Section */}
-      <section className="bg-white py-20">
+      <section className="bg-white py-20 content" style={{ marginTop: '220px', marginBottom: '50px' }}>
         <div className="container max-w-6xl">
           <h2 className="text-2xl md:text-3xl font-bold text-center text-doctor-primary mb-12">How DocScribe Transforms Your Practice</h2>
           
