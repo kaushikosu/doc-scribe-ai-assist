@@ -15,7 +15,7 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-doctor-light">
       {/* Navigation Bar */}
       <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
         <div className="container py-4 flex justify-between items-center max-w-6xl">
@@ -39,10 +39,10 @@ const HomePage = () => {
         <div className="container max-w-6xl">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <h1 className="text-4xl md:text-5xl font-bold text-doctor-primary leading-tight">
+              <h1 className="text-3xl md:text-4xl font-bold text-doctor-primary leading-tight">
                 Revolutionizing Healthcare with Voice
               </h1>
-              <p className="text-xl text-gray-600 leading-relaxed">
+              <p className="text-lg text-gray-600 leading-relaxed">
                 Transform Doctor-Patient Conversations into Instant Digital Prescriptions
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -73,7 +73,7 @@ const HomePage = () => {
       {/* Features Section */}
       <section className="bg-white py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-4xl font-bold text-center text-doctor-primary mb-16">How DocScribe Transforms Your Practice</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-doctor-primary mb-12">How DocScribe Transforms Your Practice</h2>
           
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="p-6 border-none shadow-md bg-white hover:shadow-lg transition-shadow">
@@ -106,8 +106,8 @@ const HomePage = () => {
       {/* Pricing Section */}
       <section id="pricing" className="bg-doctor-light py-20">
         <div className="container max-w-6xl">
-          <h2 className="text-4xl font-bold text-center text-doctor-primary mb-6">Simple, Transparent Pricing</h2>
-          <p className="text-xl text-center text-gray-600 mb-16 max-w-3xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-doctor-primary mb-6">Simple, Transparent Pricing</h2>
+          <p className="text-lg text-center text-gray-600 mb-12 max-w-2xl mx-auto">
             Choose the plan that works best for your practice. All plans include unlimited consultations and our full feature set.
           </p>
           
