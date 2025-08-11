@@ -36,34 +36,45 @@ const HomePage = () => {
 
       {/* Hero Section */}
       <section className="container py-16 md:py-24 max-w-6xl">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-doctor-primary leading-tight">
-              AI-Powered Medical Documentation for Modern Healthcare
-            </h1>
-            <p className="text-lg text-gray-700">
-              DocScribe uses advanced AI to convert your patient conversations into accurate medical records and prescriptions, saving you hours every day.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative">
+          {/* Hero Image with Text Overlay */}
+          <div className="relative rounded-xl overflow-hidden shadow-2xl">
+            <img 
+              src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
+              alt="Doctor and patient consultation with AI-powered documentation" 
+              className="w-full h-[600px] md:h-[700px] object-cover"
+            />
+            
+            {/* Text Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent">
+              <div className="pt-8 md:pt-12 px-6 md:px-12 max-w-2xl">
+                <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-4">
+                  AI-Powered Medical Documentation for Modern Healthcare
+                </h1>
+                <p className="text-lg md:text-xl text-white/90 leading-relaxed">
+                  DocScribe uses advanced AI to convert your patient conversations into accurate medical records and prescriptions, saving you hours every day.
+                </p>
+              </div>
+            </div>
+            
+            {/* CTA Button - Bottom Right */}
+            <div className="absolute bottom-6 right-6">
               <Link to="/signup">
-                <Button size="lg" className="w-full sm:w-auto">
+                <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 shadow-lg">
                   Start Free Trial
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
-              <a href="#pricing">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                  See Pricing
-                </Button>
-              </a>
             </div>
           </div>
-          <div className="rounded-xl overflow-hidden shadow-xl">
-            <img 
-              src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
-              alt="Doctor using DocScribe" 
-              className="w-full h-auto object-cover"
-            />
+          
+          {/* Secondary CTA */}
+          <div className="mt-8 text-center">
+            <a href="#pricing">
+              <Button size="lg" variant="outline" className="border-doctor-primary text-doctor-primary hover:bg-doctor-primary hover:text-white">
+                See Pricing Plans
+              </Button>
+            </a>
           </div>
         </div>
       </section>
