@@ -42,17 +42,17 @@ const HomePage = () => {
             <img 
               src="/lovable-uploads/0c63873a-92c7-43bf-b60b-18469824c571.png" 
               alt="Doctor and patient consultation with AI-powered documentation" 
-              className="w-full h-[600px] md:h-[700px] object-cover"
+              className="w-full h-[400px] md:h-[480px] object-cover"
             />
             
             {/* Text Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent">
               <div className="pt-8 md:pt-12 px-6 md:px-12 max-w-2xl">
-                <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight mb-4">
-                  AI-Powered Medical Documentation for Modern Healthcare
+                <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
+                  Revolutionizing Healthcare with Voice
                 </h1>
                 <p className="text-lg md:text-xl text-white/90 leading-relaxed">
-                  DocScribe uses advanced AI to convert your patient conversations into accurate medical records and prescriptions, saving you hours every day.
+                  Transform Doctor-Patient Conversations into Instant Digital Prescriptions
                 </p>
               </div>
             </div>
@@ -61,7 +61,7 @@ const HomePage = () => {
             <div className="absolute bottom-6 right-6">
               <Link to="/signup">
                 <Button size="lg" className="bg-doctor-primary hover:bg-doctor-primary/90 shadow-lg">
-                  Start Free Trial
+                  Get Started
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
