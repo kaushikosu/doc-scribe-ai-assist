@@ -15,7 +15,7 @@ import {
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-doctor-light via-white to-doctor-light">
+    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--vibrant-gradient-start))] via-[hsl(var(--vibrant-gradient-mid))] to-[hsl(var(--vibrant-gradient-end))]">
       {/* Navigation Bar */}
       <nav className="bg-white/95 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
         <div className="container py-3 flex justify-between items-center max-w-6xl">

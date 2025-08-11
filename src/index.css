@@ -39,6 +39,9 @@
     --doctor-secondary: 200 18% 46%;
     --doctor-accent: 25 95% 53%;
     --doctor-light: 199 33% 95%;
+    --vibrant-gradient-start: 256 100% 96%;
+    --vibrant-gradient-mid: 239 95% 97%;
+    --vibrant-gradient-end: 305 100% 96%;
   }
 
   .dark {
