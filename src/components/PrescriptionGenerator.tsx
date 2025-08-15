@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Edit, Save, Check, MessageSquare, Printer, RotateCw, Settings, MoreHorizontal } from 'lucide-react';
+import { Edit, Save, Check, MessageSquare, Printer, RotateCw, Settings, MoreHorizontal, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { MedicalExtraction } from '@/types/medical';
 
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -44,6 +46,8 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
   const [lastProcessedTranscript, setLastProcessedTranscript] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [medicalExtraction, setMedicalExtraction] = useState<MedicalExtraction | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
   
 
   // PM-JAY format toggle and header details (persisted locally)
@@ -135,24 +139,201 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   }, [usePmjayFormat]);
 
 useEffect(() => {
-  // Generate prescription when classified transcript becomes available or changes
+  // Extract medical details when classified transcript becomes available
   if (classifiedTranscript && classifiedTranscript !== lastProcessedTranscript && !isClassifying) {
-    console.log("Classified transcript changed, generating prescription");
-    onGeneratingStart?.();
-    setIsGenerating(true);
-    // Delay 1.2s to provide clear feedback in UI
-    const timeoutId = setTimeout(() => {
-      const generatedPrescription = generatePrescription(classifiedTranscript);
-      setLastProcessedTranscript(classifiedTranscript);
-      setIsGenerating(false);
-      // Pass the freshly generated prescription to the callback
-      console.log("Calling onGenerated with prescription:", generatedPrescription?.substring(0, 100) + "...");
-      onGenerated?.(generatedPrescription);
-    }, 1200);
-    return () => clearTimeout(timeoutId);
+    console.log("Classified transcript changed, extracting medical details");
+    setLastProcessedTranscript(classifiedTranscript);
+    extractMedicalDetails(classifiedTranscript);
   }
 }, [classifiedTranscript, isClassifying]);
 
+// Generate prescription when medical extraction is complete
+useEffect(() => {
+  if (medicalExtraction && !isExtracting) {
+    console.log("Medical extraction complete, generating prescription");
+    onGeneratingStart?.();
+    setIsGenerating(true);
+    const timeoutId = setTimeout(() => {
+      const generatedPrescription = generatePrescriptionFromExtraction(medicalExtraction);
+      setIsGenerating(false);
+      console.log("Calling onGenerated with prescription:", generatedPrescription?.substring(0, 100) + "...");
+      onGenerated?.(generatedPrescription);
+    }, 800);
+    return () => clearTimeout(timeoutId);
+  }
+}, [medicalExtraction, isExtracting]);
+
+
+  const extractMedicalDetails = async (transcriptText: string) => {
+    setIsExtracting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('extract-medical-details', {
+        body: { transcript: transcriptText }
+      });
+
+      if (error) {
+        console.error('Error extracting medical details:', error);
+        const fallbackExtraction = generateFallbackExtraction(transcriptText);
+        setMedicalExtraction(fallbackExtraction);
+        return;
+      }
+
+      if (data) {
+        setMedicalExtraction(data);
+      }
+    } catch (error) {
+      console.error('Error calling medical extraction:', error);
+      const fallbackExtraction = generateFallbackExtraction(transcriptText);
+      setMedicalExtraction(fallbackExtraction);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const generateFallbackExtraction = (transcriptText: string): MedicalExtraction => {
+    const medications = extractMedications(transcriptText).map(med => ({
+      name: med,
+      dosage: "",
+      frequency: "",
+      duration: "",
+      route: "oral",
+      instructions: ""
+    }));
+
+    const symptoms = extractSymptoms(transcriptText).map(symptom => ({
+      description: symptom,
+      severity: "",
+      duration: "",
+      onset: ""
+    }));
+
+    const recommendations = extractRecommendations(transcriptText);
+    const investigations = recommendations.filter(rec => 
+      rec.toLowerCase().includes('test') || 
+      rec.toLowerCase().includes('scan') || 
+      rec.toLowerCase().includes('blood') ||
+      rec.toLowerCase().includes('x-ray')
+    ).map(test => ({
+      test,
+      urgency: "routine",
+      reason: "",
+      instructions: ""
+    }));
+
+    const instructions = recommendations.filter(rec => 
+      !rec.toLowerCase().includes('test') && 
+      !rec.toLowerCase().includes('scan') && 
+      !rec.toLowerCase().includes('blood') &&
+      !rec.toLowerCase().includes('x-ray')
+    ).map(instruction => ({
+      type: "general",
+      description: instruction,
+      category: "lifestyle"
+    }));
+
+    return {
+      medications,
+      symptoms,
+      diagnoses: [],
+      investigations,
+      instructions,
+      confidence: 60
+    };
+  };
+
+  const generatePrescriptionFromExtraction = (extraction: MedicalExtraction): string => {
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    if (usePmjayFormat) {
+      return generateABDMPrescription(extraction, currentDate);
+    } else {
+      return generateStandardPrescription(extraction, currentDate);
+    }
+  };
+
+  const generateABDMPrescription = (extraction: MedicalExtraction, currentDate: string): string => {
+    const { medications, symptoms, diagnoses, investigations, instructions } = extraction;
+    
+    const generatedPrescription = `
+${hospitalName.toUpperCase()}
+${hospitalAddress}
+Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
+${empanelmentId ? `Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
+================================================================
+
+Date: ${currentDate}                                  Time: ${patientInfo.time || ''}
+
+PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+Age/Sex: ${currentPatient?.age || '[Age]'}/${currentPatient?.gender || '[Sex]'}
+ABHA ID: ${currentPatient?.abha_id || patientAbha || '[ABHA Number]'}
+
+PRESENTING COMPLAINTS:
+${symptoms.map(s => `• ${s.description}${s.duration ? ` (Duration: ${s.duration})` : ''}${s.severity ? ` - ${s.severity}` : ''}`).join('\n') || '• [Chief complaints to be documented]'}
+
+DIAGNOSIS:
+${diagnoses.length > 0 ? diagnoses.map(d => `• ${d.condition}${d.icd10 ? ` (ICD-10: ${d.icd10})` : ''}`).join('\n') : '• [Clinical findings to be documented]'}
+
+Rx.
+${medications.map((med, index) => `${index + 1}. ${med.name}${med.dosage ? ` - ${med.dosage}` : ''}${med.frequency ? ` - ${med.frequency}` : ''}${med.duration ? ` - ${med.duration}` : ''}${med.instructions ? ` (${med.instructions})` : ''}`).join('\n') || '1. [No medications prescribed]'}
+
+INVESTIGATIONS:
+${investigations.map(i => `• ${i.test}${i.urgency !== 'routine' ? ` (${i.urgency})` : ''}${i.reason ? ` - ${i.reason}` : ''}`).join('\n') || '• [Investigations if any]'}
+
+ADVICE:
+${instructions.map(i => `• ${i.description}`).join('\n') || '• [General advice to be documented]'}
+
+FOLLOW-UP: As needed
+
+Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}
+Reg. No: ${doctorRegId} | ${doctorDept}
+================================================================
+    `.trim();
+
+    setPrescription(generatedPrescription);
+    setEditablePrescription(generatedPrescription);
+    return generatedPrescription;
+  };
+
+  const generateStandardPrescription = (extraction: MedicalExtraction, currentDate: string): string => {
+    const { medications, symptoms, diagnoses, investigations, instructions } = extraction;
+    
+    const generatedPrescription = `
+${hospitalName.toUpperCase()}
+------------------------------------------------------------------
+Date: ${currentDate}                     Time: ${patientInfo.time || ''}
+
+PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
+Age: ${currentPatient?.age || '[Age]'}  Gender: ${currentPatient?.gender || '[Gender]'}
+
+COMPLAINTS: ${symptoms.map(s => s.description).join(', ') || 'N/A'}
+
+DIAGNOSIS: ${diagnoses.map(d => d.condition).join(', ') || 'To be documented'}
+
+Rx.
+${medications.map((med, index) => `${index + 1}. ${med.name}${med.dosage ? ` ${med.dosage}` : ''}${med.frequency ? ` - ${med.frequency}` : ''}${med.duration ? ` for ${med.duration}` : ''}${med.route !== 'oral' ? ` (${med.route})` : ''}`).join('\n') || '1. [No medications prescribed]'}
+
+INVESTIGATIONS:
+${investigations.map(i => `• ${i.test}${i.instructions ? ` - ${i.instructions}` : ''}`).join('\n') || '• [Laboratory/imaging studies if required]'}
+
+ADVICE:
+${instructions.map(i => `• ${i.description}`).join('\n') || '• [General care instructions]'}
+
+Next Consultation: [Date]
+
+_____________________
+Dr. ${doctorName}
+${doctorQualification || '[Qualification]'}
+------------------------------------------------------------------
+    `.trim();
+
+    setPrescription(generatedPrescription);
+    setEditablePrescription(generatedPrescription);
+    return generatedPrescription;
+  };
 
   const generatePrescription = (transcriptText: string): string => {
     try {
@@ -516,7 +697,7 @@ const handleGenerateAI = () => {
   
   // Determine if prescription actions should be disabled
   const hasAnyTranscript = Boolean(classifiedTranscript || transcript);
-  const isPrescriptionDisabled = isClassifying || isGenerating || !hasAnyTranscript;
+  const isPrescriptionDisabled = isClassifying || isGenerating || isExtracting || !hasAnyTranscript;
 
   return (
     <Card 
@@ -648,11 +829,15 @@ const handleGenerateAI = () => {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {isGenerating ? (
+        {(isGenerating || isExtracting) ? (
           <div className="min-h-[300px] p-4 rounded-md flex flex-col justify-center items-center">
-            <RotateCw className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
-            <p className="font-medium text-doctor-primary">Generating prescription</p>
-            <p className="text-muted-foreground text-sm">Analyzing consultation details...</p>
+            <Loader2 className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
+            <p className="font-medium text-doctor-primary">
+              {isExtracting ? "Extracting medical details" : "Generating prescription"}
+            </p>
+            <p className="text-muted-foreground text-sm">
+              {isExtracting ? "AI analyzing consultation..." : "Creating structured prescription..."}
+            </p>
           </div>
         ) : isEditing ? (
           <Textarea
