@@ -20,3 +20,6 @@ enable_confirmations = false
 
 [functions.correct-transcript-speakers]
 verify_jwt = false
+
+[functions.deepgram-diarize-audio]
+verify_jwt = false
