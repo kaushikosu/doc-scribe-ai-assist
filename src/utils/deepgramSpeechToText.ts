@@ -114,12 +114,39 @@ export const processCompleteAudio = async (
     console.log(`Sending audio to backend for processing: ${Math.round(base64Audio.length / 1024)} KB, type: ${mimeType}`);
     
     // Call the backend Edge Function via Supabase client (reliable CORS + auth)
-    const { data, error } = await supabase.functions.invoke('deepgram-diarize-audio', {
+    console.log('Invoking deepgram-diarize-audio edge function...');
+    const invokePromise = supabase.functions.invoke('deepgram-diarize-audio', {
       body: { audio: base64Audio, mimeType }
     });
-
-    if (error) {
-      throw new Error(error.message || 'Edge function call failed');
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Edge function timeout after 45s')), 45000)
+    );
+    let data: any | undefined;
+    try {
+      const result = (await Promise.race([invokePromise, timeoutPromise])) as { data: any; error: any };
+      if (result && !result.error) {
+        data = result.data;
+      } else {
+        throw new Error(result?.error?.message || 'Edge function call failed');
+      }
+    } catch (primaryError) {
+      console.warn('Primary invoke failed, trying direct fetch fallback...', primaryError);
+      const url = 'https://vtbpeozzyaqxjgmroeqs.supabase.co/functions/v1/deepgram-diarize-audio';
+      const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0YnBlb3p6eWFxeGpnbXJvZXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxOTAwODUsImV4cCI6MjA2MDc2NjA4NX0.F7VCtKu7d0ob3OUhhLZW9NDeyziw1Vah2uNJxQSCr5g';
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anon,
+          'Authorization': `Bearer ${anon}`
+        },
+        body: JSON.stringify({ audio: base64Audio, mimeType })
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Fallback fetch failed: ${resp.status} ${text}`);
+      }
+      data = await resp.json();
     }
 
     console.log('Received response from backend:', data);
