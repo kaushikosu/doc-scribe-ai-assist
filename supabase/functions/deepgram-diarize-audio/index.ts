@@ -42,10 +42,8 @@ serve(async (req) => {
       bytes[i] = binaryString.charCodeAt(i);
     }
     
-    // Create form data for Deepgram
-    const formData = new FormData();
-    const audioBlob = new Blob([bytes], { type: mimeType });
-    formData.append('audio', audioBlob);
+    // Prepare raw audio buffer for Deepgram (send binary body, more reliable than multipart)
+    const audioBuffer = bytes.buffer;
     
     // Configure Deepgram request with diarization
     const deepgramUrl = 'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
@@ -64,8 +62,9 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Authorization': `Token ${DEEPGRAM_API_KEY}`,
+        'Content-Type': mimeType || 'application/octet-stream'
       },
-      body: formData,
+      body: audioBuffer,
     });
 
     if (!response.ok) {
