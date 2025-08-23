@@ -1,7 +1,7 @@
 import axios from 'axios';
 
+import { supabase } from "@/integrations/supabase/client";
 import { DiarizedUtterance, DiarizedTranscriptResult } from "@/types/diarization";
-
 export interface DeepgramResult {
   transcript: string;
   isFinal: boolean;
@@ -113,31 +113,27 @@ export const processCompleteAudio = async (
     
     console.log(`Sending audio to backend for processing: ${Math.round(base64Audio.length / 1024)} KB, type: ${mimeType}`);
     
-    // Call the backend API we created
-    const response = await axios.post('https://vtbpeozzyaqxjgmroeqs.supabase.co/functions/v1/deepgram-diarize-audio', {
-      audio: base64Audio,
-      mimeType: mimeType
-    }, {
-      headers: {
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0YnBlb3p6eWFxeGpnbXJvZXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxOTAwODUsImV4cCI6MjA2MDc2NjA4NX0.F7VCtKu7d0ob3OUhhLZW9NDeyziw1Vah2uNJxQSCr5g`,
-        'apikey': `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0YnBlb3p6eWFxeGpnbXJvZXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxOTAwODUsImV4cCI6MjA2MDc2NjA4NX0.F7VCtKu7d0ob3OUhhLZW9NDeyziw1Vah2uNJxQSCr5g`,
-        'Content-Type': 'application/json'
-      }
+    // Call the backend Edge Function via Supabase client (reliable CORS + auth)
+    const { data, error } = await supabase.functions.invoke('deepgram-diarize-audio', {
+      body: { audio: base64Audio, mimeType }
     });
-    
-    console.log('Received response from backend:', response);
 
-    // Post-process the response to format transcript with speaker information
-    const processedTranscript = postProcessDeepgramResponse(response.data);
-    
-    // Extract structured utterances from Deepgram response
-    const utterances = extractUtterancesFromDeepgramResponse(response.data);
+    if (error) {
+      throw new Error(error.message || 'Edge function call failed');
+    }
 
-    // Return the formatted transcript and utterances
+    console.log('Received response from backend:', data);
+
+    // Prefer transcript/utterances returned by the function. Fallback to raw results if needed.
+    const transcript = (data?.transcript as string) || postProcessDeepgramResponse(data?.results);
+    const utterances = Array.isArray(data?.utterances)
+      ? (data.utterances as DiarizedUtterance[])
+      : extractUtterancesFromDeepgramResponse(data);
+
     return {
-      transcript: processedTranscript || response.data.transcript || '',
+      transcript: transcript || '',
       utterances,
-      error: response.data.error
+      error: data?.error
     };
     
   } catch (error) {
