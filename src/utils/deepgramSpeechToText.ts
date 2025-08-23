@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { DiarizedUtterance, DiarizedTranscriptResult } from "@/types/diarization";
+
 export interface DeepgramResult {
   transcript: string;
   isFinal: boolean;
@@ -92,7 +94,7 @@ function postProcessDeepgramResponse(data: any): string {
 export const processCompleteAudio = async (
   audioBlob: Blob,
   apiKey: string,  // We'll still accept this for backwards compatibility, but won't use it
-): Promise<{transcript: string, error?: string}> => {
+): Promise<{transcript: string, utterances?: DiarizedUtterance[], error?: string}> => {
   try {
     console.log('Processing complete audio with Deepgram via backend server');
     
@@ -121,10 +123,14 @@ export const processCompleteAudio = async (
 
     // Post-process the response to format transcript with speaker information
     const processedTranscript = postProcessDeepgramResponse(response.data);
+    
+    // Extract structured utterances from Deepgram response
+    const utterances = extractUtterancesFromDeepgramResponse(response.data);
 
-    // Return the formatted transcript
+    // Return the formatted transcript and utterances
     return {
       transcript: processedTranscript || response.data.transcript || '',
+      utterances,
       error: response.data.error
     };
     
@@ -247,7 +253,7 @@ export async function processCompleteAudioWithCorrection(
   audioBlob: Blob, 
   apiKey: string, 
   enableAICorrection: boolean = false
-): Promise<{transcript: string, error?: string, correctionResult?: SpeakerCorrectionResult}> {
+): Promise<{transcript: string, utterances?: DiarizedUtterance[], error?: string, correctionResult?: SpeakerCorrectionResult}> {
   try {
     // First get the standard Deepgram result
     const result = await processCompleteAudio(audioBlob, apiKey);
@@ -265,6 +271,7 @@ export async function processCompleteAudioWithCorrection(
       if (correctionResult.confidence >= 0.85) {
         return {
           transcript: correctionResult.correctedTranscript,
+          utterances: result.utterances,
           correctionResult
         };
       } else {
@@ -281,9 +288,95 @@ export async function processCompleteAudioWithCorrection(
     console.error('Error in processCompleteAudioWithCorrection:', error);
     return {
       transcript: '',
+      utterances: [],
       error: `Processing failed: ${error instanceof Error ? error.message : String(error)}`
     };
   }
+}
+
+// Extract structured utterances from Deepgram response
+export function extractUtterancesFromDeepgramResponse(data: any): DiarizedUtterance[] {
+  try {
+    console.log('Extracting utterances from Deepgram response');
+    
+    // Try to get paragraphs first (contains speaker timing info)
+    const paragraphs = data?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
+    if (paragraphs && Array.isArray(paragraphs)) {
+      return paragraphs.map((paragraph: any, index: number) => {
+        const speaker = paragraph.speaker !== undefined ? 
+          (paragraph.speaker === 0 ? 'DOCTOR' : paragraph.speaker === 1 ? 'PATIENT' : `SPEAKER_${paragraph.speaker}`) :
+          `SPEAKER_${index % 2}`;
+        
+        return {
+          speaker,
+          ts_start: Math.round((paragraph.start || 0) * 100) / 100,
+          ts_end: Math.round((paragraph.end || 0) * 100) / 100,
+          text: paragraph.text || '',
+          asr_conf: Math.round((paragraph.confidence || 0.8) * 100) / 100
+        };
+      });
+    }
+    
+    // Fallback: extract from words array
+    const words = data?.results?.channels?.[0]?.alternatives?.[0]?.words;
+    if (words && Array.isArray(words)) {
+      return groupWordsIntoUtterances(words);
+    }
+    
+    console.warn('No suitable data structure found for utterance extraction');
+    return [];
+  } catch (error) {
+    console.error('Error extracting utterances:', error);
+    return [];
+  }
+}
+
+function groupWordsIntoUtterances(words: any[]): DiarizedUtterance[] {
+  if (words.length === 0) return [];
+  
+  const utterances: DiarizedUtterance[] = [];
+  let currentSpeaker: number | null = null;
+  let currentWords: any[] = [];
+  
+  words.forEach((word, index) => {
+    const wordSpeaker = word.speaker !== undefined ? word.speaker : 0;
+    const speakerChanged = currentSpeaker !== null && wordSpeaker !== currentSpeaker;
+    const longPause = index > 0 && ((word.start || 0) - (words[index-1].end || 0) > 1.0);
+    
+    if (speakerChanged || longPause) {
+      if (currentWords.length > 0) {
+        utterances.push(createUtteranceFromDeepgramWords(currentWords, currentSpeaker || 0));
+        currentWords = [];
+      }
+    }
+    
+    currentSpeaker = wordSpeaker;
+    currentWords.push(word);
+    
+    if (index === words.length - 1 && currentWords.length > 0) {
+      utterances.push(createUtteranceFromDeepgramWords(currentWords, currentSpeaker));
+    }
+  });
+  
+  return utterances;
+}
+
+function createUtteranceFromDeepgramWords(words: any[], speakerTag: number): DiarizedUtterance {
+  const text = words.map(w => w.punctuated_word || w.word || '').join(' ');
+  const ts_start = Math.min(...words.map(w => w.start || 0));
+  const ts_end = Math.max(...words.map(w => w.end || 0));
+  const confidences = words.filter(w => w.confidence !== undefined).map(w => w.confidence);
+  const asr_conf = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0.8;
+  
+  const speaker = speakerTag === 0 ? 'DOCTOR' : speakerTag === 1 ? 'PATIENT' : `SPEAKER_${speakerTag}`;
+  
+  return {
+    speaker,
+    ts_start: Math.round(ts_start * 100) / 100,
+    ts_end: Math.round(ts_end * 100) / 100,
+    text: text.trim(),
+    asr_conf: Math.round(asr_conf * 100) / 100
+  };
 }
 
 // Export the utilities

@@ -2,9 +2,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Clock } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
+import { DiarizedUtterance } from '@/types/diarization';
 
 interface DiarizedTranscriptViewProps {
   diarizedData: DiarizedTranscription | null;
@@ -104,7 +105,63 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
     return null;
   };
 
-  // Render diarized transcript with speaker formatting
+  // Render utterances in structured format or fallback to formatted transcript
+  const renderTranscriptContent = () => {
+    if (!diarizedData) {
+      return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
+    }
+
+    // If we have structured utterances, render them
+    if (diarizedData.utterances && diarizedData.utterances.length > 0) {
+      return renderStructuredUtterances(diarizedData.utterances);
+    }
+
+    // Fallback to formatted transcript
+    if (formattedTranscript) {
+      return renderFormattedTranscript();
+    }
+
+    return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
+  };
+
+  // Render structured utterances with timing and confidence
+  const renderStructuredUtterances = (utterances: DiarizedUtterance[]) => {
+    return utterances.map((utterance, index) => {
+      const roleColor = utterance.speaker === 'DOCTOR' 
+        ? 'text-blue-600 font-semibold' 
+        : utterance.speaker === 'PATIENT'
+        ? 'text-green-600 font-semibold'
+        : 'text-purple-600 font-semibold';
+
+      const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = (seconds % 60).toFixed(1);
+        return `${mins}:${secs.padStart(4, '0')}`;
+      };
+
+      return (
+        <div key={index} className="mb-4 p-3 rounded-lg border border-gray-200 bg-white">
+          <div className="flex items-center justify-between mb-2">
+            <span className={`${roleColor} text-sm font-medium`}>
+              [{utterance.speaker}]
+            </span>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatTime(utterance.ts_start)} - {formatTime(utterance.ts_end)}
+              </span>
+              <span className="bg-gray-100 px-2 py-0.5 rounded">
+                Conf: {(utterance.asr_conf * 100).toFixed(0)}%
+              </span>
+            </div>
+          </div>
+          <p className="text-foreground leading-relaxed">{utterance.text}</p>
+        </div>
+      );
+    });
+  };
+
+  // Render diarized transcript with speaker formatting (fallback)
   const renderFormattedTranscript = () => {
     if (!formattedTranscript) {
       return <div className="text-muted-foreground text-center italic">No diarized transcript available</div>;
@@ -207,7 +264,7 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         ) : (
           <ScrollArea className="max-h-[400px] min-h-[120px] overflow-auto">
             <div className="p-3 w-full bg-muted rounded-md">
-              {renderFormattedTranscript()}
+              {renderTranscriptContent()}
             </div>
           </ScrollArea>
         )}

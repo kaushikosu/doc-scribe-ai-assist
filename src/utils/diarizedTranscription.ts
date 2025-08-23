@@ -12,15 +12,11 @@ interface DiarizedTranscriptionOptions {
   languageCode?: string;
 }
 
-export interface DiarizedWord {
-  word: string;
-  speakerTag: number;
-  startTime: number;
-  endTime: number;
-}
+import { DiarizedWord, DiarizedUtterance, DiarizedTranscriptResult } from "@/types/diarization";
 
 export interface DiarizedTranscription {
   transcript: string;
+  utterances?: DiarizedUtterance[];
   error?: string;
 }
 
@@ -164,7 +160,8 @@ export async function getDiarizedTranscription({
               word: word.word,
               speakerTag: word.speakerTag || 0,
               startTime: parseFloat(word.startTime?.seconds || 0) + parseFloat(word.startTime?.nanos || 0) / 1e9,
-              endTime: parseFloat(word.endTime?.seconds || 0) + parseFloat(word.endTime?.nanos || 0) / 1e9
+              endTime: parseFloat(word.endTime?.seconds || 0) + parseFloat(word.endTime?.nanos || 0) / 1e9,
+              confidence: word.confidence || result.alternatives[0].confidence || 0.8
             });
           });
         }
@@ -183,8 +180,12 @@ export async function getDiarizedTranscription({
     
     console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
     
+    // Generate structured utterances from words
+    const utterances = generateUtterancesFromWords(words);
+    
     return {
-      transcript: fullTranscript.trim()
+      transcript: fullTranscript.trim(),
+      utterances
     };
     
   } catch (error: any) {
@@ -259,7 +260,62 @@ export function formatDiarizedTranscript(words: DiarizedWord[]): string {
   return transcript.join('\n\n');
 }
 
-// Map speaker tags to Doctor/Patient roles
+// Generate structured utterances from diarized words
+export function generateUtterancesFromWords(words: DiarizedWord[]): DiarizedUtterance[] {
+  if (words.length === 0) return [];
+  
+  const utterances: DiarizedUtterance[] = [];
+  let currentSpeaker: number | null = null;
+  let currentWords: DiarizedWord[] = [];
+  
+  // Group words by speaker and pauses
+  words.forEach((word, index) => {
+    const speakerChanged = currentSpeaker !== null && word.speakerTag !== currentSpeaker;
+    const longPause = index > 0 && (word.startTime - words[index-1].endTime > 1.0); // 1 second pause
+    const isLastWord = index === words.length - 1;
+    
+    // Start new utterance if speaker changed or long pause
+    if (speakerChanged || longPause) {
+      if (currentWords.length > 0) {
+        utterances.push(createUtteranceFromWords(currentWords, currentSpeaker || 0));
+        currentWords = [];
+      }
+    }
+    
+    currentSpeaker = word.speakerTag;
+    currentWords.push(word);
+    
+    // End utterance at last word
+    if (isLastWord && currentWords.length > 0) {
+      utterances.push(createUtteranceFromWords(currentWords, currentSpeaker));
+    }
+  });
+  
+  return utterances;
+}
+
+function createUtteranceFromWords(words: DiarizedWord[], speakerTag: number): DiarizedUtterance {
+  const text = words.map(w => w.word).join(' ');
+  const ts_start = Math.min(...words.map(w => w.startTime));
+  const ts_end = Math.max(...words.map(w => w.endTime));
+  
+  // Calculate average confidence
+  const confidences = words.filter(w => w.confidence !== undefined).map(w => w.confidence!);
+  const asr_conf = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0.8;
+  
+  // Map speaker tag to role
+  const speaker = speakerTag === 1 ? 'DOCTOR' : speakerTag === 2 ? 'PATIENT' : `SPEAKER_${speakerTag}`;
+  
+  return {
+    speaker,
+    ts_start: Math.round(ts_start * 100) / 100, // Round to 2 decimal places
+    ts_end: Math.round(ts_end * 100) / 100,
+    text: text.trim(),
+    asr_conf: Math.round(asr_conf * 100) / 100
+  };
+}
+
+// Map speaker tags to Doctor/Patient roles (legacy function)
 export function mapSpeakerRoles(diarizedTranscript: string): string {
   // Simple heuristic: typically speaker 1 is the doctor and speaker 2 is the patient
   // This is a simplification - in reality, we'd need more sophisticated analysis
