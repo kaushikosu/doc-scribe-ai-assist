@@ -90,11 +90,8 @@ const DashboardPage = () => {
 
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
-    if (!deepgramApiKey) {
-      console.error("Deepgram API key is missing");
-      setStatus({ type: 'error', message: 'Deepgram API key is not configured' });
-      return;
-    }
+    // Proceed without client key; edge function stores Deepgram secret
+    const apiKeyForCompat = (deepgramApiKey as string) || '';
     
     if (!audioBlob || audioBlob.size === 0) {
       console.error("No audio data to process");
@@ -109,7 +106,7 @@ const DashboardPage = () => {
     
     try {
       // Process audio with Deepgram and AI correction
-      const { transcript: diarizedText, error, correctionResult } = await processCompleteAudioWithCorrection(audioBlob, deepgramApiKey, enableAICorrection);
+      const { transcript: diarizedText, error, correctionResult } = await processCompleteAudioWithCorrection(audioBlob, apiKeyForCompat, enableAICorrection);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
       
       // Update debug panel with Deepgram result
