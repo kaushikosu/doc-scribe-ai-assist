@@ -7,14 +7,25 @@ import { Bug, ChevronDown, ChevronUp } from 'lucide-react';
 interface DebugPanelProps {
   liveTranscript: string;
   deepgramTranscript: string;
-  claudeTranscript: string;
+  deepgramUtterances?: Array<{
+    speaker: string;
+    ts_start: number;
+    ts_end: number;
+    text: string;
+  }>;
+  ir?: any;
+  soap?: any;
+  prescription?: any;
   isRecording: boolean;
 }
 
 const DebugPanel: React.FC<DebugPanelProps> = ({
   liveTranscript,
   deepgramTranscript,
-  claudeTranscript,
+  deepgramUtterances = [],
+  ir,
+  soap,
+  prescription,
   isRecording
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,60 +36,12 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
     return text.split('\n').filter(p => p.trim().length > 0);
   };
 
-  // Calculate differences between Deepgram and Claude transcripts
-  const claudeWithHighlights = useMemo(() => {
-    if (!deepgramTranscript || !claudeTranscript) return formatParagraphs(claudeTranscript);
-    
-    const deepgramParagraphs = formatParagraphs(deepgramTranscript);
-    const claudeParagraphs = formatParagraphs(claudeTranscript);
-    
-    return claudeParagraphs.map((claudePara, index) => {
-      const deepgramPara = deepgramParagraphs[index] || '';
-      
-      // Extract speaker label and content separately
-      const extractSpeakerAndContent = (text: string) => {
-        // Match patterns like "Speaker 0:", "[Doctor]:", etc.
-        const speakerMatch = text.match(/^(Speaker \d+:|^\[.*?\]:)\s*(.*)/);
-        if (speakerMatch) {
-          return { speaker: speakerMatch[1], content: speakerMatch[2] };
-        }
-        return { speaker: '', content: text };
-      };
-      
-      const claudeData = extractSpeakerAndContent(claudePara);
-      const deepgramData = extractSpeakerAndContent(deepgramPara);
-      
-      // Only compare the content part, not the speaker labels
-      const claudeWords = claudeData.content.split(' ').filter(w => w.trim());
-      const deepgramWords = deepgramData.content.split(' ').filter(w => w.trim());
-      
-      // Rebuild the full paragraph with speaker label + content
-      const result = [];
-      
-      // Add speaker label (always show, no highlighting since these are expected to change)
-      if (claudeData.speaker) {
-        result.push({
-          word: claudeData.speaker,
-          isChanged: false,
-          key: `${index}-speaker`
-        });
-      }
-      
-      // Add content words with diff highlighting
-      claudeWords.forEach((word, wordIndex) => {
-        const deepgramWord = deepgramWords[wordIndex] || '';
-        const isChanged = word !== deepgramWord;
-        
-        result.push({
-          word,
-          isChanged,
-          key: `${index}-${wordIndex}`
-        });
-      });
-      
-      return result;
-    });
-  }, [deepgramTranscript, claudeTranscript]);
+  // Format utterances for display
+  const formatUtterances = (utterances: Array<{speaker: string, ts_start: number, ts_end: number, text: string}>) => {
+    return utterances.map(u => 
+      `${u.speaker} (${u.ts_start}s-${u.ts_end}s): ${u.text}`
+    ).join('\n\n');
+  };
 
   return (
     <div className="w-full">
@@ -97,7 +60,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
         </CollapsibleTrigger>
         
         <CollapsibleContent className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {/* Live Transcript */}
             <Card className="h-64">
               <CardHeader className="pb-3">
@@ -128,18 +91,24 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
             <Card className="h-64">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${deepgramTranscript ? 'bg-blue-500' : 'bg-muted'}`} />
+                  <div className={`w-2 h-2 rounded-full ${deepgramUtterances.length > 0 ? 'bg-blue-500' : 'bg-muted'}`} />
                   2. Deepgram Diarized
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">Post-processing with speaker labels</p>
+                <p className="text-xs text-muted-foreground">Speaker, timing & transcript</p>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {deepgramTranscript ? (
-                    formatParagraphs(deepgramTranscript).map((paragraph, index) => (
-                      <p key={index} className="mb-2 last:mb-0">
-                        {paragraph}
-                      </p>
+                  {deepgramUtterances.length > 0 ? (
+                    deepgramUtterances.map((utterance, index) => (
+                      <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-semibold text-primary">{utterance.speaker}</span>
+                          <span className="text-muted-foreground text-xs">
+                            {utterance.ts_start}s - {utterance.ts_end}s
+                          </span>
+                        </div>
+                        <p className="text-foreground">{utterance.text}</p>
+                      </div>
                     ))
                   ) : (
                     <span className="text-muted-foreground italic">
@@ -150,33 +119,127 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardContent>
             </Card>
 
-            {/* Claude Corrected */}
+            {/* IR */}
             <Card className="h-64">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${claudeTranscript ? 'bg-green-500' : 'bg-muted'}`} />
-                  3. Claude Corrected
+                  <div className={`w-2 h-2 rounded-full ${ir ? 'bg-purple-500' : 'bg-muted'}`} />
+                  3. IR
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">AI-enhanced speaker identification</p>
+                <p className="text-xs text-muted-foreground">Intermediate Representation</p>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {claudeTranscript ? (
-                    claudeWithHighlights.map((paragraph, index) => (
-                      <p key={index} className="mb-2 last:mb-0">
-                        {paragraph.map(({ word, isChanged, key }) => (
-                          <span
-                            key={key}
-                            className={isChanged ? 'bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded' : ''}
-                          >
-                            {word}{' '}
-                          </span>
-                        ))}
-                      </p>
-                    ))
+                  {ir ? (
+                    <div className="space-y-2">
+                      {ir.chief_complaint && (
+                        <div>
+                          <span className="font-semibold text-primary">Chief Complaint:</span>
+                          <p className="ml-2">{ir.chief_complaint}</p>
+                        </div>
+                      )}
+                      {ir.assessment && (
+                        <div>
+                          <span className="font-semibold text-primary">Assessment:</span>
+                          <p className="ml-2">{ir.assessment}</p>
+                        </div>
+                      )}
+                      {ir.plan && (
+                        <div>
+                          <span className="font-semibold text-primary">Plan:</span>
+                          <p className="ml-2">{ir.plan}</p>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-muted-foreground italic">
-                      Waiting for AI correction...
+                      Waiting for IR processing...
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* SOAP */}
+            <Card className="h-64">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${soap ? 'bg-green-500' : 'bg-muted'}`} />
+                  4. SOAP
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Clinical note format</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
+                  {soap ? (
+                    <div className="space-y-2">
+                      {soap.subjective && (
+                        <div>
+                          <span className="font-semibold text-primary">S:</span>
+                          <p className="ml-2">{soap.subjective}</p>
+                        </div>
+                      )}
+                      {soap.objective && (
+                        <div>
+                          <span className="font-semibold text-primary">O:</span>
+                          <p className="ml-2">{soap.objective}</p>
+                        </div>
+                      )}
+                      {soap.assessment && (
+                        <div>
+                          <span className="font-semibold text-primary">A:</span>
+                          <p className="ml-2">{soap.assessment}</p>
+                        </div>
+                      )}
+                      {soap.plan && (
+                        <div>
+                          <span className="font-semibold text-primary">P:</span>
+                          <p className="ml-2">{soap.plan}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      Waiting for SOAP processing...
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Prescription */}
+            <Card className="h-64">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${prescription ? 'bg-orange-500' : 'bg-muted'}`} />
+                  5. Prescription
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">FHIR MedicationRequest</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
+                  {prescription ? (
+                    <div className="space-y-2">
+                      {prescription.entry?.length > 0 ? (
+                        prescription.entry.map((entry: any, index: number) => (
+                          <div key={index} className="border-b border-muted pb-2 last:border-b-0">
+                            <span className="font-semibold text-primary">
+                              {entry.resource?.medicationCodeableConcept?.text}
+                            </span>
+                            {entry.resource?.dosageInstruction?.[0] && (
+                              <p className="ml-2 text-xs">
+                                {entry.resource.dosageInstruction[0].text}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">No medications prescribed</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      Waiting for prescription processing...
                     </span>
                   )}
                 </div>
@@ -185,11 +248,13 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
           </div>
           
           <div className="mt-4 text-xs text-muted-foreground">
-            <p>This debug panel shows the three stages of transcript processing:</p>
+            <p>This debug panel shows the medical transcript processing pipeline:</p>
             <ul className="mt-2 space-y-1 ml-4">
               <li>• <strong>Live:</strong> Real-time Web Speech API output</li>
-              <li>• <strong>Deepgram:</strong> Post-processed audio with speaker diarization</li>
-              <li>• <strong>Claude:</strong> AI-enhanced speaker role identification (Doctor/Patient)</li>
+              <li>• <strong>Deepgram:</strong> Post-processed diarized transcript with speaker labels & timing</li>
+              <li>• <strong>IR:</strong> Intermediate Representation - structured medical data extraction</li>
+              <li>• <strong>SOAP:</strong> Clinical note in standard SOAP format</li>
+              <li>• <strong>Prescription:</strong> FHIR-compliant medication requests</li>
             </ul>
           </div>
         </CollapsibleContent>

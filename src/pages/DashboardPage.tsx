@@ -33,7 +33,15 @@ const DashboardPage = () => {
   // Debug panel states
   const [liveTranscript, setLiveTranscript] = useState('');
   const [deepgramTranscript, setDeepgramTranscript] = useState('');
-  const [claudeTranscript, setClaudeTranscript] = useState('');
+  const [deepgramUtterances, setDeepgramUtterances] = useState<Array<{
+    speaker: string;
+    ts_start: number;
+    ts_end: number;
+    text: string;
+  }>>([]);
+  const [ir, setIr] = useState<any>(null);
+  const [soap, setSoap] = useState<any>(null);
+  const [prescription, setPrescription] = useState<any>(null);
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
@@ -105,14 +113,20 @@ const DashboardPage = () => {
     const startSession = sessionRef.current;
     
     try {
-      // Process audio with Deepgram and AI correction
-      const { transcript: diarizedText, error, correctionResult } = await processCompleteAudioWithCorrection(audioBlob, apiKeyForCompat, enableAICorrection);
+      // Process audio with Deepgram only (no correction)
+      const { transcript: diarizedText, utterances, error } = await processCompleteAudio(audioBlob, apiKeyForCompat);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
       
       // Update debug panel with Deepgram result
       if (diarizedText) {
         setDeepgramTranscript(diarizedText);
       }
+      if (utterances && utterances.length > 0) {
+        setDeepgramUtterances(utterances);
+        // Process with medical IR pipeline
+        await processWithMedicalPipeline(utterances);
+      }
+      
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");
         setIsDiarizing(false);
@@ -146,7 +160,6 @@ const DashboardPage = () => {
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
-        setClaudeTranscript(mapped); // Update debug panel with Claude result
         setDisplayMode('revised');
         setStatus({ type: 'generating', message: 'Generating prescription...' });
 
@@ -180,6 +193,67 @@ const DashboardPage = () => {
         error: error.message || "Unknown error processing audio"
       });
       setStatus({ type: 'error', message: 'Failed to process diarized transcription with Deepgram' });
+    }
+  };
+
+  // New function to process with IR → SOAP → Prescription pipeline
+  const processWithMedicalPipeline = async (utterances: Array<{
+    speaker: string;
+    ts_start: number;
+    ts_end: number;
+    text: string;
+  }>) => {
+    try {
+      setStatus({ type: 'processing', message: 'Processing medical information...' });
+      
+      const response = await fetch(`https://vtbpeozzyaqxjgmroeqs.supabase.co/functions/v1/process-medical-transcript`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0YnBlb3p6eWFxeGpnbXJvZXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxOTAwODUsImV4cCI6MjA2MDc2NjA4NX0.F7VCtKu7d0ob3OUhhLZW9NDeyziw1Vah2uNJxQSCr5g`
+        },
+        body: JSON.stringify({
+          transcript: utterances,
+          patientContext: {
+            name: currentPatient?.name || patientInfo.name,
+            age: currentPatient?.age,
+            sex: currentPatient?.gender
+          },
+          clinicContext: {
+            doctor_name: "Dr. Kumar",
+            clinic_name: "Medical Clinic"
+          },
+          options: {
+            redactMedicineNames: false,
+            returnDebug: false
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to process medical transcript: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Update debug panel with results
+      setIr(result.ir);
+      setSoap(result.soap);
+      setPrescription(result.prescription);
+      
+      console.log("Medical processing complete:", {
+        ir: result.ir,
+        soap: result.soap,
+        prescription: result.prescription
+      });
+      
+    } catch (error) {
+      console.error("Error in medical pipeline:", error);
+      setStatus({ type: 'error', message: 'Medical processing error: ' + String(error) });
     }
   };
 
@@ -284,7 +358,10 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setDiarizedTranscription(null);
                 setLiveTranscript('');
                 setDeepgramTranscript('');
-                setClaudeTranscript('');
+                setDeepgramUtterances([]);
+                setIr(null);
+                setSoap(null);
+                setPrescription(null);
                 setProgressStep('recording');
                 setStatus({ type: 'idle' });
                 setSessionId(id => id + 1);
@@ -373,7 +450,10 @@ const handleRecordingStateChange = (recordingState: boolean) => {
           <DebugPanel
             liveTranscript={liveTranscript}
             deepgramTranscript={deepgramTranscript}
-            claudeTranscript={claudeTranscript}
+            deepgramUtterances={deepgramUtterances}
+            ir={ir}
+            soap={soap}
+            prescription={prescription}
             isRecording={isRecording}
           />
         </div>
