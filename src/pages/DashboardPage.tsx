@@ -126,6 +126,30 @@ const DashboardPage = () => {
         setDeepgramUtterances(utterances);
         // Process with medical IR pipeline
         await processWithMedicalPipeline(utterances);
+      } else if (diarizedText && diarizedText.trim().length > 0) {
+        // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
+        const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
+          // Match patterns like "Speaker 0: text" or "[Doctor]: text"
+          const m1 = line.match(/^\s*Speaker\s+(\d+):\s*(.*)$/i);
+          const m2 = line.match(/^\s*\[(Doctor|Patient|Speaker\s*\d+)\]:\s*(.*)$/i);
+          let speaker = 'SPEAKER_0';
+          let text = line.trim();
+          if (m1) {
+            const sp = parseInt(m1[1], 10);
+            speaker = sp === 0 ? 'DOCTOR' : sp === 1 ? 'PATIENT' : `SPEAKER_${sp}`;
+            text = m1[2];
+          } else if (m2) {
+            const role = m2[1].toLowerCase();
+            if (role.includes('doctor')) speaker = 'DOCTOR';
+            else if (role.includes('patient')) speaker = 'PATIENT';
+            text = m2[2];
+          }
+          return { speaker, ts_start: 0, ts_end: 0, text };
+        }).filter(u => u.text && u.text.length > 0);
+        if (fallbackUtterances.length > 0) {
+          setDeepgramUtterances(fallbackUtterances);
+          await processWithMedicalPipeline(fallbackUtterances);
+        }
       }
       
       if (sessionRef.current !== startSession) {
