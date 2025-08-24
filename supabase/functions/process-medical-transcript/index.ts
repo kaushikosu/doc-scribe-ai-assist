@@ -200,7 +200,15 @@ async function callLLMJSON(prompt: string, schema: any): Promise<any> {
   }
 
   try {
-    return JSON.parse(content);
+    // Strip markdown code block formatting if present
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    return JSON.parse(cleanContent);
   } catch (e) {
     console.error('Failed to parse JSON:', content);
     throw new Error('Invalid JSON response from LLM');
