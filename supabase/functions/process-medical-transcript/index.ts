@@ -144,30 +144,33 @@ const RX_SCHEMA = {
 } as const;
 
 async function callLLMJSON(prompt: string, schema: any): Promise<any> {
-  const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!ANTHROPIC_API_KEY) {
-    console.error('ANTHROPIC_API_KEY is missing in environment');
-    throw new Error('ANTHROPIC_API_KEY is not configured');
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  if (!OPENAI_API_KEY) {
+    console.error('OPENAI_API_KEY is missing in environment');
+    throw new Error('OPENAI_API_KEY is not configured');
   }
 
   // Minimal, non-sensitive logging to help diagnose auth issues
   try {
-    console.log('Calling Anthropic messages API with provided key (length:', ANTHROPIC_API_KEY.length, ')');
+    console.log('Calling OpenAI chat completions API with provided key (length:', OPENAI_API_KEY.length, ')');
   } catch (_) {
     // ignore logging errors
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
+      'Authorization': `Bearer ${OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 4000,
+      model: 'gpt-5-2025-08-07',
+      max_completion_tokens: 4000,
       messages: [
+        {
+          role: 'system',
+          content: 'You are a medical AI assistant. Always respond with valid JSON that matches the provided schema exactly.'
+        },
         {
           role: 'user',
           content: `${prompt}\n\nPlease respond with valid JSON that matches this schema: ${JSON.stringify(schema)}`
@@ -180,16 +183,16 @@ async function callLLMJSON(prompt: string, schema: any): Promise<any> {
     const errorText = await response.text();
     // Provide clearer hint on common 401 cause
     if (response.status === 401) {
-      throw new Error(`Anthropic API error (401). Check ANTHROPIC_API_KEY secret value. Raw: ${errorText}`);
+      throw new Error(`OpenAI API error (401). Check OPENAI_API_KEY secret value. Raw: ${errorText}`);
     }
-    throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
-  const content = result.content?.[0]?.text;
+  const content = result.choices?.[0]?.message?.content;
   
   if (!content) {
-    throw new Error('No content in Anthropic response');
+    throw new Error('No content in OpenAI response');
   }
 
   try {
