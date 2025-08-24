@@ -144,27 +144,31 @@ const RX_SCHEMA = {
 } as const;
 
 async function callLLMJSON(prompt: string, schema: any): Promise<any> {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!OPENAI_API_KEY) {
-    console.error('OPENAI_API_KEY is missing in environment');
-    throw new Error('OPENAI_API_KEY is not configured');
+  const AZURE_OPENAI_API_KEY = Deno.env.get('AZURE_OPENAI_API_KEY');
+  const AZURE_OPENAI_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT');
+  const AZURE_OPENAI_DEPLOYMENT_NAME = Deno.env.get('AZURE_OPENAI_DEPLOYMENT_NAME');
+  
+  if (!AZURE_OPENAI_API_KEY || !AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_DEPLOYMENT_NAME) {
+    console.error('Azure OpenAI credentials missing in environment');
+    throw new Error('Azure OpenAI credentials are not configured. Need AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_DEPLOYMENT_NAME');
   }
 
   // Minimal, non-sensitive logging to help diagnose auth issues
   try {
-    console.log('Calling OpenAI chat completions API with provided key (length:', OPENAI_API_KEY.length, ')');
+    console.log('Calling Azure OpenAI API with endpoint:', AZURE_OPENAI_ENDPOINT, 'deployment:', AZURE_OPENAI_DEPLOYMENT_NAME);
   } catch (_) {
     // ignore logging errors
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const apiUrl = `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_NAME}/chat/completions?api-version=2024-08-01-preview`;
+
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`
+      'api-key': AZURE_OPENAI_API_KEY
     },
     body: JSON.stringify({
-      model: 'gpt-5-2025-08-07',
       max_completion_tokens: 4000,
       messages: [
         {
@@ -183,16 +187,16 @@ async function callLLMJSON(prompt: string, schema: any): Promise<any> {
     const errorText = await response.text();
     // Provide clearer hint on common 401 cause
     if (response.status === 401) {
-      throw new Error(`OpenAI API error (401). Check OPENAI_API_KEY secret value. Raw: ${errorText}`);
+      throw new Error(`Azure OpenAI API error (401). Check AZURE_OPENAI_API_KEY secret value. Raw: ${errorText}`);
     }
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
   }
 
   const result = await response.json();
   const content = result.choices?.[0]?.message?.content;
   
   if (!content) {
-    throw new Error('No content in OpenAI response');
+    throw new Error('No content in Azure OpenAI response');
   }
 
   try {
