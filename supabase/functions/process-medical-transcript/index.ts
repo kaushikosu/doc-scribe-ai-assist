@@ -146,7 +146,15 @@ const RX_SCHEMA = {
 async function callLLMJSON(prompt: string, schema: any): Promise<any> {
   const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
   if (!ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY is missing in environment');
     throw new Error('ANTHROPIC_API_KEY is not configured');
+  }
+
+  // Minimal, non-sensitive logging to help diagnose auth issues
+  try {
+    console.log('Calling Anthropic messages API with provided key (length:', ANTHROPIC_API_KEY.length, ')');
+  } catch (_) {
+    // ignore logging errors
   }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -170,6 +178,10 @@ async function callLLMJSON(prompt: string, schema: any): Promise<any> {
 
   if (!response.ok) {
     const errorText = await response.text();
+    // Provide clearer hint on common 401 cause
+    if (response.status === 401) {
+      throw new Error(`Anthropic API error (401). Check ANTHROPIC_API_KEY secret value. Raw: ${errorText}`);
+    }
     throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
   }
 
