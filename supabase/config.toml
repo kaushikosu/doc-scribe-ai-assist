@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.deepgram-diarize-audio]
 verify_jwt = false
+
+[functions.process-medical-transcript]
+verify_jwt = false

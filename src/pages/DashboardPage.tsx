@@ -7,6 +7,7 @@ import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import DebugPanel from '@/components/DebugPanel';
 
+import { supabase } from '@/integrations/supabase/client';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
@@ -205,14 +206,9 @@ const DashboardPage = () => {
   }>) => {
     try {
       setStatus({ type: 'processing', message: 'Processing medical information...' });
-      
-      const response = await fetch(`https://vtbpeozzyaqxjgmroeqs.supabase.co/functions/v1/process-medical-transcript`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0YnBlb3p6eWFxeGpnbXJvZXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxOTAwODUsImV4cCI6MjA2MDc2NjA4NX0.F7VCtKu7d0ob3OUhhLZW9NDeyziw1Vah2uNJxQSCr5g`
-        },
-        body: JSON.stringify({
+
+      const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
+        body: {
           transcript: utterances,
           patientContext: {
             name: currentPatient?.name || patientInfo.name,
@@ -220,39 +216,37 @@ const DashboardPage = () => {
             sex: currentPatient?.gender
           },
           clinicContext: {
-            doctor_name: "Dr. Kumar",
-            clinic_name: "Medical Clinic"
+            doctor_name: 'Dr. Kumar',
+            clinic_name: 'Medical Clinic'
           },
           options: {
             redactMedicineNames: false,
             returnDebug: false
           }
-        })
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to process medical transcript: ${response.status}`);
+      if (error) {
+        throw new Error(error.message || 'Failed to process medical transcript');
       }
 
-      const result = await response.json();
-      
-      if (result.error) {
+      const result = data as any;
+
+      if (result?.error) {
         throw new Error(result.error);
       }
 
-      // Update debug panel with results
       setIr(result.ir);
       setSoap(result.soap);
       setPrescription(result.prescription);
-      
-      console.log("Medical processing complete:", {
+
+      console.log('Medical processing complete:', {
         ir: result.ir,
         soap: result.soap,
-        prescription: result.prescription
+        prescription: result.prescription,
       });
-      
     } catch (error) {
-      console.error("Error in medical pipeline:", error);
+      console.error('Error in medical pipeline:', error);
       setStatus({ type: 'error', message: 'Medical processing error: ' + String(error) });
     }
   };
