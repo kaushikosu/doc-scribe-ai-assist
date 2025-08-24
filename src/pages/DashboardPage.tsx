@@ -36,9 +36,10 @@ const DashboardPage = () => {
   const [deepgramTranscript, setDeepgramTranscript] = useState('');
   const [deepgramUtterances, setDeepgramUtterances] = useState<Array<{
     speaker: string;
-    ts_start: number;
-    ts_end: number;
-    text: string;
+    start: number;
+    end: number;
+    transcript: string;
+    confidence: number;
   }>>([]);
   const [ir, setIr] = useState<any>(null);
   const [soap, setSoap] = useState<any>(null);
@@ -224,9 +225,10 @@ const DashboardPage = () => {
   // New function to process with IR → SOAP → Prescription pipeline
   const processWithMedicalPipeline = async (utterances: Array<{
     speaker: string;
-    ts_start: number;
-    ts_end: number;
-    text: string;
+    start: number;
+    end: number;
+    transcript: string;
+    confidence: number;
   }>) => {
     try {
       setStatus({ type: 'processing', message: 'Processing medical information...' });
