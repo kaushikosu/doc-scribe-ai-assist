@@ -153,9 +153,20 @@ export const processCompleteAudio = async (
 
     // Prefer transcript/utterances returned by the function. Fallback to raw results if needed.
     const transcript = (data?.transcript as string) || postProcessDeepgramResponse(data?.results);
-    const utterances = Array.isArray(data?.utterances)
-      ? (data.utterances as DiarizedUtterance[])
-      : extractUtterancesFromDeepgramResponse(data);
+    
+    // Handle the new utterances format from the fixed Supabase function
+    let utterances: DiarizedUtterance[] = [];
+    if (Array.isArray(data?.utterances)) {
+      utterances = data.utterances.map((utterance: any) => ({
+        speaker: utterance.speaker === 0 ? 'DOCTOR' : utterance.speaker === 1 ? 'PATIENT' : `SPEAKER_${utterance.speaker}`,
+        ts_start: Math.round((utterance.start || 0) * 100) / 100,
+        ts_end: Math.round((utterance.end || 0) * 100) / 100,
+        text: utterance.transcript || '',
+        asr_conf: Math.round((utterance.confidence || 0.8) * 100) / 100
+      }));
+    } else {
+      utterances = extractUtterancesFromDeepgramResponse(data);
+    }
 
     return {
       transcript: transcript || '',
