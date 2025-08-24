@@ -76,17 +76,27 @@ serve(async (req) => {
     const deepgramData = await response.json();
     console.log('Deepgram response received, processing...');
 
-    // Extract structured utterances from Deepgram response
-    const utterances = extractUtterancesFromDeepgramResponse(deepgramData);
+    // Extract utterances from Deepgram response - handle new format
+    const utterances = deepgramData.results?.utterances || [];
+    console.log('Utterances are: ', utterances);
+    
+    // Map utterances to expected format with proper speaker mapping
+    const processedUtterances = utterances.map((utterance: any) => ({
+      speaker: utterance.speaker === 0 ? 'DOCTOR' : utterance.speaker === 1 ? 'PATIENT' : `SPEAKER_${utterance.speaker}`,
+      ts_start: Math.round((utterance.start || 0) * 100) / 100,
+      ts_end: Math.round((utterance.end || 0) * 100) / 100,
+      text: utterance.transcript || '',
+      asr_conf: Math.round((utterance.confidence || 0.8) * 100) / 100
+    }));
     
     // Create formatted transcript for backward compatibility
-    const formattedTranscript = utterances.length > 0 
-      ? utterances.map(u => `Speaker ${u.speaker === 'DOCTOR' ? '0' : u.speaker === 'PATIENT' ? '1' : u.speaker.split('_')[1]}: ${u.text}`).join('\n\n')
+    const formattedTranscript = processedUtterances.length > 0 
+      ? processedUtterances.map(u => `Speaker ${u.speaker === 'DOCTOR' ? '0' : u.speaker === 'PATIENT' ? '1' : u.speaker.split('_')[1]}: ${u.text}`).join('\n\n')
       : deepgramData.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
 
     const result = {
       transcript: formattedTranscript,
-      utterances: utterances,
+      utterances: processedUtterances,
       rawTranscript: deepgramData.results?.channels?.[0]?.alternatives?.[0]?.transcript || '',
       results: deepgramData.results // Include full results for debugging
     };
