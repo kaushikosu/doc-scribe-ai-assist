@@ -15,7 +15,6 @@ serve(async (req) => {
   try {
     const { transcript } = await req.json();
 
-
     if (!transcript) {
       throw new Error('No transcript provided');
     }
@@ -87,7 +86,7 @@ CONFIDENCE RULES:
 - Consider the entire conversation context, not just individual statements
 
 TRANSCRIPT TO ANALYZE:
-${transcript}
+${transcriptText}
 
 OUTPUT FORMAT: Return a JSON object with:
 {
@@ -105,62 +104,76 @@ OUTPUT FORMAT: Return a JSON object with:
 
 If confidence is below 85%, return the original transcript unchanged with confidence score.`;
 
+    // Azure OpenAI environment variables
     // @ts-ignore: Deno namespace is available in Edge Functions
-    const ANTHROPIC_API_KEY = (globalThis as any).Deno?.env.get('ANTHROPIC_API_KEY') ?? Deno.env.get('ANTHROPIC_API_KEY');
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const AZURE_OPENAI_ENDPOINT = (globalThis as any).Deno?.env.get('AZURE_OPENAI_ENDPOINT') ?? Deno.env.get('AZURE_OPENAI_ENDPOINT');
+    // @ts-ignore
+    const AZURE_OPENAI_API_KEY = (globalThis as any).Deno?.env.get('AZURE_OPENAI_API_KEY') ?? Deno.env.get('AZURE_OPENAI_API_KEY');
+    // @ts-ignore
+    const AZURE_OPENAI_DEPLOYMENT_NAME = (globalThis as any).Deno?.env.get('AZURE_OPENAI_DEPLOYMENT_NAME') ?? Deno.env.get('AZURE_OPENAI_DEPLOYMENT_NAME');
+    if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_API_KEY || !AZURE_OPENAI_DEPLOYMENT_NAME) {
+      throw new Error('Azure OpenAI environment variables are not configured');
+    }
+
+    const azureUrl = `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_NAME}/chat/completions?api-version=2024-02-15-preview`;
+    const response = await fetch(azureUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ANTHROPIC_API_KEY}`,
+        'api-key': AZURE_OPENAI_API_KEY,
         'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 4000,
         messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
+          { role: 'system', content: "You are a helpful assistant." },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+        stream: false
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Anthropic API error:', errorText);
-      throw new Error(`Anthropic API error: ${response.status} ${errorText}`);
+      console.error('Azure OpenAI API error:', errorText);
+      throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const content = data.content[0].text;
-    
-    console.log('Claude response:', content.substring(0, 500) + '...');
+    console.log('Azure OpenAI response:', data);
 
-    // Parse the JSON response from Claude
+    // Azure OpenAI returns choices[0].message.content
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      throw new Error('Invalid response from Azure OpenAI API');
+    }
+
+    const content = data.choices[0].message.content;
+    console.log('LLM response:', content.substring(0, 500) + '...');
+
+    // Parse the JSON response from the LLM
     let result;
     try {
-      // Extract JSON from the response (Claude might include extra text)
+      // Extract JSON from the response (in case LLM includes extra text)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         result = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('No valid JSON found in Claude response');
+        throw new Error('No valid JSON found in LLM response');
       }
     } catch (parseError) {
-      console.error('Error parsing Claude response:', parseError);
+      console.error('Error parsing LLM response:', parseError);
       // Fallback: return original transcript
       result = {
-        correctedTranscript: transcript,
+        correctedTranscript: transcriptText,
         confidence: 0.0,
         corrections: [],
-        analysis: 'Could not parse AI response, returning original transcript'
+        analysis: 'Could not parse LLM response, returning original transcript'
       };
     }
 
     // Validate result structure
     if (!result.correctedTranscript) {
-      result.correctedTranscript = transcript;
+      result.correctedTranscript = transcriptText;
     }
     if (typeof result.confidence !== 'number') {
       result.confidence = 0.0;
