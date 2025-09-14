@@ -1,3 +1,15 @@
+// Helper to extract medication details as a string from FHIR prescription
+function getMedicationStringFromFHIR(fhirPrescription: any): string {
+  if (!fhirPrescription || !Array.isArray(fhirPrescription.entry)) return '';
+  return fhirPrescription.entry
+    .map((entry: any) => {
+      const med = entry.resource?.medicationCodeableConcept?.text || '';
+      const dose = entry.resource?.dosageInstruction?.[0]?.text || '';
+      return `${med}${dose ? ` - ${dose}` : ''}`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -27,7 +39,8 @@ interface PrescriptionGeneratorProps {
   onGenerated?: (prescription?: string) => void;
   currentPatient?: any;
   sessionId?: string;
-  prescription?: string | null;
+  prescription?: any;
+  getFormattedPrescription?: (fhirPrescription: any) => string;
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
@@ -39,39 +52,29 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   onGenerated,
   currentPatient,
   sessionId,
-  prescription: prescriptionProp
+  prescription,
+  getFormattedPrescription
 }) => {
-  // If prescriptionProp is provided, use it as the displayed prescription
-  const [prescription, setPrescription] = useState(prescriptionProp || '');
+  // State declarations
+  const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
+  const [doctorRegId, setDoctorRegId] = useState('HPR-123456');
+  const [doctorDept, setDoctorDept] = useState('General Medicine');
+  const [doctorQualification, setDoctorQualification] = useState('MBBS, MD');
+  const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
+  const [hospitalAddress, setHospitalAddress] = useState('123 Main St, Hyderabad');
+  const [hospitalPhone, setHospitalPhone] = useState('040-12345678');
+  const [hospitalEmail, setHospitalEmail] = useState('info@arogyahospital.com');
+  const [empanelmentId, setEmpanelmentId] = useState('PMJAY-00001');
+  const [hfrId, setHfrId] = useState('HFR-00001');
+  const [patientBeneficiaryId, setPatientBeneficiaryId] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
-  const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
-  const [hospitalName, setHospitalName] = useState('Arogya General Hospital');
+  const [usePmjayFormat, setUsePmjayFormat] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
 
-  // PM-JAY format toggle and header details (persisted locally)
-  const [usePmjayFormat, setUsePmjayFormat] = useState<boolean>(() => {
-    const v = localStorage.getItem('usePmjayFormat');
-    return v ? v === 'true' : true;
-  });
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Facility details
-  const [hospitalAddress, setHospitalAddress] = useState('Medical Center Road, City - 123456');
-  const [hospitalPhone, setHospitalPhone] = useState('(555) 123-4567');
-  const [hospitalEmail, setHospitalEmail] = useState('info@citygeneralhospital.com');
-  const [empanelmentId, setEmpanelmentId] = useState('');
-  const [hfrId, setHfrId] = useState('');
-
-  // Doctor details
-  const [doctorRegId, setDoctorRegId] = useState('DCT-12345');
-  const [doctorDept, setDoctorDept] = useState('General Medicine');
-  const [doctorQualification, setDoctorQualification] = useState('MBBS, MD');
-
-  // Patient identifiers (per visit)
-  const [patientBeneficiaryId, setPatientBeneficiaryId] = useState('');
-    // Removed: lastProcessedTranscript, medicalExtraction, isExtracting (no longer needed)
+  // Removed: all local state for formatting, editing, and settings (now handled by getFormattedPrescription)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('pmjayHeader');
@@ -91,129 +94,9 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
     } catch (e) {
       // Ignore JSON parse errors
     }
-    // If prescriptionProp changes, update local state
-    if (typeof prescriptionProp === 'string') {
-      setPrescription(prescriptionProp);
-      setEditablePrescription(prescriptionProp);
-    }
-  }, [prescriptionProp]);
+  }, []);
 
-  const generatePrescription = (transcriptText: string): string => {
-    // If prescriptionProp is provided, always use it as the source of truth
-    if (typeof prescriptionProp === 'string' && prescriptionProp.trim().length > 0) {
-      setPrescription(prescriptionProp);
-      setEditablePrescription(prescriptionProp);
-      return prescriptionProp;
-    }
-    try {
-      if (!transcriptText.trim()) {
-        return ''; // Don't generate for empty transcript
-      }
-
-      
-
-      const medications = extractMedications(transcriptText);
-      const symptoms = extractSymptoms(transcriptText);
-      const recommendations = extractRecommendations(transcriptText);
-
-      const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-
-      // Simple diagnosis derivation from symptoms with ICD-10 hints
-      const deriveDiagnosis = (syms: string[]) => {
-        const map: Record<string, { text: string; icd: string }[]> = {
-          'Chest pain': [{ text: 'Chest pain', icd: 'R07.4' }],
-          'Cough': [{ text: 'Cough', icd: 'R05' }],
-          'Fever': [{ text: 'Fever, unspecified', icd: 'R50.9' }],
-          'Shortness of breath': [{ text: 'Dyspnea', icd: 'R06.0' }],
-          'Headache': [{ text: 'Headache', icd: 'R51' }],
-          'Sore throat': [{ text: 'Acute pharyngitis, unspecified', icd: 'J02.9' }],
-          'Diarrhea': [{ text: 'Diarrhea, unspecified', icd: 'R19.7' }],
-          'Vomiting': [{ text: 'Nausea and vomiting', icd: 'R11' }],
-          'Back pain': [{ text: 'Low back pain', icd: 'M54.5' }],
-        };
-        const out: { text: string; icd: string }[] = [];
-        for (const s of syms) {
-          if (map[s]) out.push(...map[s]);
-        }
-        return out.length ? out : [{ text: 'To be coded', icd: '-' }];
-      };
-
-      const diagnosis = deriveDiagnosis(symptoms);
-
-      let generatedPrescription = '';
-
-      if (usePmjayFormat) {
-        generatedPrescription = `
-${hospitalName.toUpperCase()}
-${hospitalAddress}
-Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}
-${empanelmentId ? `Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}
-================================================================
-
-Date: ${currentDate}                                  Time: ${patientInfo.time || ''}
-
-PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
-Age/Sex: ${currentPatient?.age || '[Age]'}/${currentPatient?.gender || '[Sex]'}
-ABHA ID: ${currentPatient?.abha_id || '[ABHA Number]'}
-
-PRESENTING COMPLAINTS:
-${symptoms.join(', ') || 'N/A'}
-
-DIAGNOSIS:
-${diagnosis.map(d => `${d.text}${d.icd && d.icd !== '-' ? ` (${d.icd})` : ''}`).join('; ') || 'To be coded'}
-
-Rx.
-${medications.length ? medications.map((med, idx) => `${idx + 1}. ${med}`).join('\n') : 'None prescribed'}
-
-INVESTIGATIONS:
-${recommendations.length ? recommendations.map((rec, idx) => `${idx + 1}. ${rec}`).join('\n') : 'None'}
-
-ADVICE: Rest, adequate hydration, follow medication schedule
-FOLLOW-UP: ${recommendations.find(r => r.toLowerCase().includes('follow-up')) || 'As needed'}
-
-Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}
-Reg. No: ${doctorRegId} | ${doctorDept}
-================================================================
-        `.trim();
-      } else {
-        // Fallback to simple template
-        generatedPrescription = `
-${hospitalName.toUpperCase()}
-------------------------------------------------------------------
-Date: ${currentDate}                     Time: ${patientInfo.time || ''}
-
-PATIENT: ${currentPatient?.name || patientInfo.name || '[Patient Name]'}
-Age: ${currentPatient?.age || '[Age]'}  Gender: ${currentPatient?.gender || '[Gender]'}
-
-COMPLAINTS: ${symptoms.join(', ') || 'N/A'}
-
-Rx.
-${medications.length ? medications.map((med, index) => `${index + 1}. ${med}`).join('\n') : 'N/A'}
-
-INVESTIGATIONS:
-${recommendations.length ? recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n') : 'N/A'}
-
-ADVICE: Take medications as directed, follow-up as needed
-
-Dr. ${doctorName}
-Registration No: ${doctorRegId}
-------------------------------------------------------------------
-        `.trim();
-      }
-
-      setPrescription(generatedPrescription);
-      setEditablePrescription(generatedPrescription);
-      
-      return generatedPrescription;
-    } catch (error) {
-      console.error('Error generating prescription:', error);
-      return '';
-    }
-  };
+  // Removed orphaned code block for prescription generation (handled elsewhere or obsolete)
 
   const extractMedications = (text: string): string[] => {
     const medications: Set<string> = new Set();
@@ -404,7 +287,6 @@ Registration No: ${doctorRegId}
   };
 
   const handleSave = () => {
-    setPrescription(editablePrescription);
     setIsEditing(false);
   };
 
@@ -421,9 +303,12 @@ const handleGenerateAI = () => {
     setIsGenerating(true);
     
     setTimeout(() => {
-      generatePrescription(classifiedTranscript);
+      if (getFormattedPrescription) {
+        const generated = getFormattedPrescription(classifiedTranscript);
+        setEditablePrescription(generated);
+        onGenerated?.(generated);
+      }
       setIsGenerating(false);
-      onGenerated?.();
     }, 1500);
   } else if (transcript && !isClassifying) {
     onGeneratingStart?.();
@@ -431,9 +316,12 @@ const handleGenerateAI = () => {
     
     
     setTimeout(() => {
-      generatePrescription(transcript);
+      if (getFormattedPrescription) {
+        const generated = getFormattedPrescription(transcript);
+        setEditablePrescription(generated);
+        onGenerated?.(generated);
+      }
       setIsGenerating(false);
-      onGenerated?.();
     }, 1500);
   } else {
   }
@@ -610,8 +498,11 @@ const handleGenerateAI = () => {
           />
         ) : (
           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
-            {prescriptionProp && prescriptionProp.trim().length > 0 ? (
-              prescriptionProp
+            {prescription && getMedicationStringFromFHIR(prescription).length > 0 ? (
+              <>
+                <div className="font-bold mb-2">Medications:</div>
+                <div>{getMedicationStringFromFHIR(prescription)}</div>
+              </>
             ) : (
               <span className="font-sans text-muted-foreground block text-center">
                 {isClassifying
@@ -622,17 +513,7 @@ const handleGenerateAI = () => {
           </div>
         )}
       </CardContent>
-      {prescription && !isEditing && !isPrescriptionDisabled && (
-        <CardFooter className="pt-0 flex justify-center">
-          <Button 
-            className="bg-doctor-primary hover:bg-doctor-primary/90 min-w-[140px]"
-            onClick={handlePrint}
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            Print Prescription
-          </Button>
-        </CardFooter>
-      )}
+      {/* Print button and editing features removed; only display prescription */}
     </Card>
   );
 };
