@@ -129,7 +129,16 @@ const DashboardPage = () => {
         setDeepgramTranscript(diarizedText);
       }
       if (utterances && utterances.length > 0) {
-        setDeepgramUtterances(utterances); // Use raw Deepgram output for debug panel
+        // Map utterances to expected shape for debug panel
+        setDeepgramUtterances(
+          utterances.map(u => ({
+            speaker: u.speaker,
+            start: u.ts_start,
+            end: u.ts_end,
+            transcript: u.text,
+            confidence: u.asr_conf
+          }))
+        );
         // Process with medical IR pipeline
         await processWithMedicalPipeline(utterances);
       } else if (diarizedText && diarizedText.trim().length > 0) {
@@ -152,7 +161,15 @@ const DashboardPage = () => {
           return { speaker, ts_start: 0, ts_end: 0, text, asr_conf: 1 };
         }).filter(u => u.text && u.text.length > 0);
         if (fallbackUtterances.length > 0) {
-          setDeepgramUtterances(fallbackUtterances);
+          setDeepgramUtterances(
+            fallbackUtterances.map(u => ({
+              speaker: u.speaker,
+              start: u.ts_start,
+              end: u.ts_end,
+              transcript: u.text,
+              confidence: u.asr_conf
+            }))
+          );
           await processWithMedicalPipeline(fallbackUtterances);
         }
       }
@@ -315,99 +332,8 @@ const DashboardPage = () => {
 
       setIr(result.ir);
       setSoap(result.soap);
-      // If prescription is a FHIR bundle, convert to readable string
-      let prescriptionString = '';
-      if (result.prescription && typeof result.prescription === 'object' && result.prescription.resourceType === 'Bundle') {
-        // ABDM/PM-JAY prescription format
-        const entries = result.prescription.entry || [];
-        // Patient and context
-        const patientName = currentPatient?.name || patientInfo.name || '[Patient Name]';
-        const patientAge = currentPatient?.age || '[Age]';
-        const patientSex = currentPatient?.gender || '[Sex]';
-  const abhaId = currentPatient?.abhaId || '[ABHA Number]';
-        const assessment = result.ir?.assessment || result.soap?.assessment || '';
-        // Doctor/hospital context (customize as needed)
-        const doctorName = 'Dr. Indra Reddy';
-        const doctorRegId = 'DCT-12345';
-        const doctorDept = 'General Medicine';
-        const doctorQualification = 'MBBS, MD';
-        const hospitalName = 'Arogya General Hospital';
-        const hospitalAddress = 'Medical Center Road, City - 123456';
-        const hospitalPhone = '(555) 123-4567';
-        const hospitalEmail = 'info@citygeneralhospital.com';
-        const empanelmentId = '';
-        const hfrId = '';
-        const currentDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-        const currentTime = patientInfo.time || '';
-        let prescriptionLines = [];
-        // Doctor details at the top
-        prescriptionLines.push(`Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}`);
-        prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
-        prescriptionLines.push(`${hospitalName.toUpperCase()}`);
-        prescriptionLines.push(`${hospitalAddress}`);
-        prescriptionLines.push(`Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}`);
-        if (empanelmentId || hfrId) {
-          prescriptionLines.push(`${empanelmentId ? `Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}`);
-        }
-        prescriptionLines.push('================================================================');
-        prescriptionLines.push(`Date: ${currentDate}                                  Time: ${currentTime}`);
-        prescriptionLines.push('');
-        prescriptionLines.push(`PATIENT: ${patientName}`);
-        prescriptionLines.push(`Age/Sex: ${patientAge}/${patientSex}`);
-        prescriptionLines.push(`ABHA ID: ${abhaId}`);
-        prescriptionLines.push('');
-        // Subjective (symptoms)
-        const subjective = result.ir?.chief_complaint || result.soap?.subjective || '';
-        if (subjective) prescriptionLines.push(`Symptoms: ${subjective}`);
-        // History of present illness
-        const hpi = result.ir?.history_present_illness || '';
-        if (hpi) prescriptionLines.push(`History of Present Illness: ${hpi}`);
-        // Allergies
-        const allergies = result.ir?.allergies || '';
-        if (allergies) prescriptionLines.push(`Allergies: ${allergies}`);
-        // Objective (measurements)
-        const objective = result.ir?.physical_exam || result.soap?.objective || '';
-        if (objective) prescriptionLines.push(`Objective: ${objective}`);
-        // Vitals
-        const vitals = result.ir?.vitals || {};
-        const vitalsArr = [];
-        if (vitals.blood_pressure) vitalsArr.push(`BP: ${vitals.blood_pressure}`);
-        if (vitals.heart_rate) vitalsArr.push(`HR: ${vitals.heart_rate}`);
-        if (vitals.temperature) vitalsArr.push(`Temp: ${vitals.temperature}`);
-        if (vitals.respiratory_rate) vitalsArr.push(`RR: ${vitals.respiratory_rate}`);
-        if (vitalsArr.length) prescriptionLines.push(`Vitals: ${vitalsArr.join(', ')}`);
-        // Investigations
-        const investigations = result.ir?.investigations || '';
-        if (investigations) prescriptionLines.push(`Investigations: ${investigations}`);
-        prescriptionLines.push('');
-        if (assessment) prescriptionLines.push(`Assessment: ${assessment}`);
-        prescriptionLines.push('');
-        prescriptionLines.push('Rx.');
-        if (entries.length === 0) {
-          prescriptionLines.push('  None prescribed');
-        } else {
-          entries.forEach((entry, idx) => {
-            const med = entry.resource?.medicationCodeableConcept?.text || 'Medication';
-            const dose = entry.resource?.dosageInstruction?.[0]?.text || '';
-            prescriptionLines.push(`  ${idx + 1}. ${med}${dose ? ' - ' + dose : ''}`);
-          });
-        }
-        prescriptionLines.push('');
-        // Plan/further evaluation
-        const plan = result.ir?.plan || result.soap?.plan || '';
-        if (plan) prescriptionLines.push(`Plan / Further Evaluation: ${plan}`);
-        // Warnings or notes
-        if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-          prescriptionLines.push('');
-          prescriptionLines.push('Notes:');
-          result.warnings.forEach(w => prescriptionLines.push(`- ${w}`));
-        }
-        prescriptionLines.push('================================================================');
-        prescriptionString = prescriptionLines.join('\n');
-      } else if (typeof result.prescription === 'string') {
-        prescriptionString = result.prescription;
-      }
-      setPrescription(prescriptionString);
+      // Pass the raw FHIR prescription object to the debug panel
+      setPrescription(result.prescription || null);
 
       console.log('Medical processing complete:', {
         ir: result.ir,

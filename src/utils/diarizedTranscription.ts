@@ -304,7 +304,8 @@ function createUtteranceFromWords(words: DiarizedWord[], speakerTag: number): Di
   const asr_conf = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0.8;
   
   // Map speaker tag to role
-  const speaker = speakerTag === 1 ? 'DOCTOR' : speakerTag === 2 ? 'PATIENT' : `SPEAKER_${speakerTag}`;
+  // Keep original Deepgram speaker labels for LLM correction
+  const speaker = `Speaker ${speakerTag - 1}`;
   
   return {
     speaker,

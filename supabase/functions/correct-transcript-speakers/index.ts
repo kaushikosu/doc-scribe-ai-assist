@@ -140,15 +140,15 @@ If confidence is below 85%, return the original transcript unchanged with confid
     }
 
     const data = await response.json();
-    console.log('Azure OpenAI response:', data);
+  console.log('Azure OpenAI response:', JSON.stringify(data, null, 2));
 
     // Azure OpenAI returns choices[0].message.content
     if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
       throw new Error('Invalid response from Azure OpenAI API');
     }
 
-    const content = data.choices[0].message.content;
-    console.log('LLM response:', content.substring(0, 500) + '...');
+  const content = data.choices[0].message.content;
+  console.log('LLM response (full):', content);
 
     // Robustly extract JSON from LLM output
     let result;
@@ -215,8 +215,9 @@ If confidence is below 85%, return the original transcript unchanged with confid
       return utterances;
     }
 
-    const correctedUtterances = parseUtterances(result.correctedTranscript);
-    console.log('Returning', correctedUtterances.length, 'utterances');
+  const correctedUtterances = parseUtterances(result.correctedTranscript);
+  console.log('Parsed utterances:', JSON.stringify(correctedUtterances, null, 2));
+  console.log('Returning', correctedUtterances.length, 'utterances');
 
     // Return both the original result and the utterance array for compatibility
     // Add both 'correctedUtterances' and 'utterances' (alias) for downstream compatibility
