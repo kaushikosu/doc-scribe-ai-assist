@@ -258,7 +258,19 @@ const DashboardPage = () => {
         throw new Error('No corrected utterances returned from speaker classification');
       }
 
+
       setCorrectedUtterances(correctedUtterances);
+
+      // Generate revised transcript string from correctedUtterances (after AI speaker correction)
+      if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
+        // Each utterance should have speaker and text fields
+        const revisedTranscript = correctedUtterances
+          .map(u => `[${u.speaker}]: ${u.text}`)
+          .join('\n\n');
+        setClassifiedTranscript(revisedTranscript);
+        setTranscript(revisedTranscript);
+      }
+
       setStatus({ type: 'processing', message: 'Processing medical information...' });
 
       // 2. Call process-medical-transcript with the corrected utterances

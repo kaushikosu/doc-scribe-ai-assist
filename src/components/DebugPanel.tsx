@@ -7,12 +7,10 @@ import { Bug, ChevronDown, ChevronUp } from 'lucide-react';
 interface DebugPanelProps {
   liveTranscript: string;
   deepgramTranscript: string;
-  deepgramUtterances?: Array<{
-    speaker: string;
-    ts_start: number;
-    ts_end: number;
-    text: string;
-  }>;
+    deepgramUtterances?: Array<
+      | { speaker: string; ts_start: number; ts_end: number; text: string }
+      | { speaker: string; start: number; end: number; transcript: string; confidence: number }
+    >;
   correctedUtterances?: Array<{
     speaker: string;
     text: string;
@@ -145,17 +143,29 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               <CardContent className="pt-0">
                 <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
                   {deepgramUtterances.length > 0 ? (
-                    deepgramUtterances.map((utterance, index) => (
-                      <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-semibold text-primary">{utterance.speaker}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {utterance.ts_start}s - {utterance.ts_end}s
-                          </span>
+                    deepgramUtterances.map((utterance, index) => {
+                      // Type guard for ts_start/text shape
+                      const isTs = 'ts_start' in utterance && 'ts_end' in utterance && 'text' in utterance;
+                      return (
+                        <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-semibold text-primary">{utterance.speaker}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {isTs
+                                ? `${utterance.ts_start}s - ${utterance.ts_end}s`
+                                : `${'start' in utterance && 'end' in utterance ? `${utterance.start}s - ${utterance.end}s` : ''}`}
+                            </span>
+                          </div>
+                          <p className="text-foreground">
+                            {isTs
+                              ? utterance.text
+                              : 'transcript' in utterance
+                                ? utterance.transcript
+                                : ''}
+                          </p>
                         </div>
-                        <p className="text-foreground">{utterance.text}</p>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <span className="text-muted-foreground italic">
                       Waiting for audio processing...
