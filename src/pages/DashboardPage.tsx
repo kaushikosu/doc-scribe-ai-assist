@@ -40,9 +40,10 @@ const DashboardPage = () => {
   const [deepgramTranscript, setDeepgramTranscript] = useState('');
   const [deepgramUtterances, setDeepgramUtterances] = useState<Array<{
     speaker: string;
-    ts_start: number;
-    ts_end: number;
-    text: string;
+    start: number;
+    end: number;
+    transcript: string;
+    confidence: number;
   }>>([]);
   const [correctedUtterances, setCorrectedUtterances] = useState<any[]>([]);
   const [ir, setIr] = useState<any>(null);
@@ -128,13 +129,7 @@ const DashboardPage = () => {
         setDeepgramTranscript(diarizedText);
       }
       if (utterances && utterances.length > 0) {
-        // Map utterances to DebugPanel type
-        setDeepgramUtterances(utterances.map(u => ({
-          speaker: u.speaker,
-          ts_start: u.ts_start ?? 0,
-          ts_end: u.ts_end ?? 0,
-          text: u.text ?? ''
-        })));
+        setDeepgramUtterances(utterances); // Use raw Deepgram output for debug panel
         // Process with medical IR pipeline
         await processWithMedicalPipeline(utterances);
       } else if (diarizedText && diarizedText.trim().length > 0) {
@@ -154,7 +149,7 @@ const DashboardPage = () => {
             speaker = role;
             text = m2[2];
           }
-          return { speaker, ts_start: 0, ts_end: 0, text };
+          return { speaker, ts_start: 0, ts_end: 0, text, asr_conf: 1 };
         }).filter(u => u.text && u.text.length > 0);
         if (fallbackUtterances.length > 0) {
           setDeepgramUtterances(fallbackUtterances);
@@ -193,11 +188,10 @@ const DashboardPage = () => {
 
         // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
-  setClassifiedTranscript(mapped);
-  setTranscript(mapped);
-  setDisplayMode('revised');
-  setStatus({ type: 'processing', message: 'Classified transcript ready. Generating prescription...' });
-  setProgressStep('generating');
+        setClassifiedTranscript(mapped);
+        setTranscript(mapped);
+        setDisplayMode('revised');
+        setStatus({ type: 'generating', message: 'Generating prescription...' });
 
         // Upload audio to storage after successful processing
         if (currentSessionRecord) {
@@ -238,7 +232,6 @@ const DashboardPage = () => {
     const mappedUtterances = mapDiarizedUtterancesToPipeline(utterances);
     try {
       setStatus({ type: 'processing', message: 'Classifying speakers...' });
-      setProgressStep('processing');
 
       // 1. Call correct-transcript-speakers to classify speakers
       const { data: correctedData, error: correctError } = await supabase.functions.invoke('correct-transcript-speakers', {
@@ -265,9 +258,8 @@ const DashboardPage = () => {
         throw new Error('No corrected utterances returned from speaker classification');
       }
 
-  setCorrectedUtterances(correctedUtterances);
-  setStatus({ type: 'processing', message: 'Processing medical information...' });
-  setProgressStep('generating');
+      setCorrectedUtterances(correctedUtterances);
+      setStatus({ type: 'processing', message: 'Processing medical information...' });
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -299,10 +291,10 @@ const DashboardPage = () => {
         throw new Error(result.error);
       }
 
-  setIr(result.ir);
-  setSoap(result.soap);
-  // If prescription is a FHIR bundle, convert to readable string
-  let prescriptionString = '';
+      setIr(result.ir);
+      setSoap(result.soap);
+      // If prescription is a FHIR bundle, convert to readable string
+      let prescriptionString = '';
       if (result.prescription && typeof result.prescription === 'object' && result.prescription.resourceType === 'Bundle') {
         // ABDM/PM-JAY prescription format
         const entries = result.prescription.entry || [];
@@ -344,32 +336,16 @@ const DashboardPage = () => {
         prescriptionLines.push('');
         // Subjective (symptoms)
         const subjective = result.ir?.chief_complaint || result.soap?.subjective || '';
-        if (subjective) {
-          prescriptionLines.push('--- Symptoms ---');
-          prescriptionLines.push(subjective);
-          prescriptionLines.push('');
-        }
+        if (subjective) prescriptionLines.push(`Symptoms: ${subjective}`);
         // History of present illness
         const hpi = result.ir?.history_present_illness || '';
-        if (hpi) {
-          prescriptionLines.push('--- History of Present Illness ---');
-          prescriptionLines.push(hpi);
-          prescriptionLines.push('');
-        }
+        if (hpi) prescriptionLines.push(`History of Present Illness: ${hpi}`);
         // Allergies
         const allergies = result.ir?.allergies || '';
-        if (allergies) {
-          prescriptionLines.push('--- Allergies ---');
-          prescriptionLines.push(allergies);
-          prescriptionLines.push('');
-        }
+        if (allergies) prescriptionLines.push(`Allergies: ${allergies}`);
         // Objective (measurements)
         const objective = result.ir?.physical_exam || result.soap?.objective || '';
-        if (objective) {
-          prescriptionLines.push('--- Objective Findings ---');
-          prescriptionLines.push(objective);
-          prescriptionLines.push('');
-        }
+        if (objective) prescriptionLines.push(`Objective: ${objective}`);
         // Vitals
         const vitals = result.ir?.vitals || {};
         const vitalsArr = [];
@@ -377,27 +353,14 @@ const DashboardPage = () => {
         if (vitals.heart_rate) vitalsArr.push(`HR: ${vitals.heart_rate}`);
         if (vitals.temperature) vitalsArr.push(`Temp: ${vitals.temperature}`);
         if (vitals.respiratory_rate) vitalsArr.push(`RR: ${vitals.respiratory_rate}`);
-        if (vitalsArr.length) {
-          prescriptionLines.push('--- Vitals ---');
-          prescriptionLines.push(vitalsArr.join(' | '));
-          prescriptionLines.push('');
-        }
+        if (vitalsArr.length) prescriptionLines.push(`Vitals: ${vitalsArr.join(', ')}`);
         // Investigations
         const investigations = result.ir?.investigations || '';
-        if (investigations) {
-          prescriptionLines.push('--- Investigations ---');
-          // If investigations is a string with multiple lines, bullet them
-          investigations.split(/\r?\n/).forEach(line => {
-            if (line.trim()) prescriptionLines.push(`• ${line.trim()}`);
-          });
-          prescriptionLines.push('');
-        }
-        if (assessment) {
-          prescriptionLines.push('--- Assessment ---');
-          prescriptionLines.push(assessment);
-          prescriptionLines.push('');
-        }
-        prescriptionLines.push('--- Prescription (Rx) ---');
+        if (investigations) prescriptionLines.push(`Investigations: ${investigations}`);
+        prescriptionLines.push('');
+        if (assessment) prescriptionLines.push(`Assessment: ${assessment}`);
+        prescriptionLines.push('');
+        prescriptionLines.push('Rx.');
         if (entries.length === 0) {
           prescriptionLines.push('  None prescribed');
         } else {
@@ -410,18 +373,12 @@ const DashboardPage = () => {
         prescriptionLines.push('');
         // Plan/further evaluation
         const plan = result.ir?.plan || result.soap?.plan || '';
-        if (plan) {
-          prescriptionLines.push('--- Plan / Further Evaluation ---');
-          plan.split(/\r?\n/).forEach(line => {
-            if (line.trim()) prescriptionLines.push(`• ${line.trim()}`);
-          });
-          prescriptionLines.push('');
-        }
+        if (plan) prescriptionLines.push(`Plan / Further Evaluation: ${plan}`);
         // Warnings or notes
         if (Array.isArray(result.warnings) && result.warnings.length > 0) {
-          prescriptionLines.push('--- Notes ---');
-          result.warnings.forEach(w => prescriptionLines.push(`• ${w}`));
           prescriptionLines.push('');
+          prescriptionLines.push('Notes:');
+          result.warnings.forEach(w => prescriptionLines.push(`- ${w}`));
         }
         prescriptionLines.push('================================================================');
         prescriptionString = prescriptionLines.join('\n');
@@ -429,8 +386,6 @@ const DashboardPage = () => {
         prescriptionString = result.prescription;
       }
       setPrescription(prescriptionString);
-      setStatus({ type: 'ready', message: 'Prescription generated' });
-      setProgressStep('generated');
 
       console.log('Medical processing complete:', {
         ir: result.ir,
@@ -527,12 +482,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     setDiarizedTranscription(mockDiarizedTranscription);
     setDeepgramTranscript(mockTranscript);
     const mappedUtterances = mapDiarizedUtterancesToPipeline(mockUtterances);
-    setDeepgramUtterances(mappedUtterances.map(u => ({
-      speaker: u.speaker,
-      ts_start: u.start ?? 0,
-      ts_end: u.end ?? 0,
-      text: u.transcript ?? ''
-    })));
+    setDeepgramUtterances(mappedUtterances);
     processWithMedicalPipeline(mappedUtterances); // fire and forget for mock
     setStatus({ type: 'ready', message: 'Mock diarization injected' });
     setDisplayMode('revised');
