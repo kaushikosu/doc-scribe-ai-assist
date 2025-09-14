@@ -13,11 +13,9 @@ interface DebugPanelProps {
     ts_end: number;
     text: string;
   }>;
-  correctedUtterances?: Array<{
+  classifiedUtterances?: Array<{
     speaker: string;
     text: string;
-    start?: number;
-    end?: number;
   }>;
   ir?: any;
   soap?: any;
@@ -29,64 +27,18 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
   liveTranscript,
   deepgramTranscript,
   deepgramUtterances = [],
-  correctedUtterances = [],
+  classifiedUtterances = [],
   ir,
   soap,
   prescription,
   isRecording
 }) => {
-  // Format corrected utterances for display
-  const formatCorrectedUtterances = (utterances: Array<{speaker: string, text: string, start?: number, end?: number}>) => {
-    return utterances.map(u =>
-      `${u.speaker}${typeof u.start === 'number' && typeof u.end === 'number' ? ` (${u.start}s-${u.end}s)` : ''}: ${u.text}`
-    ).join('\n\n');
-  };
-            {/* Corrected Speakers */}
-            <Card className="h-64">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${correctedUtterances.length > 0 ? 'bg-pink-500' : 'bg-muted'}`} />
-                  3. Corrected Speakers
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">Doctor/Patient roles</p>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
-                  {correctedUtterances.length > 0 ? (
-                    correctedUtterances.map((utterance, index) => (
-                      <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-semibold text-primary">{utterance.speaker}</span>
-                          {typeof utterance.start === 'number' && typeof utterance.end === 'number' && (
-                            <span className="text-muted-foreground text-xs">
-                              {utterance.start}s - {utterance.end}s
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-foreground">{utterance.text}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <span className="text-muted-foreground italic">
-                      Waiting for speaker correction...
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
   const [isOpen, setIsOpen] = useState(false);
 
   // Helper function to format text as paragraphs
   const formatParagraphs = (text: string) => {
     if (!text) return [];
     return text.split('\n').filter(p => p.trim().length > 0);
-  };
-
-  // Format utterances for display
-  const formatUtterances = (utterances: Array<{speaker: string, ts_start: number, ts_end: number, text: string}>) => {
-    return utterances.map(u => 
-      `${u.speaker} (${u.ts_start}s-${u.ts_end}s): ${u.text}`
-    ).join('\n\n');
   };
 
   return (
@@ -104,7 +56,6 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
             {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </Button>
         </CollapsibleTrigger>
-        
         <CollapsibleContent className="mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Live Transcript */}
@@ -133,7 +84,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardContent>
             </Card>
 
-            {/* Deepgram Transcript */}
+            {/* Deepgram Diarized Output (Speaker 0/1) */}
             <Card className="h-64">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -165,12 +116,41 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardContent>
             </Card>
 
+            {/* Classified Speakers (Doctor/Patient) */}
+            <Card className="h-64">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${classifiedUtterances.length > 0 ? 'bg-green-500' : 'bg-muted'}`} />
+                  3. Classified Speakers
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Doctor/Patient roles</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
+                  {classifiedUtterances.length > 0 ? (
+                    classifiedUtterances.map((utterance, index) => (
+                      <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-semibold text-primary">{utterance.speaker}</span>
+                        </div>
+                        <p className="text-foreground">{utterance.text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      Waiting for speaker classification...
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* IR */}
             <Card className="h-64">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${ir ? 'bg-purple-500' : 'bg-muted'}`} />
-                  3. IR
+                  4. IR
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Intermediate Representation</p>
               </CardHeader>
@@ -298,6 +278,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
             <ul className="mt-2 space-y-1 ml-4">
               <li>• <strong>Live:</strong> Real-time Web Speech API output</li>
               <li>• <strong>Deepgram:</strong> Post-processed diarized transcript with speaker labels & timing</li>
+              <li>• <strong>Classified:</strong> Doctor/Patient speaker roles (LLM)</li>
               <li>• <strong>IR:</strong> Intermediate Representation - structured medical data extraction</li>
               <li>• <strong>SOAP:</strong> Clinical note in standard SOAP format</li>
               <li>• <strong>Prescription:</strong> FHIR-compliant medication requests</li>

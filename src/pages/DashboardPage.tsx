@@ -38,10 +38,16 @@ const DashboardPage = () => {
   // Debug panel states
   const [liveTranscript, setLiveTranscript] = useState('');
   const [deepgramTranscript, setDeepgramTranscript] = useState('');
+  // Deepgram diarized output (Speaker 0/1)
   const [deepgramUtterances, setDeepgramUtterances] = useState<Array<{
     speaker: string;
     ts_start: number;
     ts_end: number;
+    text: string;
+  }>>([]);
+  // LLM-classified output (Doctor/Patient)
+  const [classifiedUtterances, setClassifiedUtterances] = useState<Array<{
+    speaker: string;
     text: string;
   }>>([]);
   const [correctedUtterances, setCorrectedUtterances] = useState<any[]>([]);
@@ -117,12 +123,11 @@ const DashboardPage = () => {
     setIsDiarizing(true);
     setStatus({ type: 'processing', message: 'Updating transcript...' });
     const startSession = sessionRef.current;
-    
     try {
       // Process audio with Deepgram only (no correction)
       const { transcript: diarizedText, utterances, error } = await processCompleteAudio(audioBlob, apiKeyForCompat);
       console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
-      
+
       // Update debug panel with Deepgram result
       if (diarizedText) {
         setDeepgramTranscript(diarizedText);
@@ -136,7 +141,7 @@ const DashboardPage = () => {
           text: u.text ?? ''
         })));
         // Process with medical IR pipeline
-  await processWithMedicalPipeline(utterances);
+        await processWithMedicalPipeline(utterances);
       } else if (diarizedText && diarizedText.trim().length > 0) {
         // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
         const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
@@ -161,13 +166,13 @@ const DashboardPage = () => {
           await processWithMedicalPipeline(fallbackUtterances);
         }
       }
-      
+
       if (sessionRef.current !== startSession) {
         console.log("Stale diarization result ignored");
         setIsDiarizing(false);
         return;
       }
-      
+
       if (error) {
         console.error("Deepgram error:", error);
         setDiarizedTranscription({
@@ -187,40 +192,38 @@ const DashboardPage = () => {
           transcript: diarizedText,
           error: undefined
         };
-        
+
         console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
-
         // Map Deepgram speakers to roles and set classified transcript for prescription
         const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
-  setClassifiedTranscript(mapped);
-  setTranscript(mapped);
-  setDisplayMode('revised');
-  setStatus({ type: 'processing', message: 'Classified transcript ready. Generating prescription...' });
-  setProgressStep('generating');
+        setClassifiedTranscript(mapped);
+        setTranscript(mapped);
+        setDisplayMode('revised');
+        setStatus({ type: 'processing', message: 'Classified transcript ready. Generating prescription...' });
+        setProgressStep('generating');
+      }
 
-        // Upload audio to storage after successful processing
-        if (currentSessionRecord) {
-          console.log("Uploading audio to storage for session:", currentSessionRecord.id);
-          try {
-            const uploadResult = await uploadSessionAudio(currentSessionRecord.id, audioBlob);
-            if (uploadResult.success) {
-              console.log("Audio uploaded successfully to storage");
-              // Update current session record with the new data
-              if (uploadResult.session) {
-                setCurrentSessionRecord(uploadResult.session);
-              }
-            } else {
-              console.error("Failed to upload audio:", uploadResult.error);
+      // Upload audio to storage after successful processing
+      if (currentSessionRecord) {
+        console.log("Uploading audio to storage for session:", currentSessionRecord.id);
+        try {
+          const uploadResult = await uploadSessionAudio(currentSessionRecord.id, audioBlob);
+          if (uploadResult.success) {
+            console.log("Audio uploaded successfully to storage");
+            // Update current session record with the new data
+            if (uploadResult.session) {
+              setCurrentSessionRecord(uploadResult.session);
             }
-          } catch (uploadError) {
-            console.error("Error uploading audio:", uploadError);
+          } else {
+            console.error("Failed to upload audio:", uploadResult.error);
           }
+        } catch (uploadError) {
+          console.error("Error uploading audio:", uploadError);
         }
       }
-      
+
       setIsDiarizing(false);
-      
     } catch (error: any) {
       console.error("Error in Deepgram diarized transcription:", error);
       setIsDiarizing(false);
@@ -234,6 +237,11 @@ const DashboardPage = () => {
 
   // New function to process with IR → SOAP → Prescription pipeline
   const processWithMedicalPipeline = async (utterances: any[]) => {
+  // Show classified transcript (Doctor/Patient) in a separate state
+  const classifiedTranscriptStr = correctedUtterances.map(u => `${u.speaker}: ${u.text}`).join('\n');
+  setClassifiedTranscript(classifiedTranscriptStr);
+  setTranscript(classifiedTranscriptStr); // Update main transcript at the top immediately
+  setClassifiedUtterances(correctedUtterances); // For debug panel
     // Always map utterances to the expected format for the edge function
     const mappedUtterances = mapDiarizedUtterancesToPipeline(utterances);
     try {
@@ -268,10 +276,10 @@ const DashboardPage = () => {
       // Show classified transcript (Doctor/Patient) in a separate state
       const classifiedTranscriptStr = correctedUtterances.map(u => `${u.speaker}: ${u.text}`).join('\n');
       setClassifiedTranscript(classifiedTranscriptStr);
-      setTranscript(classifiedTranscriptStr); // Update main transcript at the top immediately
-      setCorrectedUtterances(correctedUtterances);
-      setStatus({ type: 'processing', message: 'Processing medical information...' });
-      setProgressStep('generating');
+  setTranscript(classifiedTranscriptStr); // Update main transcript at the top immediately
+  setCorrectedUtterances(correctedUtterances);
+  setStatus({ type: 'processing', message: 'Processing medical information...' });
+  setProgressStep('generating');
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -433,8 +441,8 @@ const DashboardPage = () => {
         prescriptionString = result.prescription;
       }
       setPrescription(prescriptionString);
-      setStatus({ type: 'ready', message: 'Prescription generated' });
-      setProgressStep('generated');
+  setStatus({ type: 'ready', message: 'Prescription generated' });
+  setProgressStep('generated');
 
       console.log('Medical processing complete:', {
         ir: result.ir,
@@ -669,8 +677,8 @@ const handleRecordingStateChange = (recordingState: boolean) => {
           <DebugPanel
             liveTranscript={liveTranscript}
             deepgramTranscript={deepgramTranscript}
-            deepgramUtterances={deepgramUtterances}
-            correctedUtterances={correctedUtterances}
+            deepgramUtterances={deepgramUtterances} // Speaker 0/1
+            classifiedUtterances={classifiedUtterances} // Doctor/Patient
             ir={ir}
             soap={soap}
             prescription={prescription}
