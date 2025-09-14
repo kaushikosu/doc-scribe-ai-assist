@@ -219,9 +219,11 @@ If confidence is below 85%, return the original transcript unchanged with confid
     console.log('Returning', correctedUtterances.length, 'utterances');
 
     // Return both the original result and the utterance array for compatibility
+    // Add both 'correctedUtterances' and 'utterances' (alias) for downstream compatibility
     return new Response(JSON.stringify({
       ...result,
-      correctedUtterances
+      correctedUtterances,
+      utterances: correctedUtterances
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
