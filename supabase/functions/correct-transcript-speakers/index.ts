@@ -191,9 +191,38 @@ If confidence is below 85%, return the original transcript unchanged with confid
       result.corrections = [];
     }
 
-    console.log('Final result confidence:', result.confidence);
+    // Convert correctedTranscript string to array of utterance objects
+    function parseUtterances(transcriptStr: string): { speaker: string; text: string }[] {
+      // Split on newlines, match "Speaker: text" or "Doctor: text" or "Patient: text"
+      const lines: string[] = transcriptStr.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean);
+      const utterances: { speaker: string; text: string }[] = [];
+      for (const line of lines) {
+        // Match "Doctor: ..." or "Patient: ..."
+        const match = line.match(/^(Doctor|Patient):\s*(.*)$/i);
+        if (match) {
+          utterances.push({
+            speaker: match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase(),
+            text: match[2].trim()
+          });
+        } else {
+          // If no speaker label, treat as unknown
+          utterances.push({
+            speaker: 'Unknown',
+            text: line
+          });
+        }
+      }
+      return utterances;
+    }
 
-    return new Response(JSON.stringify(result), {
+    const correctedUtterances = parseUtterances(result.correctedTranscript);
+    console.log('Returning', correctedUtterances.length, 'utterances');
+
+    // Return both the original result and the utterance array for compatibility
+    return new Response(JSON.stringify({
+      ...result,
+      correctedUtterances
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
