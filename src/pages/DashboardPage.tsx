@@ -128,7 +128,7 @@ const DashboardPage = () => {
         setDeepgramTranscript(diarizedText);
       }
       if (utterances && utterances.length > 0) {
-        // Show raw Deepgram diarized output (Speaker 0/1) in debug panel
+        // Map utterances to DebugPanel type
         setDeepgramUtterances(utterances.map(u => ({
           speaker: u.speaker,
           ts_start: u.ts_start ?? 0,
@@ -136,7 +136,7 @@ const DashboardPage = () => {
           text: u.text ?? ''
         })));
         // Process with medical IR pipeline
-  await processWithMedicalPipeline(utterances);
+        await processWithMedicalPipeline(utterances);
       } else if (diarizedText && diarizedText.trim().length > 0) {
         // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
         const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
@@ -265,13 +265,9 @@ const DashboardPage = () => {
         throw new Error('No corrected utterances returned from speaker classification');
       }
 
-      // Show classified transcript (Doctor/Patient) in a separate state
-      const classifiedTranscriptStr = correctedUtterances.map(u => `${u.speaker}: ${u.text}`).join('\n');
-      setClassifiedTranscript(classifiedTranscriptStr);
-      setTranscript(classifiedTranscriptStr); // Update main transcript at the top immediately
-      setCorrectedUtterances(correctedUtterances);
-      setStatus({ type: 'processing', message: 'Processing medical information...' });
-      setProgressStep('generating');
+  setCorrectedUtterances(correctedUtterances);
+  setStatus({ type: 'processing', message: 'Processing medical information...' });
+  setProgressStep('generating');
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -520,8 +516,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     setDisplayMode('revised');
     setProgressStep('processing');
     setStatus(prev => {
-      // Only set to processing if not already ready or error
-      if (prev.type === 'ready' || prev.type === 'error') return prev;
+      if (prev.type === 'generating' || prev.type === 'ready') return prev;
       return { type: 'processing', message: 'Updating transcript...' };
     });
   }
