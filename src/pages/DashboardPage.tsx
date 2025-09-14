@@ -318,6 +318,9 @@ const DashboardPage = () => {
         const currentDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
         const currentTime = patientInfo.time || '';
         let prescriptionLines = [];
+        // Doctor details at the top
+        prescriptionLines.push(`Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}`);
+        prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
         prescriptionLines.push(`${hospitalName.toUpperCase()}`);
         prescriptionLines.push(`${hospitalAddress}`);
         prescriptionLines.push(`Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}`);
@@ -331,7 +334,31 @@ const DashboardPage = () => {
         prescriptionLines.push(`Age/Sex: ${patientAge}/${patientSex}`);
         prescriptionLines.push(`ABHA ID: ${abhaId}`);
         prescriptionLines.push('');
-        if (assessment) prescriptionLines.push(`ASSESSMENT: ${assessment}`);
+        // Subjective (symptoms)
+        const subjective = result.ir?.chief_complaint || result.soap?.subjective || '';
+        if (subjective) prescriptionLines.push(`Symptoms: ${subjective}`);
+        // History of present illness
+        const hpi = result.ir?.history_present_illness || '';
+        if (hpi) prescriptionLines.push(`History of Present Illness: ${hpi}`);
+        // Allergies
+        const allergies = result.ir?.allergies || '';
+        if (allergies) prescriptionLines.push(`Allergies: ${allergies}`);
+        // Objective (measurements)
+        const objective = result.ir?.physical_exam || result.soap?.objective || '';
+        if (objective) prescriptionLines.push(`Objective: ${objective}`);
+        // Vitals
+        const vitals = result.ir?.vitals || {};
+        const vitalsArr = [];
+        if (vitals.blood_pressure) vitalsArr.push(`BP: ${vitals.blood_pressure}`);
+        if (vitals.heart_rate) vitalsArr.push(`HR: ${vitals.heart_rate}`);
+        if (vitals.temperature) vitalsArr.push(`Temp: ${vitals.temperature}`);
+        if (vitals.respiratory_rate) vitalsArr.push(`RR: ${vitals.respiratory_rate}`);
+        if (vitalsArr.length) prescriptionLines.push(`Vitals: ${vitalsArr.join(', ')}`);
+        // Investigations
+        const investigations = result.ir?.investigations || '';
+        if (investigations) prescriptionLines.push(`Investigations: ${investigations}`);
+        prescriptionLines.push('');
+        if (assessment) prescriptionLines.push(`Assessment: ${assessment}`);
         prescriptionLines.push('');
         prescriptionLines.push('Rx.');
         if (entries.length === 0) {
@@ -344,8 +371,15 @@ const DashboardPage = () => {
           });
         }
         prescriptionLines.push('');
-        prescriptionLines.push('Dr. ' + doctorName + (doctorQualification ? `, ${doctorQualification}` : ''));
-        prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
+        // Plan/further evaluation
+        const plan = result.ir?.plan || result.soap?.plan || '';
+        if (plan) prescriptionLines.push(`Plan / Further Evaluation: ${plan}`);
+        // Warnings or notes
+        if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+          prescriptionLines.push('');
+          prescriptionLines.push('Notes:');
+          result.warnings.forEach(w => prescriptionLines.push(`- ${w}`));
+        }
         prescriptionLines.push('================================================================');
         prescriptionString = prescriptionLines.join('\n');
       } else if (typeof result.prescription === 'string') {
