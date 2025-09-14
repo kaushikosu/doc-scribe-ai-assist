@@ -8,7 +8,6 @@ import PatientSessionBar from '@/components/PatientSessionBar';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import PatientInfoBar from '@/components/PatientInfoBar';
-import { mapDeepgramSpeakersToRoles } from '@/utils/deepgramSpeechToText';
 import StatusStepsBar from '@/components/StatusStepsBar';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
 import { createPatient, Patient } from '@/integrations/supabase/patients';

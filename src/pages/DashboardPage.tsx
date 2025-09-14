@@ -15,7 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
-import { processCompleteAudioWithCorrection, mapDeepgramSpeakersToRoles, processCompleteAudio } from '@/utils/deepgramSpeechToText';
+import { processCompleteAudioWithCorrection, processCompleteAudio } from '@/utils/deepgramSpeechToText';
 import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
 import { createPatient, Patient } from '@/integrations/supabase/patients';
 import { createConsultationSession, ConsultationSession, updateConsultationSession, uploadSessionAudio } from '@/integrations/supabase/consultationSessions';
@@ -186,10 +186,11 @@ const DashboardPage = () => {
         console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
 
-        // Map Deepgram speakers to roles and set classified transcript for prescription
-  const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText);
-        setClassifiedTranscript(mapped);
-        setTranscript(mapped);
+        // Only set transcript/classifiedTranscript if not already classified (i.e., not already Doctor/Patient)
+        if (!classifiedTranscript || !/\bDoctor\b|\bPatient\b/.test(classifiedTranscript)) {
+          setClassifiedTranscript(diarizedText);
+          setTranscript(diarizedText);
+        }
         setDisplayMode('revised');
         setStatus({ type: 'generating', message: 'Generating prescription...' });
 

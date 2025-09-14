@@ -20,11 +20,10 @@ const UtteranceView: React.FC<UtteranceViewProps> = ({
   };
 
   const getSpeakerColor = (speaker: string) => {
-    switch (speaker) {
-      case 'DOCTOR': return 'text-blue-600 bg-blue-50 border-blue-200';
-      case 'PATIENT': return 'text-green-600 bg-green-50 border-green-200';
-      default: return 'text-purple-600 bg-purple-50 border-purple-200';
-    }
+    const normalized = speaker.trim().toLowerCase();
+    if (normalized === 'doctor') return 'text-blue-600 bg-blue-50 border-blue-200';
+    if (normalized === 'patient') return 'text-green-600 bg-green-50 border-green-200';
+    return 'text-purple-600 bg-purple-50 border-purple-200';
   };
 
   if (utterances.length === 0) {
