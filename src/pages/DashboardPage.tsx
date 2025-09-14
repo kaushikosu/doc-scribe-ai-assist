@@ -40,10 +40,10 @@ const DashboardPage = () => {
   const [deepgramTranscript, setDeepgramTranscript] = useState('');
   const [deepgramUtterances, setDeepgramUtterances] = useState<Array<{
     speaker: string;
-    ts_start: number;
-    ts_end: number;
-    text: string;
-    asr_conf?: number;
+    start: number;
+    end: number;
+    transcript: string;
+    confidence: number;
   }>>([]);
   const [correctedUtterances, setCorrectedUtterances] = useState<any[]>([]);
   const [ir, setIr] = useState<any>(null);
@@ -389,8 +389,9 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   const handleInjectMockDiarization = () => {
     setDiarizedTranscription(mockDiarizedTranscription);
     setDeepgramTranscript(mockTranscript);
-    setDeepgramUtterances(mockUtterances);
-    processWithMedicalPipeline(mockUtterances); // fire and forget for mock
+    const mappedUtterances = mapDiarizedUtterancesToPipeline(mockUtterances);
+    setDeepgramUtterances(mappedUtterances);
+    processWithMedicalPipeline(mappedUtterances); // fire and forget for mock
     setStatus({ type: 'ready', message: 'Mock diarization injected' });
     setDisplayMode('revised');
   };
