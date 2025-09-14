@@ -1,5 +1,8 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @ts-ignore: Deno Edge Functions import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore: Deno namespace is available in Edge Functions
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +44,7 @@ interface MedicalExtraction {
   confidence: number;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -54,9 +57,14 @@ serve(async (req) => {
       throw new Error('Transcript is required');
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
+  // @ts-ignore: Deno namespace is available in Edge Functions
+  const AZURE_OPENAI_ENDPOINT = (globalThis as any).Deno?.env.get('AZURE_OPENAI_ENDPOINT') ?? Deno.env.get('AZURE_OPENAI_ENDPOINT');
+  // @ts-ignore
+  const AZURE_OPENAI_API_KEY = (globalThis as any).Deno?.env.get('AZURE_OPENAI_API_KEY') ?? Deno.env.get('AZURE_OPENAI_API_KEY');
+  // @ts-ignore
+  const AZURE_OPENAI_DEPLOYMENT_NAME = (globalThis as any).Deno?.env.get('AZURE_OPENAI_DEPLOYMENT_NAME') ?? Deno.env.get('AZURE_OPENAI_DEPLOYMENT_NAME');
+    if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_API_KEY || !AZURE_OPENAI_DEPLOYMENT_NAME) {
+      throw new Error('Azure OpenAI environment variables are not configured');
     }
 
     const systemPrompt = `You are a medical AI assistant specialized in extracting structured information from doctor-patient consultation transcripts. 
@@ -102,43 +110,43 @@ Return ONLY valid JSON in the exact format specified. Do not include any explana
 
 ${transcript}`;
 
-    console.log('Sending request to Claude for medical extraction...');
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    console.log('Sending request to Azure OpenAI for medical extraction...');
+
+    const azureUrl = `${AZURE_OPENAI_ENDPOINT}/openai/deployments/${AZURE_OPENAI_DEPLOYMENT_NAME}/chat/completions?api-version=2024-02-15-preview`;
+    const response = await fetch(azureUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ANTHROPIC_API_KEY}`,
+        'api-key': AZURE_OPENAI_API_KEY,
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 4000,
         messages: [
-          {
-            role: 'user',
-            content: `${systemPrompt}\n\n${userPrompt}`
-          }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
-        temperature: 0.1
+        max_tokens: 2000,
+        temperature: 0.1,
+        stream: false
       }),
     });
 
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Claude API error:', errorText);
-      throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+      console.error('Azure OpenAI API error:', errorText);
+      throw new Error(`Azure OpenAI API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Claude response:', data);
+    console.log('Azure OpenAI response:', data);
 
-    if (!data.content || !data.content[0] || !data.content[0].text) {
-      throw new Error('Invalid response from Claude API');
+    // Azure OpenAI returns choices[0].message.content
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      throw new Error('Invalid response from Azure OpenAI API');
     }
 
-    const extractedText = data.content[0].text;
+    const extractedText = data.choices[0].message.content;
     console.log('Extracted text:', extractedText);
 
     // Parse the JSON response from Claude
@@ -178,8 +186,14 @@ ${transcript}`;
 
   } catch (error) {
     console.error('Error in extract-medical-details function:', error);
+    let errorMessage = 'Unknown error';
+    if (typeof error === 'object' && error && 'message' in error && typeof (error as any).message === 'string') {
+      errorMessage = (error as any).message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: errorMessage,
       medications: [],
       symptoms: [],
       diagnoses: [],

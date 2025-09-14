@@ -15,11 +15,35 @@ serve(async (req) => {
   try {
     const { transcript } = await req.json();
 
+
     if (!transcript) {
       throw new Error('No transcript provided');
     }
 
-    console.log('Processing transcript for speaker correction:', transcript.substring(0, 200) + '...');
+    // Accept transcript as string, array, or object (array of utterances)
+    let transcriptText = '';
+    if (typeof transcript === 'string') {
+      transcriptText = transcript;
+    } else if (Array.isArray(transcript)) {
+      // Array of utterances: join as "Speaker: text" lines
+      transcriptText = transcript.map(u => {
+        if (typeof u === 'string') return u;
+        if (u.speaker && u.transcript) return `${u.speaker}: ${u.transcript}`;
+        if (u.speaker && u.text) return `${u.speaker}: ${u.text}`;
+        return JSON.stringify(u);
+      }).join('\n');
+    } else if (typeof transcript === 'object') {
+      // Object: try to join fields if possible
+      if (transcript.speaker && transcript.transcript) {
+        transcriptText = `${transcript.speaker}: ${transcript.transcript}`;
+      } else if (transcript.speaker && transcript.text) {
+        transcriptText = `${transcript.speaker}: ${transcript.text}`;
+      } else {
+        transcriptText = JSON.stringify(transcript);
+      }
+    }
+
+    console.log('Processing transcript for speaker correction:', transcriptText.substring(0, 200) + '...');
 
     const prompt = `You are an expert medical conversation analyst. Your task is to correctly identify speakers in a medical consultation transcript and fix any incorrect speaker labels.
 
@@ -81,10 +105,12 @@ OUTPUT FORMAT: Return a JSON object with:
 
 If confidence is below 85%, return the original transcript unchanged with confidence score.`;
 
+    // @ts-ignore: Deno namespace is available in Edge Functions
+    const ANTHROPIC_API_KEY = (globalThis as any).Deno?.env.get('ANTHROPIC_API_KEY') ?? Deno.env.get('ANTHROPIC_API_KEY');
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('ANTHROPIC_API_KEY')}`,
+        'Authorization': `Bearer ${ANTHROPIC_API_KEY}`,
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
       },
@@ -151,9 +177,15 @@ If confidence is below 85%, return the original transcript unchanged with confid
 
   } catch (error) {
     console.error('Error in correct-transcript-speakers function:', error);
+    let errorMessage = 'Unknown error';
+    if (typeof error === 'object' && error && 'message' in error && typeof (error as any).message === 'string') {
+      errorMessage = (error as any).message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: errorMessage,
         correctedTranscript: '',
         confidence: 0.0,
         corrections: [],

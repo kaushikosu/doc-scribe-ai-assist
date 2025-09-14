@@ -129,10 +129,9 @@ const DashboardPage = () => {
         setDeepgramTranscript(diarizedText);
       }
       if (utterances && utterances.length > 0) {
-        const mappedUtterances = mapDiarizedUtterancesToPipeline(utterances);
-        setDeepgramUtterances(mappedUtterances);
+        setDeepgramUtterances(utterances); // Use raw Deepgram output for debug panel
         // Process with medical IR pipeline
-        await processWithMedicalPipeline(mappedUtterances);
+        await processWithMedicalPipeline(utterances);
       } else if (diarizedText && diarizedText.trim().length > 0) {
         // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
         const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
@@ -143,20 +142,18 @@ const DashboardPage = () => {
           let text = line.trim();
           if (m1) {
             const sp = parseInt(m1[1], 10);
-            speaker = sp === 0 ? 'DOCTOR' : sp === 1 ? 'PATIENT' : `SPEAKER_${sp}`;
+            speaker = `Speaker ${sp}`;
             text = m1[2];
           } else if (m2) {
-            const role = m2[1].toLowerCase();
-            if (role.includes('doctor')) speaker = 'DOCTOR';
-            else if (role.includes('patient')) speaker = 'PATIENT';
+            const role = m2[1];
+            speaker = role;
             text = m2[2];
           }
           return { speaker, ts_start: 0, ts_end: 0, text, asr_conf: 1 };
         }).filter(u => u.text && u.text.length > 0);
         if (fallbackUtterances.length > 0) {
-          const mappedFallback = mapDiarizedUtterancesToPipeline(fallbackUtterances);
-          setDeepgramUtterances(mappedFallback);
-          await processWithMedicalPipeline(mappedFallback);
+          setDeepgramUtterances(fallbackUtterances);
+          await processWithMedicalPipeline(fallbackUtterances);
         }
       }
       
