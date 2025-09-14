@@ -485,6 +485,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     classifiedTranscript={classifiedTranscript}
     currentPatient={currentPatientRecord}
     sessionId={currentSessionRecord?.id}
+    prescription={prescription}
     onGeneratingStart={() => {
       setProgressStep('generating');
       setStatus({ type: 'generating', message: 'Generating prescription...' });

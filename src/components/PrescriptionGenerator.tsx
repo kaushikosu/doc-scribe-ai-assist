@@ -27,6 +27,7 @@ interface PrescriptionGeneratorProps {
   onGenerated?: (prescription?: string) => void;
   currentPatient?: any;
   sessionId?: string;
+  prescription?: string | null;
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
@@ -37,9 +38,11 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   onGeneratingStart,
   onGenerated,
   currentPatient,
-  sessionId
+  sessionId,
+  prescription: prescriptionProp
 }) => {
-  const [prescription, setPrescription] = useState('');
+  // If prescriptionProp is provided, use it as the displayed prescription
+  const [prescription, setPrescription] = useState(prescriptionProp || '');
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
   const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
@@ -88,9 +91,20 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
     } catch (e) {
       // Ignore JSON parse errors
     }
-  }, []);
+    // If prescriptionProp changes, update local state
+    if (typeof prescriptionProp === 'string') {
+      setPrescription(prescriptionProp);
+      setEditablePrescription(prescriptionProp);
+    }
+  }, [prescriptionProp]);
 
   const generatePrescription = (transcriptText: string): string => {
+    // If prescriptionProp is provided, always use it as the source of truth
+    if (typeof prescriptionProp === 'string' && prescriptionProp.trim().length > 0) {
+      setPrescription(prescriptionProp);
+      setEditablePrescription(prescriptionProp);
+      return prescriptionProp;
+    }
     try {
       if (!transcriptText.trim()) {
         return ''; // Don't generate for empty transcript
