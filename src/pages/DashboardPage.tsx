@@ -259,6 +259,15 @@ const DashboardPage = () => {
         throw new Error('No corrected utterances returned from speaker classification');
       }
 
+      // Strict check: if any utterance has a label like 'Speaker 0' or 'Speaker 1', treat as backend error
+      const fallbackSpeaker = correctedUtterances.find((u: any) =>
+        typeof u.speaker === 'string' && /^Speaker\s*\d+$/i.test(u.speaker)
+      );
+      if (fallbackSpeaker) {
+        setStatus({ type: 'error', message: 'Backend failed to classify speakers. Please retry or check backend logs.' });
+        throw new Error('Backend returned fallback speaker labels (Speaker 0/1).');
+      }
+
 
       setCorrectedUtterances(correctedUtterances);
 
