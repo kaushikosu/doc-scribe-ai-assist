@@ -610,8 +610,8 @@ const handleGenerateAI = () => {
           />
         ) : (
           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
-            {prescription ? (
-              prescription
+            {prescriptionProp && prescriptionProp.trim().length > 0 ? (
+              prescriptionProp
             ) : (
               <span className="font-sans text-muted-foreground block text-center">
                 {isClassifying

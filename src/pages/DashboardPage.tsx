@@ -293,7 +293,65 @@ const DashboardPage = () => {
 
       setIr(result.ir);
       setSoap(result.soap);
-      setPrescription(result.prescription);
+      // If prescription is a FHIR bundle, convert to readable string
+      let prescriptionString = '';
+      if (result.prescription && typeof result.prescription === 'object' && result.prescription.resourceType === 'Bundle') {
+        // ABDM/PM-JAY prescription format
+        const entries = result.prescription.entry || [];
+        // Patient and context
+        const patientName = currentPatient?.name || patientInfo.name || '[Patient Name]';
+        const patientAge = currentPatient?.age || '[Age]';
+        const patientSex = currentPatient?.gender || '[Sex]';
+  const abhaId = currentPatient?.abhaId || '[ABHA Number]';
+        const assessment = result.ir?.assessment || result.soap?.assessment || '';
+        // Doctor/hospital context (customize as needed)
+        const doctorName = 'Dr. Indra Reddy';
+        const doctorRegId = 'DCT-12345';
+        const doctorDept = 'General Medicine';
+        const doctorQualification = 'MBBS, MD';
+        const hospitalName = 'Arogya General Hospital';
+        const hospitalAddress = 'Medical Center Road, City - 123456';
+        const hospitalPhone = '(555) 123-4567';
+        const hospitalEmail = 'info@citygeneralhospital.com';
+        const empanelmentId = '';
+        const hfrId = '';
+        const currentDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+        const currentTime = patientInfo.time || '';
+        let prescriptionLines = [];
+        prescriptionLines.push(`${hospitalName.toUpperCase()}`);
+        prescriptionLines.push(`${hospitalAddress}`);
+        prescriptionLines.push(`Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}`);
+        if (empanelmentId || hfrId) {
+          prescriptionLines.push(`${empanelmentId ? `Empanelment ID: ${empanelmentId}` : ''}${empanelmentId && hfrId ? ' | ' : ''}${hfrId ? `HFR ID: ${hfrId}` : ''}`);
+        }
+        prescriptionLines.push('================================================================');
+        prescriptionLines.push(`Date: ${currentDate}                                  Time: ${currentTime}`);
+        prescriptionLines.push('');
+        prescriptionLines.push(`PATIENT: ${patientName}`);
+        prescriptionLines.push(`Age/Sex: ${patientAge}/${patientSex}`);
+        prescriptionLines.push(`ABHA ID: ${abhaId}`);
+        prescriptionLines.push('');
+        if (assessment) prescriptionLines.push(`ASSESSMENT: ${assessment}`);
+        prescriptionLines.push('');
+        prescriptionLines.push('Rx.');
+        if (entries.length === 0) {
+          prescriptionLines.push('  None prescribed');
+        } else {
+          entries.forEach((entry, idx) => {
+            const med = entry.resource?.medicationCodeableConcept?.text || 'Medication';
+            const dose = entry.resource?.dosageInstruction?.[0]?.text || '';
+            prescriptionLines.push(`  ${idx + 1}. ${med}${dose ? ' - ' + dose : ''}`);
+          });
+        }
+        prescriptionLines.push('');
+        prescriptionLines.push('Dr. ' + doctorName + (doctorQualification ? `, ${doctorQualification}` : ''));
+        prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
+        prescriptionLines.push('================================================================');
+        prescriptionString = prescriptionLines.join('\n');
+      } else if (typeof result.prescription === 'string') {
+        prescriptionString = result.prescription;
+      }
+      setPrescription(prescriptionString);
 
       console.log('Medical processing complete:', {
         ir: result.ir,
