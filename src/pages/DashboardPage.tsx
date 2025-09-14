@@ -45,6 +45,7 @@ const DashboardPage = () => {
     transcript: string;
     confidence: number;
   }>>([]);
+  const [correctedUtterances, setCorrectedUtterances] = useState<any[]>([]);
   const [ir, setIr] = useState<any>(null);
   const [soap, setSoap] = useState<any>(null);
   const [prescription, setPrescription] = useState<any>(null);
@@ -232,13 +233,41 @@ const DashboardPage = () => {
   const processWithMedicalPipeline = async (utterances: any[]) => {
     // Always map utterances to the expected format for the edge function
     const mappedUtterances = mapDiarizedUtterancesToPipeline(utterances);
-
     try {
-      setStatus({ type: 'processing', message: 'Processing medical information...' });
+      setStatus({ type: 'processing', message: 'Classifying speakers...' });
 
-      const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
+      // 1. Call correct-transcript-speakers to classify speakers
+      const { data: correctedData, error: correctError } = await supabase.functions.invoke('correct-transcript-speakers', {
         body: {
           transcript: mappedUtterances,
+          patientContext: {
+            name: currentPatient?.name || patientInfo.name,
+            age: currentPatient?.age,
+            sex: currentPatient?.gender
+          },
+          clinicContext: {
+            doctor_name: 'Dr. Kumar',
+            clinic_name: 'Medical Clinic'
+          }
+        }
+      });
+
+      if (correctError) {
+        throw new Error(correctError.message || 'Failed to classify speakers');
+      }
+
+      const correctedUtterances = correctedData?.utterances || correctedData;
+      if (!correctedUtterances || !Array.isArray(correctedUtterances)) {
+        throw new Error('No corrected utterances returned from speaker classification');
+      }
+
+      setCorrectedUtterances(correctedUtterances);
+      setStatus({ type: 'processing', message: 'Processing medical information...' });
+
+      // 2. Call process-medical-transcript with the corrected utterances
+      const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
+        body: {
+          transcript: correctedUtterances,
           patientContext: {
             name: currentPatient?.name || patientInfo.name,
             age: currentPatient?.age,
@@ -496,6 +525,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
             liveTranscript={liveTranscript}
             deepgramTranscript={deepgramTranscript}
             deepgramUtterances={deepgramUtterances}
+            correctedUtterances={correctedUtterances}
             ir={ir}
             soap={soap}
             prescription={prescription}

@@ -13,6 +13,12 @@ interface DebugPanelProps {
     ts_end: number;
     text: string;
   }>;
+  correctedUtterances?: Array<{
+    speaker: string;
+    text: string;
+    start?: number;
+    end?: number;
+  }>;
   ir?: any;
   soap?: any;
   prescription?: any;
@@ -23,11 +29,51 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
   liveTranscript,
   deepgramTranscript,
   deepgramUtterances = [],
+  correctedUtterances = [],
   ir,
   soap,
   prescription,
   isRecording
 }) => {
+  // Format corrected utterances for display
+  const formatCorrectedUtterances = (utterances: Array<{speaker: string, text: string, start?: number, end?: number}>) => {
+    return utterances.map(u =>
+      `${u.speaker}${typeof u.start === 'number' && typeof u.end === 'number' ? ` (${u.start}s-${u.end}s)` : ''}: ${u.text}`
+    ).join('\n\n');
+  };
+            {/* Corrected Speakers */}
+            <Card className="h-64">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${correctedUtterances.length > 0 ? 'bg-pink-500' : 'bg-muted'}`} />
+                  3. Corrected Speakers
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Doctor/Patient roles</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
+                  {correctedUtterances.length > 0 ? (
+                    correctedUtterances.map((utterance, index) => (
+                      <div key={index} className="mb-3 last:mb-0 border-b border-muted pb-2 last:border-b-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-semibold text-primary">{utterance.speaker}</span>
+                          {typeof utterance.start === 'number' && typeof utterance.end === 'number' && (
+                            <span className="text-muted-foreground text-xs">
+                              {utterance.start}s - {utterance.end}s
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-foreground">{utterance.text}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      Waiting for speaker correction...
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
   const [isOpen, setIsOpen] = useState(false);
 
   // Helper function to format text as paragraphs
@@ -60,7 +106,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
         </CollapsibleTrigger>
         
         <CollapsibleContent className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Live Transcript */}
             <Card className="h-64">
               <CardHeader className="pb-3">
