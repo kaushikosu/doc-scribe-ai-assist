@@ -150,18 +150,27 @@ If confidence is below 85%, return the original transcript unchanged with confid
     const content = data.choices[0].message.content;
     console.log('LLM response:', content.substring(0, 500) + '...');
 
-    // Parse the JSON response from the LLM
+    // Robustly extract JSON from LLM output
     let result;
     try {
-      // Extract JSON from the response (in case LLM includes extra text)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
+      let jsonString = content;
+      // Remove code block markers if present
+      if (jsonString.startsWith('```json')) {
+        jsonString = jsonString.replace(/^```json/, '').replace(/```$/, '').trim();
+      } else if (jsonString.startsWith('```')) {
+        jsonString = jsonString.replace(/^```/, '').replace(/```$/, '').trim();
+      }
+      // Find first and last curly braces
+      const firstBrace = jsonString.indexOf('{');
+      const lastBrace = jsonString.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonString = jsonString.substring(firstBrace, lastBrace + 1);
+        result = JSON.parse(jsonString);
       } else {
-        throw new Error('No valid JSON found in LLM response');
+        throw new Error('No valid JSON found in LLM response after stripping code block markers');
       }
     } catch (parseError) {
-      console.error('Error parsing LLM response:', parseError);
+      console.error('Error parsing LLM response:', parseError, '\nFull LLM content:', content);
       // Fallback: return original transcript
       result = {
         correctedTranscript: transcriptText,
@@ -172,7 +181,7 @@ If confidence is below 85%, return the original transcript unchanged with confid
     }
 
     // Validate result structure
-    if (!result.correctedTranscript) {
+    if (!result.correctedTranscript || typeof result.correctedTranscript !== 'string' || !result.correctedTranscript.trim()) {
       result.correctedTranscript = transcriptText;
     }
     if (typeof result.confidence !== 'number') {
