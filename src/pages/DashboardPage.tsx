@@ -187,7 +187,7 @@ const DashboardPage = () => {
         setDiarizedTranscription(result);
 
         // Map Deepgram speakers to roles and set classified transcript for prescription
-        const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText, { 0: 'Doctor', 1: 'Patient' });
+  const { classifiedTranscript: mapped } = mapDeepgramSpeakersToRoles(diarizedText);
         setClassifiedTranscript(mapped);
         setTranscript(mapped);
         setDisplayMode('revised');

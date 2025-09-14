@@ -209,38 +209,29 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
 };
 
 // Keep helper functions for backwards compatibility
-export const getSpeakerLabel = (speakerTag?: number): string => {
-  if (speakerTag === undefined) return '';
-  return speakerTag === 1 ? 'Doctor' : 'Patient';
-};
 
-// Map Deepgram "Speaker X:" lines to [Doctor]/[Patient] labels
-// Default mapping: Speaker 0 -> Doctor, Speaker 1 -> Patient
+
+// Map Deepgram "Speaker X:" lines to [Speaker X] labels (no static Doctor/Patient mapping)
 export const mapDeepgramSpeakersToRoles = (
-  transcript: string,
-  roleOfSpeaker: Record<number, 'Doctor' | 'Patient'> = { 0: 'Doctor', 1: 'Patient' }
-): { classifiedTranscript: string; mapping: Record<number, 'Doctor' | 'Patient'> } => {
-  if (!transcript) return { classifiedTranscript: '', mapping: roleOfSpeaker };
+  transcript: string
+): { classifiedTranscript: string } => {
+  if (!transcript) return { classifiedTranscript: '' };
 
   const lines = transcript.split(/\n+/);
   const mappedLines = lines.map((line) => {
     const match = line.match(/^\s*Speaker\s+(\d+):\s*/);
     if (match) {
       const sp = parseInt(match[1], 10);
-      const role = roleOfSpeaker[sp];
       const content = line.replace(/^\s*Speaker\s+\d+:\s*/, '');
-      if (role) {
-        return `[${role}]: ${content}`;
-      }
-      // If no mapping provided, keep original speaker label in bracketed form
+      // Always use original speaker label
       return `[Speaker ${sp}]: ${content}`;
     }
     return line;
   });
 
-// Join paragraphs with single newline to align with other components
+  // Join paragraphs with single newline to align with other components
   const classifiedTranscript = mappedLines.join('\n\n').trim();
-  return { classifiedTranscript, mapping: roleOfSpeaker };
+  return { classifiedTranscript };
 };
 
 // Speaker correction with AI
