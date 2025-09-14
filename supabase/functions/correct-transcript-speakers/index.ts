@@ -6,7 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+
+
+
+serve(async (req: Request) => {
+  // @ts-ignore
+  const AZURE_OPENAI_ENDPOINT = typeof Deno !== 'undefined' ? Deno.env.get('AZURE_OPENAI_ENDPOINT') : undefined;
+  // @ts-ignore
+  const AZURE_OPENAI_API_KEY = typeof Deno !== 'undefined' ? Deno.env.get('AZURE_OPENAI_API_KEY') : undefined;
+  // @ts-ignore
+  const AZURE_OPENAI_DEPLOYMENT_NAME = typeof Deno !== 'undefined' ? Deno.env.get('AZURE_OPENAI_DEPLOYMENT_NAME') : undefined;
+
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -104,14 +115,6 @@ OUTPUT FORMAT: Return a JSON object with:
 
 If confidence is below 85%, return the original transcript unchanged with confidence score.`;
 
-    // Azure OpenAI environment variables (Supabase Edge Functions/Deno)
-    // Use globalThis.Deno.env.get if available, else undefined
-  // Use (globalThis as any) to avoid TS index signature errors
-  // @ts-ignore
-  const getEnv = (key: string) => (typeof globalThis !== 'undefined' && (globalThis as any).Deno && (globalThis as any).Deno.env && typeof (globalThis as any).Deno.env.get === 'function') ? (globalThis as any).Deno.env.get(key) : undefined;
-    const AZURE_OPENAI_ENDPOINT = getEnv('AZURE_OPENAI_ENDPOINT');
-    const AZURE_OPENAI_API_KEY = getEnv('AZURE_OPENAI_API_KEY');
-    const AZURE_OPENAI_DEPLOYMENT_NAME = getEnv('AZURE_OPENAI_DEPLOYMENT_NAME');
     if (!AZURE_OPENAI_ENDPOINT || !AZURE_OPENAI_API_KEY || !AZURE_OPENAI_DEPLOYMENT_NAME) {
       throw new Error('Azure OpenAI environment variables are not configured');
     }
