@@ -10,26 +10,33 @@ import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import DebugPanel from '@/components/DebugPanel';
 import { mapDiarizedUtterancesToPipeline } from '@/mocks/mapDiarizedUtterances';
+import { formatPrescriptionString } from '@/components/PrescriptionFormatter';
+import HowToUseCard from '@/components/HowToUseCard';
 
 import { supabase } from '@/integrations/supabase/client';
 
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { processCompleteAudioWithCorrection, processCompleteAudio } from '@/utils/deepgramSpeechToText';
-import { generateMockPatient, MockPatientData } from '@/utils/mockPatientData';
-import { createPatient, Patient } from '@/integrations/supabase/patients';
-import { createConsultationSession, ConsultationSession, updateConsultationSession, uploadSessionAudio } from '@/integrations/supabase/consultationSessions';
+import { updateConsultationSession, uploadSessionAudio } from '@/integrations/supabase/consultationSessions';
+import { useRecordingSession } from '@/hooks/useRecordingSession';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
-  const [patientInfo, setPatientInfo] = useState({
-    name: '',
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  });
-  const [currentPatient, setCurrentPatient] = useState<MockPatientData | null>(null);
-  const [currentPatientRecord, setCurrentPatientRecord] = useState<Patient | null>(null);
-  const [currentSessionRecord, setCurrentSessionRecord] = useState<ConsultationSession | null>(null);
+  const {
+    patientInfo,
+    setPatientInfo,
+    currentPatient,
+    setCurrentPatient,
+    currentPatientRecord,
+    setCurrentPatientRecord,
+    currentSessionRecord,
+    setCurrentSessionRecord,
+    handleTranscriptUpdate,
+    handlePatientInfoUpdate,
+    generateNewPatient
+  } = useRecordingSession();
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecordingStarted, setHasRecordingStarted] = useState(false);
   const [displayMode, setDisplayMode] = useState<'live' | 'revised'>('live');
@@ -347,61 +354,11 @@ const DashboardPage = () => {
     }
   };
 
-  const handleTranscriptUpdate = (newTranscript: string) => {
-    console.log("handleTranscriptUpdate called with:", newTranscript?.length);
-    if (newTranscript !== undefined) {
-      setTranscript(newTranscript);
-      setLiveTranscript(newTranscript); // Update debug panel
-    }
-  };
-
-  const handlePatientInfoUpdate = (newPatientInfo: { name: string; time: string }) => {
-    setPatientInfo(newPatientInfo);
-  };
 
   // Handle recording start - create patient if none exists
   const handleRecordingStart = async () => {
     if (!currentPatientRecord) {
       await generateNewPatient();
-    }
-  };
-
-  // Generate new patient with mock data and save to database
-  const generateNewPatient = async () => {
-    const mockPatient = generateMockPatient();
-    setCurrentPatient(mockPatient);
-    setPatientInfo({
-      name: mockPatient.name,
-      time: mockPatient.sessionStartTime
-    });
-
-    try {
-      // Create patient in the database with all ABDM-required details
-      const patient = await createPatient({
-        name: mockPatient.name,
-        abha_id: mockPatient.abhaId,
-        age: mockPatient.age,
-        gender: mockPatient.gender,
-        phone: mockPatient.phone,
-        address: mockPatient.address,
-        emergency_contact: mockPatient.emergencyContact,
-        medical_history: mockPatient.medicalHistory,
-        blood_group: mockPatient.bloodGroup,
-        allergies: mockPatient.allergies,
-      });
-      setCurrentPatientRecord(patient);
-      
-      // Create initial consultation session
-      const session = await createConsultationSession({
-        patient_id: patient.id,
-        live_transcript: '',
-        updated_transcript: '',
-        prescription: '',
-        audio_path: null
-      });
-      setCurrentSessionRecord(session);
-    } catch (error) {
-      console.error('Failed to create patient and session:', error);
     }
   };
   
@@ -457,7 +414,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
-              onTranscriptUpdate={handleTranscriptUpdate} 
+              onTranscriptUpdate={(t) => handleTranscriptUpdate(t, setTranscript, setLiveTranscript)}
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
               onRecordingStart={handleRecordingStart}
@@ -481,31 +438,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
               }}
             />
             
-            <Card className="p-5 border rounded-lg shadow-sm">
-              <h2 className="text-lg font-semibold text-foreground mb-4">How to use DocScribe</h2>
-              <ol className="space-y-3 text-sm">
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">1</span>
-                  <span>Click the microphone button to start recording</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">2</span>
-                  <span>Speak naturally about the patient's condition, symptoms, and medications</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">3</span>
-                  <span>When you stop recording, a revised transcript will appear</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">4</span>
-                  <span>A prescription will be automatically generated based on the conversation</span>
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="flex items-center justify-center bg-doctor-primary text-white rounded-full w-6 h-6 text-xs font-bold flex-shrink-0">5</span>
-                  <span>Press the "New Patient" button for the next consultation</span>
-                </li>
-              </ol>
-            </Card>
+            <HowToUseCard />
           </div>
           
           <div className="md:col-span-8 space-y-6">
@@ -557,83 +490,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   />
 
 
-// Utility to format FHIR prescription as a string for display/printing
-function formatPrescriptionString(prescription: any, context: {ir?: any, soap?: any, patientInfo?: any, currentPatient?: any}) {
-  if (!prescription || typeof prescription !== 'object' || prescription.resourceType !== 'Bundle') return '';
-  const entries = prescription.entry || [];
-  // Patient details from app state
-  const patientName = context.currentPatient?.name || context.patientInfo?.name || '[Patient Name]';
-  const patientAge = context.currentPatient?.age || '[Age]';
-  const patientSex = context.currentPatient?.gender || '[Sex]';
-  const abhaId = context.currentPatient?.abhaId || '[ABHA Number]';
-  // Doctor details from app state
-  const doctorName = 'Dr. Indra Reddy';
-  const doctorRegId = 'DCT-12345';
-  const doctorDept = 'General Medicine';
-  const doctorQualification = 'MBBS, MD';
-  const hospitalName = 'Arogya General Hospital';
-  const hospitalAddress = 'Medical Center Road, City - 123456';
-  const hospitalPhone = '(555) 123-4567';
-  const hospitalEmail = 'info@citygeneralhospital.com';
-  // Visit/clinical context from app state
-  const currentDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-  const currentTime = context.patientInfo?.time || '';
-  const assessment = context.ir?.assessment || context.soap?.assessment || '';
-  const subjective = context.ir?.chief_complaint || context.soap?.subjective || '';
-  const hpi = context.ir?.history_present_illness || '';
-  const allergies = context.ir?.allergies || '';
-  const objective = context.ir?.physical_exam || context.soap?.objective || '';
-  const vitals = context.ir?.vitals || {};
-  const vitalsArr = [];
-  if (vitals.blood_pressure) vitalsArr.push(`BP: ${vitals.blood_pressure}`);
-  if (vitals.heart_rate) vitalsArr.push(`HR: ${vitals.heart_rate}`);
-  if (vitals.temperature) vitalsArr.push(`Temp: ${vitals.temperature}`);
-  if (vitals.respiratory_rate) vitalsArr.push(`RR: ${vitals.respiratory_rate}`);
-  const investigations = context.ir?.investigations || '';
-  const plan = context.ir?.plan || context.soap?.plan || '';
-  // Compose output
-  let prescriptionLines = [];
-  prescriptionLines.push(`Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}`);
-  prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
-  prescriptionLines.push(`${hospitalName.toUpperCase()}`);
-  prescriptionLines.push(`${hospitalAddress}`);
-  prescriptionLines.push(`Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}`);
-  prescriptionLines.push('================================================================');
-  prescriptionLines.push(`Date: ${currentDate}                                  Time: ${currentTime}`);
-  prescriptionLines.push('');
-  prescriptionLines.push(`PATIENT: ${patientName}`);
-  prescriptionLines.push(`Age/Sex: ${patientAge}/${patientSex}`);
-  prescriptionLines.push(`ABHA ID: ${abhaId}`);
-  prescriptionLines.push('');
-  if (subjective) prescriptionLines.push(`Symptoms: ${subjective}`);
-  if (hpi) prescriptionLines.push(`History of Present Illness: ${hpi}`);
-  if (allergies) prescriptionLines.push(`Allergies: ${allergies}`);
-  if (objective) prescriptionLines.push(`Objective: ${objective}`);
-  if (Array.isArray(vitalsArr) && vitalsArr.length) prescriptionLines.push(`Vitals: ${vitalsArr.join(', ')}`);
-  if (investigations) prescriptionLines.push(`Investigations: ${investigations}`);
-  prescriptionLines.push('');
-  if (assessment) prescriptionLines.push(`Assessment: ${assessment}`);
-  prescriptionLines.push('');
-  prescriptionLines.push('Rx.');
-  if (!Array.isArray(entries) || entries.length === 0) {
-    prescriptionLines.push('  None prescribed');
-  } else {
-    entries.forEach((entry: any, idx: number) => {
-      const med = entry.resource?.medicationCodeableConcept?.text || 'Medication';
-      const dose = entry.resource?.dosageInstruction?.[0]?.text || '';
-      prescriptionLines.push(`  ${idx + 1}. ${med}${dose ? ' - ' + dose : ''}`);
-    });
-  }
-  prescriptionLines.push('');
-  if (plan) prescriptionLines.push(`Plan / Further Evaluation: ${plan}`);
-  if (Array.isArray(context.ir?.warnings) && context.ir.warnings.length > 0) {
-    prescriptionLines.push('');
-    prescriptionLines.push('Notes:');
-    context.ir.warnings.forEach((w: string) => prescriptionLines.push(`- ${w}`));
-  }
-  prescriptionLines.push('================================================================');
-  return prescriptionLines.join('\n');
-}
           </div>
         </div>
         
@@ -653,6 +509,6 @@ function formatPrescriptionString(prescription: any, context: {ir?: any, soap?: 
       </div>
     </div>
   );
-};
+}
 
 export default DashboardPage;
