@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 // Only import mock for test/dev usage
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { mockDiarizedTranscription, mockTranscript, mockUtterances } from '@/mocks/mockDiarization';
 import { Card } from '@/components/ui/card';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import TranscriptEditor from '@/components/TranscriptEditor';
@@ -9,7 +8,6 @@ import PrescriptionGenerator from '@/components/PrescriptionGenerator';
 import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import DebugPanel from '@/components/DebugPanel';
-import { mapDiarizedUtterancesToPipeline } from '@/mocks/mapDiarizedUtterances';
 import { formatPrescriptionString } from '@/components/PrescriptionFormatter';
 import HowToUseCard from '@/components/HowToUseCard';
 
@@ -212,7 +210,8 @@ const DashboardPage = () => {
         setDiarizedTranscription(result);
 
         // Only set transcript/classifiedTranscript if not already classified (i.e., not already Doctor/Patient)
-        if (!classifiedTranscript || !/\bDoctor\b|\bPatient\b/.test(classifiedTranscript)) {
+        // Only set transcript/classifiedTranscript if in 'live' mode (before speaker correction)
+        if (displayMode === 'live') {
           setClassifiedTranscript(diarizedText);
           setTranscript(diarizedText);
         }
@@ -254,15 +253,13 @@ const DashboardPage = () => {
 
   // New function to process with IR → SOAP → Prescription pipeline
   const processWithMedicalPipeline = async (utterances: any[]) => {
-    // Always map utterances to the expected format for the edge function
-    const mappedUtterances = mapDiarizedUtterancesToPipeline(utterances);
     try {
       setStatus({ type: 'processing', message: 'Classifying speakers...' });
 
       // 1. Call correct-transcript-speakers to classify speakers
       const { data: correctedData, error: correctError } = await supabase.functions.invoke('correct-transcript-speakers', {
         body: {
-          transcript: mappedUtterances,
+          transcript: utterances,
           patientContext: {
             name: currentPatient?.name || patientInfo.name,
             age: currentPatient?.age,
@@ -389,33 +386,12 @@ const handleRecordingStateChange = (recordingState: boolean) => {
 };
 
   // Only expose the mock button in development or if a test flag is set
-  const handleInjectMockDiarization = () => {
-    setDiarizedTranscription(mockDiarizedTranscription);
-    setDeepgramTranscript(mockTranscript);
-    const mappedUtterances = mapDiarizedUtterancesToPipeline(mockUtterances);
-    setDeepgramUtterances(mappedUtterances);
-    processWithMedicalPipeline(mappedUtterances); // fire and forget for mock
-    setStatus({ type: 'ready', message: 'Mock diarization injected' });
-    setDisplayMode('revised');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
       <div className="container py-8 max-w-6xl">
         {hasRecordingStarted && <StatusBanner status={status} />}
         <DocHeader patientInfo={patientInfo} />
-        {/* Show mock button only in development or if window.__ENABLE_MOCKS__ is set */}
-        {(import.meta.env.MODE === 'development' || (typeof window !== 'undefined' && (window as any).__ENABLE_MOCKS__)) && (
-          <div className="mb-4 flex gap-2">
-            <button
-              className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm"
-              onClick={handleInjectMockDiarization}
-              type="button"
-            >
-              Inject Mock Diarization
-            </button>
-          </div>
-        )}
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
