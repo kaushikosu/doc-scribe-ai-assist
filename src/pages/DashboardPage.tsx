@@ -28,6 +28,9 @@ const DashboardPage = () => {
     _setTranscript(val);
   };
   const { isTranscriptFinalized, setIsTranscriptFinalized } = useSessionState();
+  // Ref to always have latest finalized state in async/closure
+  const isTranscriptFinalizedRef = useRef(isTranscriptFinalized);
+  useEffect(() => { isTranscriptFinalizedRef.current = isTranscriptFinalized; }, [isTranscriptFinalized]);
   const debugSetIsTranscriptFinalized = (val: boolean, trigger?: string) => {
     console.log(`[DEBUG] setIsTranscriptFinalized:`, val, trigger ? `| Trigger: ${trigger}` : '');
     setIsTranscriptFinalized(val);
@@ -224,16 +227,20 @@ const DashboardPage = () => {
 
         // Only set transcript/classifiedTranscript if not already classified (i.e., not already Doctor/Patient)
         // Only set transcript/classifiedTranscript if in 'live' mode (before speaker correction)
-        if (displayMode === 'live' && !isTranscriptFinalized) {
+        if (displayMode === 'live' && !isTranscriptFinalizedRef.current) {
           setClassifiedTranscript(diarizedText);
           setTranscript(diarizedText, 'diarization (displayMode live, not finalized)');
         } else {
-          console.log('[DEBUG] Skipped setTranscript from diarization because isTranscriptFinalized:', isTranscriptFinalized);
+          console.log('[DEBUG] Skipped setTranscript from diarization because isTranscriptFinalizedRef:', isTranscriptFinalizedRef.current);
         }
         setDisplayMode('revised');
   console.log('[DEBUG] setStatus: generating (Generating prescription...)');
-  console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: diarization complete');
-  setStatus({ type: 'generating', message: 'Generating prescription...' });
+        if (!isTranscriptFinalizedRef.current) {
+          console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: diarization complete');
+          setStatus({ type: 'generating', message: 'Generating prescription...' });
+        } else {
+          console.log('[DEBUG] Skipped setStatus: generating (already finalized)');
+        }
 
         // Upload audio to storage after successful processing
         if (currentSessionRecord) {
