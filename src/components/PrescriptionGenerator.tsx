@@ -430,7 +430,7 @@ const handleGenerateAI = () => {
             </Dialog>
 
             <div className="flex gap-2">
-              {(!isPrescriptionDisabled && prescription.length > 0) && (
+              {(!isPrescriptionDisabled && prescription && prescription.length > 0) && (
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -498,7 +498,7 @@ const handleGenerateAI = () => {
           />
         ) : (
           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
-            {prescription && getMedicationStringFromFHIR(prescription).length > 0 ? (
+            {prescription && getMedicationStringFromFHIR(prescription) && getMedicationStringFromFHIR(prescription).length > 0 ? (
               <>
                 <div className="font-bold mb-2">Medications:</div>
                 <div>{getMedicationStringFromFHIR(prescription)}</div>

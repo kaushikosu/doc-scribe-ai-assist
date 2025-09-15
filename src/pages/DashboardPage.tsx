@@ -48,6 +48,7 @@ const DashboardPage = () => {
   const [correctedUtterances, setCorrectedUtterances] = useState<any[]>([]);
   const [ir, setIr] = useState<any>(null);
   const [soap, setSoap] = useState<any>(null);
+  // Store prescription as FHIR object only
   const [prescription, setPrescription] = useState<any>(null);
   type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
@@ -128,7 +129,7 @@ const DashboardPage = () => {
       if (diarizedText) {
         setDeepgramTranscript(diarizedText);
       }
-      if (utterances && utterances.length > 0) {
+  if (Array.isArray(utterances) && utterances.length > 0) {
         // Map utterances to expected shape for debug panel
         setDeepgramUtterances(
           utterances.map(u => ({
@@ -141,7 +142,7 @@ const DashboardPage = () => {
         );
         // Process with medical IR pipeline
         await processWithMedicalPipeline(utterances);
-      } else if (diarizedText && diarizedText.trim().length > 0) {
+  } else if (diarizedText && diarizedText.trim() && diarizedText.trim().length > 0) {
         // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
         const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
           // Match patterns like "Speaker 0: text" or "[Doctor]: text"
@@ -159,8 +160,8 @@ const DashboardPage = () => {
             text = m2[2];
           }
           return { speaker, ts_start: 0, ts_end: 0, text, asr_conf: 1 };
-        }).filter(u => u.text && u.text.length > 0);
-        if (fallbackUtterances.length > 0) {
+  }).filter(u => u.text && u.text.length > 0);
+  if (Array.isArray(fallbackUtterances) && fallbackUtterances.length > 0) {
           setDeepgramUtterances(
             fallbackUtterances.map(u => ({
               speaker: u.speaker,
@@ -187,7 +188,7 @@ const DashboardPage = () => {
           error: error
         });
         setStatus({ type: 'error', message: 'Diarization error: ' + error });
-      } else if (!diarizedText || diarizedText.trim().length === 0) {
+  } else if (!diarizedText || !diarizedText.trim() || diarizedText.trim().length === 0) {
         console.warn("No speech detected by Deepgram");
         setDiarizedTranscription({
           transcript: "No speech detected by deepgram",
@@ -289,7 +290,7 @@ const DashboardPage = () => {
       setCorrectedUtterances(correctedUtterances);
 
       // Generate revised transcript string from correctedUtterances (after AI speaker correction)
-      if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
+  if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
         // Each utterance should have speaker and text fields
         const revisedTranscript = correctedUtterances
           .map(u => `[${u.speaker}]: ${u.text}`)
@@ -330,10 +331,10 @@ const DashboardPage = () => {
         throw new Error(result.error);
       }
 
-      setIr(result.ir);
-      setSoap(result.soap);
-      // Pass the raw FHIR prescription object to the debug panel
-      setPrescription(result.prescription || null);
+  setIr(result.ir);
+  setSoap(result.soap);
+  // Store only the FHIR prescription object
+  setPrescription(result.prescription || null);
 
       console.log('Medical processing complete:', {
         ir: result.ir,
@@ -526,6 +527,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     currentPatient={currentPatientRecord}
     sessionId={currentSessionRecord?.id}
     prescription={prescription}
+    getFormattedPrescription={(fhirPrescription) => formatPrescriptionString(fhirPrescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord})}
     onGeneratingStart={() => {
       setProgressStep('generating');
       setStatus({ type: 'generating', message: 'Generating prescription...' });
@@ -533,15 +535,16 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     onGenerated={async (generatedPrescription?: string) => {
       setProgressStep('generated');
       setStatus({ type: 'ready', message: 'Prescription generated' });
-      
       // Update consultation session with transcripts
       if (currentSessionRecord) {
         try {
-          console.log("Saving prescription to database:", generatedPrescription);
+          // Save the formatted string for the DB, not the FHIR object
+          const formatted = formatPrescriptionString(prescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord});
+          console.log("Saving prescription to database:", formatted);
           await updateConsultationSession(currentSessionRecord.id, {
             live_transcript: transcript,
             updated_transcript: classifiedTranscript,
-            prescription: generatedPrescription || '',
+            prescription: formatted || '',
             session_ended_at: new Date().toISOString()
           });
           console.log("Consultation session updated successfully");
@@ -549,11 +552,88 @@ const handleRecordingStateChange = (recordingState: boolean) => {
           console.error('Failed to update consultation session:', error);
         }
       }
-      
       prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }}
   />
-</div>
+
+
+// Utility to format FHIR prescription as a string for display/printing
+function formatPrescriptionString(prescription: any, context: {ir?: any, soap?: any, patientInfo?: any, currentPatient?: any}) {
+  if (!prescription || typeof prescription !== 'object' || prescription.resourceType !== 'Bundle') return '';
+  const entries = prescription.entry || [];
+  // Patient details from app state
+  const patientName = context.currentPatient?.name || context.patientInfo?.name || '[Patient Name]';
+  const patientAge = context.currentPatient?.age || '[Age]';
+  const patientSex = context.currentPatient?.gender || '[Sex]';
+  const abhaId = context.currentPatient?.abhaId || '[ABHA Number]';
+  // Doctor details from app state
+  const doctorName = 'Dr. Indra Reddy';
+  const doctorRegId = 'DCT-12345';
+  const doctorDept = 'General Medicine';
+  const doctorQualification = 'MBBS, MD';
+  const hospitalName = 'Arogya General Hospital';
+  const hospitalAddress = 'Medical Center Road, City - 123456';
+  const hospitalPhone = '(555) 123-4567';
+  const hospitalEmail = 'info@citygeneralhospital.com';
+  // Visit/clinical context from app state
+  const currentDate = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+  const currentTime = context.patientInfo?.time || '';
+  const assessment = context.ir?.assessment || context.soap?.assessment || '';
+  const subjective = context.ir?.chief_complaint || context.soap?.subjective || '';
+  const hpi = context.ir?.history_present_illness || '';
+  const allergies = context.ir?.allergies || '';
+  const objective = context.ir?.physical_exam || context.soap?.objective || '';
+  const vitals = context.ir?.vitals || {};
+  const vitalsArr = [];
+  if (vitals.blood_pressure) vitalsArr.push(`BP: ${vitals.blood_pressure}`);
+  if (vitals.heart_rate) vitalsArr.push(`HR: ${vitals.heart_rate}`);
+  if (vitals.temperature) vitalsArr.push(`Temp: ${vitals.temperature}`);
+  if (vitals.respiratory_rate) vitalsArr.push(`RR: ${vitals.respiratory_rate}`);
+  const investigations = context.ir?.investigations || '';
+  const plan = context.ir?.plan || context.soap?.plan || '';
+  // Compose output
+  let prescriptionLines = [];
+  prescriptionLines.push(`Dr. ${doctorName}${doctorQualification ? `, ${doctorQualification}` : ''}`);
+  prescriptionLines.push(`Reg. No: ${doctorRegId} | ${doctorDept}`);
+  prescriptionLines.push(`${hospitalName.toUpperCase()}`);
+  prescriptionLines.push(`${hospitalAddress}`);
+  prescriptionLines.push(`Phone: ${hospitalPhone}${hospitalEmail ? ` | Email: ${hospitalEmail}` : ''}`);
+  prescriptionLines.push('================================================================');
+  prescriptionLines.push(`Date: ${currentDate}                                  Time: ${currentTime}`);
+  prescriptionLines.push('');
+  prescriptionLines.push(`PATIENT: ${patientName}`);
+  prescriptionLines.push(`Age/Sex: ${patientAge}/${patientSex}`);
+  prescriptionLines.push(`ABHA ID: ${abhaId}`);
+  prescriptionLines.push('');
+  if (subjective) prescriptionLines.push(`Symptoms: ${subjective}`);
+  if (hpi) prescriptionLines.push(`History of Present Illness: ${hpi}`);
+  if (allergies) prescriptionLines.push(`Allergies: ${allergies}`);
+  if (objective) prescriptionLines.push(`Objective: ${objective}`);
+  if (Array.isArray(vitalsArr) && vitalsArr.length) prescriptionLines.push(`Vitals: ${vitalsArr.join(', ')}`);
+  if (investigations) prescriptionLines.push(`Investigations: ${investigations}`);
+  prescriptionLines.push('');
+  if (assessment) prescriptionLines.push(`Assessment: ${assessment}`);
+  prescriptionLines.push('');
+  prescriptionLines.push('Rx.');
+  if (!Array.isArray(entries) || entries.length === 0) {
+    prescriptionLines.push('  None prescribed');
+  } else {
+    entries.forEach((entry: any, idx: number) => {
+      const med = entry.resource?.medicationCodeableConcept?.text || 'Medication';
+      const dose = entry.resource?.dosageInstruction?.[0]?.text || '';
+      prescriptionLines.push(`  ${idx + 1}. ${med}${dose ? ' - ' + dose : ''}`);
+    });
+  }
+  prescriptionLines.push('');
+  if (plan) prescriptionLines.push(`Plan / Further Evaluation: ${plan}`);
+  if (Array.isArray(context.ir?.warnings) && context.ir.warnings.length > 0) {
+    prescriptionLines.push('');
+    prescriptionLines.push('Notes:');
+    context.ir.warnings.forEach((w: string) => prescriptionLines.push(`- ${w}`));
+  }
+  prescriptionLines.push('================================================================');
+  return prescriptionLines.join('\n');
+}
           </div>
         </div>
         
@@ -571,7 +651,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
           />
         </div>
       </div>
-      
     </div>
   );
 };
