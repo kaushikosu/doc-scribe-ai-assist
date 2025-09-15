@@ -110,18 +110,7 @@ const DashboardPage = () => {
   }, [transcript]);
   
   
-  useEffect(() => {
-    if (isRecording && !isAudioRecording) {
-      console.log("Starting full audio recording for diarization");
-      startAudioRecording();
-    } else if (!isRecording && isAudioRecording) {
-      console.log("Stopping full audio recording and processing for diarization");
-      stopAudioRecording();
-      if (!transcript) {
-        setDiarizedTranscription(null);
-      }
-    }
-  }, [isRecording, isAudioRecording, startAudioRecording, stopAudioRecording, transcript]);
+  // Removed useEffect that triggers diarization on isRecording/isAudioRecording/audioBlob changes
 
   
   const processDiarizedTranscription = async (audioBlob: Blob) => {
@@ -415,6 +404,12 @@ const handleRecordingStateChange = (recordingState: boolean) => {
       if (prev.type === 'generating' || prev.type === 'ready') return prev;
       return { type: 'processing', message: 'Updating transcript...' };
     });
+    // Only trigger diarization when recording is stopped and audioBlob is available
+    if (audioBlob && audioBlob.size > 0) {
+      processDiarizedTranscription(audioBlob);
+    } else {
+      console.log('[DEBUG] Skipping diarization: audioBlob not available or empty');
+    }
   }
 };
 
