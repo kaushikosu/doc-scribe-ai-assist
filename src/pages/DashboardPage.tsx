@@ -400,16 +400,9 @@ const handleRecordingStateChange = (recordingState: boolean) => {
   } else if (hasRecordingStarted) {
     setDisplayMode('revised');
     setProgressStep('processing');
-    setStatus(prev => {
-      if (prev.type === 'generating' || prev.type === 'ready') return prev;
-      return { type: 'processing', message: 'Updating transcript...' };
-    });
-    // Only trigger diarization when recording is stopped and audioBlob is available
-    if (audioBlob && audioBlob.size > 0) {
-      processDiarizedTranscription(audioBlob);
-    } else {
-      console.log('[DEBUG] Skipping diarization: audioBlob not available or empty');
-    }
+    // Set status to processing immediately for instant UX feedback
+    setStatus({ type: 'processing', message: 'Updating transcript...' });
+    // Diarization is now only triggered in onRecordingComplete
   }
 };
 
