@@ -22,8 +22,16 @@ import { updateConsultationSession, uploadSessionAudio } from '@/integrations/su
 import { useRecordingSession } from '@/hooks/useRecordingSession';
 
 const DashboardPage = () => {
-  const [transcript, setTranscript] = useState('');
+  const [transcript, _setTranscript] = useState('');
+  const setTranscript = (val: string, trigger?: string) => {
+    console.log(`[DEBUG] setTranscript:`, val, trigger ? `| Trigger: ${trigger}` : '');
+    _setTranscript(val);
+  };
   const { isTranscriptFinalized, setIsTranscriptFinalized } = useSessionState();
+  const debugSetIsTranscriptFinalized = (val: boolean, trigger?: string) => {
+    console.log(`[DEBUG] setIsTranscriptFinalized:`, val, trigger ? `| Trigger: ${trigger}` : '');
+    setIsTranscriptFinalized(val);
+  };
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const {
     patientInfo,
@@ -126,6 +134,7 @@ const DashboardPage = () => {
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
   console.log('[DEBUG] setStatus: processing (Updating transcript...)');
+  console.log('[DEBUG] setStatus: processing (Updating transcript...) | Trigger: diarization start');
   setStatus({ type: 'processing', message: 'Updating transcript...' });
     const startSession = sessionRef.current;
     
@@ -217,10 +226,13 @@ const DashboardPage = () => {
         // Only set transcript/classifiedTranscript if in 'live' mode (before speaker correction)
         if (displayMode === 'live' && !isTranscriptFinalized) {
           setClassifiedTranscript(diarizedText);
-          setTranscript(diarizedText);
+          setTranscript(diarizedText, 'diarization (displayMode live, not finalized)');
+        } else {
+          console.log('[DEBUG] Skipped setTranscript from diarization because isTranscriptFinalized:', isTranscriptFinalized);
         }
         setDisplayMode('revised');
   console.log('[DEBUG] setStatus: generating (Generating prescription...)');
+  console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: diarization complete');
   setStatus({ type: 'generating', message: 'Generating prescription...' });
 
         // Upload audio to storage after successful processing
@@ -260,6 +272,7 @@ const DashboardPage = () => {
   const processWithMedicalPipeline = async (utterances: any[]) => {
     try {
   console.log('[DEBUG] setStatus: processing (Classifying speakers...)');
+  console.log('[DEBUG] setStatus: processing (Classifying speakers...) | Trigger: medical pipeline start');
   setStatus({ type: 'processing', message: 'Classifying speakers...' });
 
       // 1. Call correct-transcript-speakers to classify speakers
@@ -315,8 +328,9 @@ const DashboardPage = () => {
 
   // Switch to generating phase as soon as speakers are classified
   console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
+  console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: after speaker classification');
   setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
-  setIsTranscriptFinalized(true);
+  debugSetIsTranscriptFinalized(true, 'after speaker classification');
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -352,7 +366,9 @@ const DashboardPage = () => {
       setSoap(result.soap);
       setPrescription(result.prescription || null);
 
+      console.log('[DEBUG] setStatus: generated (Prescription generated) | Trigger: medical processing complete');
       setStatus({ type: 'generated', message: STATUS_CONFIG.generated.message });
+      debugSetIsTranscriptFinalized(true, 'medical processing complete');
 
       console.log('Medical processing complete:', {
         ir: result.ir,
@@ -368,7 +384,7 @@ const DashboardPage = () => {
 
   // Handle recording start - create patient if none exists
   const handleRecordingStart = async () => {
-    setIsTranscriptFinalized(false);
+    debugSetIsTranscriptFinalized(false, 'recording start');
     if (!currentPatientRecord) {
       await generateNewPatient();
     }
@@ -425,7 +441,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setProgressStep('recording');
                 setStatus({ type: 'ready' });
                 setSessionId(id => id + 1);
-                setIsTranscriptFinalized(false);
+                debugSetIsTranscriptFinalized(false, 'new patient/session');
                 generateNewPatient();
               }}
             />
