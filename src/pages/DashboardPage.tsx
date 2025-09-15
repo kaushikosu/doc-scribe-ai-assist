@@ -9,6 +9,7 @@ import DocHeader from '@/components/DocHeader';
 import StatusBanner from '@/components/StatusBanner';
 import DebugPanel from '@/components/DebugPanel';
 import { formatPrescriptionString } from '@/components/PrescriptionFormatter';
+import { STATUS_CONFIG } from '@/components/StatusStates';
 import HowToUseCard from '@/components/HowToUseCard';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -55,9 +56,9 @@ const DashboardPage = () => {
   const [soap, setSoap] = useState<any>(null);
   // Store prescription as FHIR object only
   const [prescription, setPrescription] = useState<any>(null);
-  type StatusType = 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error';
+  type StatusType = 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
-  const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'idle' });
+  const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'ready' });
   const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
   const [isDiarizing, setIsDiarizing] = useState(false);
   const [diarizedTranscription, setDiarizedTranscription] = useState<DiarizedTranscription | null>(null);
@@ -122,7 +123,8 @@ const DashboardPage = () => {
     
     console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-    setStatus({ type: 'processing', message: 'Updating transcript...' });
+  console.log('[DEBUG] setStatus: processing (Updating transcript...)');
+  setStatus({ type: 'processing', message: 'Updating transcript...' });
     const startSession = sessionRef.current;
     
     try {
@@ -216,7 +218,8 @@ const DashboardPage = () => {
           setTranscript(diarizedText);
         }
         setDisplayMode('revised');
-        setStatus({ type: 'generating', message: 'Generating prescription...' });
+  console.log('[DEBUG] setStatus: generating (Generating prescription...)');
+  setStatus({ type: 'generating', message: 'Generating prescription...' });
 
         // Upload audio to storage after successful processing
         if (currentSessionRecord) {
@@ -254,7 +257,8 @@ const DashboardPage = () => {
   // New function to process with IR → SOAP → Prescription pipeline
   const processWithMedicalPipeline = async (utterances: any[]) => {
     try {
-      setStatus({ type: 'processing', message: 'Classifying speakers...' });
+  console.log('[DEBUG] setStatus: processing (Classifying speakers...)');
+  setStatus({ type: 'processing', message: 'Classifying speakers...' });
 
       // 1. Call correct-transcript-speakers to classify speakers
       const { data: correctedData, error: correctError } = await supabase.functions.invoke('correct-transcript-speakers', {
@@ -307,8 +311,9 @@ const DashboardPage = () => {
     setTranscript(revisedTranscript);
   }
 
-  // Set status to ready so transcript is visible and not stuck in 'processing'
-  setStatus({ type: 'ready', message: 'Transcript updated with correct speakers.' });
+  // Switch to generating phase as soon as speakers are classified
+  console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
+  setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -413,7 +418,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setSoap(null);
                 setPrescription(null);
                 setProgressStep('recording');
-                setStatus({ type: 'idle' });
+                setStatus({ type: 'ready' });
                 setSessionId(id => id + 1);
                 generateNewPatient();
               }}
@@ -438,13 +443,14 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 sessionId={currentSessionRecord?.id}
                 prescription={prescription}
                 getFormattedPrescription={(fhirPrescription) => formatPrescriptionString(fhirPrescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord})}
+                status={status}
                 onGeneratingStart={() => {
                   setProgressStep('generating');
                   setStatus({ type: 'generating', message: 'Generating prescription...' });
                 }}
                 onGenerated={async (generatedPrescription?: string) => {
                   setProgressStep('generated');
-                  setStatus({ type: 'ready', message: 'Prescription generated' });
+                  setStatus({ type: 'ready', message: STATUS_CONFIG.generated.message });
                   // Update consultation session with transcripts
                   if (currentSessionRecord) {
                     try {

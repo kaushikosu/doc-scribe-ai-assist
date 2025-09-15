@@ -13,7 +13,7 @@ interface TranscriptEditorProps {
   onTranscriptChange: (transcript: string) => void;
   isRecording: boolean;
   mode?: 'live' | 'revised';
-  status?: { type: 'idle' | 'recording' | 'processing' | 'updated' | 'generating' | 'ready' | 'error'; message?: string };
+  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error'; message?: string };
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 
@@ -211,7 +211,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                 ref={contentRef} 
                 className={cn(
                   "w-full min-h-[120px] whitespace-pre-wrap break-words text-sm transition-opacity duration-300 animate-fade-in",
-                  overlayMsg ? "opacity-50" : "opacity-100"
+                  (overlayMsg && status?.type !== 'generating') ? "opacity-50" : "opacity-100"
                 )}
               >
                 {transcript ? (
@@ -235,7 +235,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   </div>
                 )}
               </div>
-              {overlayMsg && (
+              {overlayMsg && status?.type !== 'generating' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-sm rounded-md" aria-live="polite">
                   <span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin mb-2" />
                   <p className="text-foreground font-medium">{overlayMsg}</p>

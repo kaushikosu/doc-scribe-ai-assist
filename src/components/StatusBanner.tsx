@@ -3,38 +3,39 @@ import { CheckCircle2, FileText, Loader2, Mic, TriangleAlert } from "lucide-reac
 import { cn } from "@/lib/utils";
 
 export type StatusType =
-  | "idle"
+  | "ready"
   | "recording"
   | "processing"
-  | "updated"
+  | "classifying"
   | "generating"
-  | "ready"
+  | "generated"
   | "error";
 
 interface StatusBannerProps {
   status: { type: StatusType; message?: string };
 }
 
-const iconMap: Record<Exclude<StatusType, "idle">, React.ReactNode> = {
+const iconMap: Record<StatusType, React.ReactNode> = {
+  ready: <FileText className="h-4 w-4" />,
   recording: <Mic className="h-4 w-4" />,
   processing: <Loader2 className="h-4 w-4 animate-spin" />,
-  updated: <CheckCircle2 className="h-4 w-4" />,
-  generating: <Loader2 className="h-4 w-4 animate-spin" />,
-  ready: <FileText className="h-4 w-4" />,
+  classifying: <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />,
+  generating: <Loader2 className="h-4 w-4 animate-spin text-green-500" />,
+  generated: <CheckCircle2 className="h-4 w-4 text-green-600" />,
   error: <TriangleAlert className="h-4 w-4" />,
 };
 
-const badgeDot: Record<Exclude<StatusType, "idle">, string> = {
+const badgeDot: Record<StatusType, string> = {
+  ready: "bg-doctor-primary",
   recording: "bg-destructive",
   processing: "bg-doctor-secondary",
-  updated: "bg-doctor-primary",
+  classifying: "bg-doctor-secondary",
   generating: "bg-doctor-secondary",
-  ready: "bg-doctor-primary",
+  generated: "bg-doctor-primary",
   error: "bg-destructive",
 };
 
 export default function StatusBanner({ status }: StatusBannerProps) {
-  if (status.type === "idle") return null;
 
   const message =
     status.message ||

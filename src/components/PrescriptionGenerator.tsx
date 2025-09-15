@@ -13,6 +13,7 @@ function getMedicationStringFromFHIR(fhirPrescription: any): string {
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { STATUS_CONFIG } from '@/components/StatusStates';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Edit, Save, Check, MessageSquare, Printer, RotateCw, Settings, MoreHorizontal, Loader2 } from 'lucide-react';
@@ -41,6 +42,7 @@ interface PrescriptionGeneratorProps {
   sessionId?: string;
   prescription?: any;
   getFormattedPrescription?: (fhirPrescription: any) => string;
+  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error'; message?: string };
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
@@ -53,7 +55,8 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   currentPatient,
   sessionId,
   prescription,
-  getFormattedPrescription
+  getFormattedPrescription,
+  status
 }) => {
   // State declarations
   const [doctorName, setDoctorName] = useState('Dr. Indra Reddy');
@@ -71,7 +74,7 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editablePrescription, setEditablePrescription] = useState('');
   const [usePmjayFormat, setUsePmjayFormat] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  // Removed: isGenerating, now use parent's status prop
   
 
   // Removed: all local state for formatting, editing, and settings (now handled by getFormattedPrescription)
@@ -300,30 +303,22 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
 const handleGenerateAI = () => {
   if (classifiedTranscript) {
     onGeneratingStart?.();
-    setIsGenerating(true);
-    
     setTimeout(() => {
       if (getFormattedPrescription) {
         const generated = getFormattedPrescription(classifiedTranscript);
         setEditablePrescription(generated);
         onGenerated?.(generated);
       }
-      setIsGenerating(false);
     }, 1500);
   } else if (transcript && !isClassifying) {
     onGeneratingStart?.();
-    setIsGenerating(true);
-    
-    
     setTimeout(() => {
       if (getFormattedPrescription) {
         const generated = getFormattedPrescription(transcript);
         setEditablePrescription(generated);
         onGenerated?.(generated);
       }
-      setIsGenerating(false);
     }, 1500);
-  } else {
   }
 };
 
@@ -354,7 +349,7 @@ const handleGenerateAI = () => {
   
   // Determine if prescription actions should be disabled
   const hasAnyTranscript = Boolean(classifiedTranscript || transcript);
-  const isPrescriptionDisabled = isClassifying || isGenerating || !hasAnyTranscript;
+  const isPrescriptionDisabled = isClassifying || (!!status && status.type === 'generating') || !hasAnyTranscript;
 
   return (
     <Card 
@@ -479,7 +474,7 @@ const handleGenerateAI = () => {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-         {isGenerating ? (
+         {!!status && status.type === 'generating' ? (
            <div className="min-h-[300px] p-4 rounded-md flex flex-col justify-center items-center">
              <Loader2 className="h-8 w-8 text-doctor-primary animate-spin mb-2" />
              <p className="font-medium text-doctor-primary">
@@ -488,6 +483,14 @@ const handleGenerateAI = () => {
              <p className="text-muted-foreground text-sm">
                Creating structured prescription...
              </p>
+           </div>
+         ) : prescription && getFormattedPrescription ? (
+           <div className="min-h-[300px] p-4 rounded-md flex flex-col justify-center items-center">
+             <Check className="h-8 w-8 text-green-600 mb-2" />
+             <p className="font-medium text-green-700">{STATUS_CONFIG.generated.message}</p>
+             <div className="p-4 rounded-md min-h-[200px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200 w-full mt-2">
+               <pre className="whitespace-pre-wrap">{getFormattedPrescription(prescription)}</pre>
+             </div>
            </div>
          ) : isEditing ? (
           <Textarea
