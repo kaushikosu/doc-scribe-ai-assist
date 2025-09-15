@@ -289,8 +289,11 @@ const DashboardPage = () => {
         typeof u.speaker === 'string' && /^Speaker\s*\d+$/i.test(u.speaker)
       );
       if (fallbackSpeaker) {
-        setStatus({ type: 'error', message: 'Backend failed to classify speakers. Please retry or check backend logs.' });
-        throw new Error('Backend returned fallback speaker labels (Speaker 0/1).');
+        setStatus({ type: 'error', message: 'Speaker labels could not be classified. Please retry or check backend logs.' });
+        setClassifiedTranscript('');
+        setTranscript('');
+        setCorrectedUtterances([]);
+        return; // Do not proceed to show transcript
       }
 
 
@@ -299,20 +302,9 @@ const DashboardPage = () => {
       // Generate revised transcript string from correctedUtterances (after AI speaker correction)
 
   if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
-    // Use speaker label if it's not a fallback like 'Speaker 0/1', else use 'Doctor' or 'Patient' if available
+    // Use the speaker label as returned by correct-transcript-speakers, no fallback/hardcoding
     const revisedTranscript = correctedUtterances
-      .map(u => {
-        let speaker = u.speaker;
-        if (/^Speaker\s*\d+$/i.test(speaker)) {
-          // Try to infer from role or fallback
-          if (u.role && typeof u.role === 'string') {
-            speaker = u.role.charAt(0).toUpperCase() + u.role.slice(1);
-          } else {
-            speaker = u.speaker === 'Speaker 0' ? 'Doctor' : u.speaker === 'Speaker 1' ? 'Patient' : u.speaker;
-          }
-        }
-        return `[${speaker}]: ${u.text}`;
-      })
+      .map(u => `[${u.speaker}]: ${u.text}`)
       .join('\n\n');
     setClassifiedTranscript(revisedTranscript);
     setTranscript(revisedTranscript);
