@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import DashboardPage from "./pages/DashboardPage";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
+import { SessionStateProvider } from "./components/SessionStateContext";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +65,9 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <SessionStateProvider>
+            <AppRoutes />
+          </SessionStateProvider>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>

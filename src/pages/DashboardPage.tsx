@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSessionState } from '@/components/SessionStateContext';
 // Only import mock for test/dev usage
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { Card } from '@/components/ui/card';
@@ -22,6 +23,7 @@ import { useRecordingSession } from '@/hooks/useRecordingSession';
 
 const DashboardPage = () => {
   const [transcript, setTranscript] = useState('');
+  const { isTranscriptFinalized, setIsTranscriptFinalized } = useSessionState();
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const {
     patientInfo,
@@ -213,7 +215,7 @@ const DashboardPage = () => {
 
         // Only set transcript/classifiedTranscript if not already classified (i.e., not already Doctor/Patient)
         // Only set transcript/classifiedTranscript if in 'live' mode (before speaker correction)
-        if (displayMode === 'live') {
+        if (displayMode === 'live' && !isTranscriptFinalized) {
           setClassifiedTranscript(diarizedText);
           setTranscript(diarizedText);
         }
@@ -314,6 +316,7 @@ const DashboardPage = () => {
   // Switch to generating phase as soon as speakers are classified
   console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
   setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
+  setIsTranscriptFinalized(true);
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -345,10 +348,11 @@ const DashboardPage = () => {
         throw new Error(result.error);
       }
 
-  setIr(result.ir);
-  setSoap(result.soap);
-  // Store only the FHIR prescription object
-  setPrescription(result.prescription || null);
+      setIr(result.ir);
+      setSoap(result.soap);
+      setPrescription(result.prescription || null);
+
+      setStatus({ type: 'generated', message: STATUS_CONFIG.generated.message });
 
       console.log('Medical processing complete:', {
         ir: result.ir,
@@ -364,6 +368,7 @@ const DashboardPage = () => {
 
   // Handle recording start - create patient if none exists
   const handleRecordingStart = async () => {
+    setIsTranscriptFinalized(false);
     if (!currentPatientRecord) {
       await generateNewPatient();
     }
@@ -420,6 +425,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 setProgressStep('recording');
                 setStatus({ type: 'ready' });
                 setSessionId(id => id + 1);
+                setIsTranscriptFinalized(false);
                 generateNewPatient();
               }}
             />
