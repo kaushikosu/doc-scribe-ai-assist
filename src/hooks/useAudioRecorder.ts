@@ -134,7 +134,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
           setRecordingStatus('complete');
           
           if (onRecordingComplete) {
-            console.log("Calling onRecordingComplete callback with audio blob");
+            console.log("[AUDIO RECORDER DEBUG] About to call onRecordingComplete with blob size:", blob.size, "bytes");
             onRecordingComplete(blob);
           }
           
@@ -233,7 +233,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
     
     // If we already have a blob, use it
     if (audioBlob && onRecordingComplete) {
-      console.log("Using existing blob for onRecordingComplete");
+      console.log("[AUDIO RECORDER DEBUG] Using existing blob for onRecordingComplete, blob size:", audioBlob.size, "bytes");
       onRecordingComplete(audioBlob);
     }
   };
