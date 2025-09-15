@@ -139,8 +139,8 @@ const DashboardPage = () => {
       if (diarizedText) {
         setDeepgramTranscript(diarizedText);
       }
-  if (Array.isArray(utterances) && utterances.length > 0) {
-        // Map utterances to expected shape for debug panel
+      if (Array.isArray(utterances) && utterances.length > 0) {
+        // Map utterances to expected shape for debug panel (raw Deepgram output)
         setDeepgramUtterances(
           utterances.map(u => ({
             speaker: u.speaker,
@@ -152,26 +152,21 @@ const DashboardPage = () => {
         );
         // Process with medical IR pipeline
         await processWithMedicalPipeline(utterances);
-  } else if (diarizedText && diarizedText.trim() && diarizedText.trim().length > 0) {
+      } else if (diarizedText && diarizedText.trim() && diarizedText.trim().length > 0) {
         // Fallback: try to derive utterances from plain transcript if Deepgram utterances missing
-        const fallbackUtterances = diarizedText.split(/\n+/).map((line) => {
-          // Match patterns like "Speaker 0: text" or "[Doctor]: text"
+        const fallbackUtterances = diarizedText.split(/\n+/).map((line, idx) => {
+          // Only match Speaker N: text, fallback to Speaker 0/1, never DOCTOR/PATIENT here
           const m1 = line.match(/^\s*Speaker\s+(\d+):\s*(.*)$/i);
-          const m2 = line.match(/^\s*\[(Doctor|Patient|Speaker\s*\d+)\]:\s*(.*)$/i);
-          let speaker = 'SPEAKER_0';
+          let speaker = `Speaker ${idx % 2}`;
           let text = line.trim();
           if (m1) {
             const sp = parseInt(m1[1], 10);
             speaker = `Speaker ${sp}`;
             text = m1[2];
-          } else if (m2) {
-            const role = m2[1];
-            speaker = role;
-            text = m2[2];
           }
           return { speaker, ts_start: 0, ts_end: 0, text, asr_conf: 1 };
-  }).filter(u => u.text && u.text.length > 0);
-  if (Array.isArray(fallbackUtterances) && fallbackUtterances.length > 0) {
+        }).filter(u => u.text && u.text.length > 0);
+        if (Array.isArray(fallbackUtterances) && fallbackUtterances.length > 0) {
           setDeepgramUtterances(
             fallbackUtterances.map(u => ({
               speaker: u.speaker,
