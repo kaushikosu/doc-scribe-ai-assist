@@ -437,62 +437,56 @@ const handleRecordingStateChange = (recordingState: boolean) => {
                 generateNewPatient();
               }}
             />
-            
             <HowToUseCard />
           </div>
-          
           <div className="md:col-span-8 space-y-6">
-<TranscriptEditor 
-  transcript={transcript} 
-  onTranscriptChange={setTranscript}
-  isRecording={isRecording}
-  mode={displayMode}
-  status={status}
-/>
-
-
-<div ref={prescriptionRef} className="animate-fade-in">
-  <PrescriptionGenerator 
-    key={sessionId}
-    transcript={transcript} 
-    patientInfo={patientInfo}
-    classifiedTranscript={classifiedTranscript}
-    currentPatient={currentPatientRecord}
-    sessionId={currentSessionRecord?.id}
-    prescription={prescription}
-    getFormattedPrescription={(fhirPrescription) => formatPrescriptionString(fhirPrescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord})}
-    onGeneratingStart={() => {
-      setProgressStep('generating');
-      setStatus({ type: 'generating', message: 'Generating prescription...' });
-    }}
-    onGenerated={async (generatedPrescription?: string) => {
-      setProgressStep('generated');
-      setStatus({ type: 'ready', message: 'Prescription generated' });
-      // Update consultation session with transcripts
-      if (currentSessionRecord) {
-        try {
-          // Save the formatted string for the DB, not the FHIR object
-          const formatted = formatPrescriptionString(prescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord});
-          console.log("Saving prescription to database:", formatted);
-          await updateConsultationSession(currentSessionRecord.id, {
-            live_transcript: transcript,
-            updated_transcript: classifiedTranscript,
-            prescription: formatted || '',
-            session_ended_at: new Date().toISOString()
-          });
-          console.log("Consultation session updated successfully");
-        } catch (error) {
-          console.error('Failed to update consultation session:', error);
-        }
-      }
-      prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }}
-  />
-
-
+            <TranscriptEditor 
+              transcript={transcript} 
+              onTranscriptChange={setTranscript}
+              isRecording={isRecording}
+              mode={displayMode}
+              status={status}
+            />
+            <div ref={prescriptionRef} className="animate-fade-in">
+              <PrescriptionGenerator 
+                key={sessionId}
+                transcript={transcript} 
+                patientInfo={patientInfo}
+                classifiedTranscript={classifiedTranscript}
+                currentPatient={currentPatientRecord}
+                sessionId={currentSessionRecord?.id}
+                prescription={prescription}
+                getFormattedPrescription={(fhirPrescription) => formatPrescriptionString(fhirPrescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord})}
+                onGeneratingStart={() => {
+                  setProgressStep('generating');
+                  setStatus({ type: 'generating', message: 'Generating prescription...' });
+                }}
+                onGenerated={async (generatedPrescription?: string) => {
+                  setProgressStep('generated');
+                  setStatus({ type: 'ready', message: 'Prescription generated' });
+                  // Update consultation session with transcripts
+                  if (currentSessionRecord) {
+                    try {
+                      // Save the formatted string for the DB, not the FHIR object
+                      const formatted = formatPrescriptionString(prescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord});
+                      console.log("Saving prescription to database:", formatted);
+                      await updateConsultationSession(currentSessionRecord.id, {
+                        live_transcript: transcript,
+                        updated_transcript: classifiedTranscript,
+                        prescription: formatted || '',
+                        session_ended_at: new Date().toISOString()
+                      });
+                      console.log("Consultation session updated successfully");
+                    } catch (error) {
+                      console.error('Failed to update consultation session:', error);
+                    }
+                  }
+                  prescriptionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              />
+            </div>
           </div>
         </div>
-        
         {/* Debug Panel */}
         <div className="mt-8">
           <DebugPanel
@@ -509,6 +503,6 @@ const handleRecordingStateChange = (recordingState: boolean) => {
       </div>
     </div>
   );
-}
+};
 
 export default DashboardPage;
