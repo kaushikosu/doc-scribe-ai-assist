@@ -498,10 +498,9 @@ const handleGenerateAI = () => {
           />
         ) : (
           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
-            {prescription && getMedicationStringFromFHIR(prescription) && getMedicationStringFromFHIR(prescription).length > 0 ? (
+            {prescription && getFormattedPrescription ? (
               <>
-                <div className="font-bold mb-2">Medications:</div>
-                <div>{getMedicationStringFromFHIR(prescription)}</div>
+                <pre className="whitespace-pre-wrap">{getFormattedPrescription(prescription)}</pre>
               </>
             ) : (
               <span className="font-sans text-muted-foreground block text-center">

@@ -297,16 +297,29 @@ const DashboardPage = () => {
       setCorrectedUtterances(correctedUtterances);
 
       // Generate revised transcript string from correctedUtterances (after AI speaker correction)
-  if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
-        // Each utterance should have speaker and text fields
-        const revisedTranscript = correctedUtterances
-          .map(u => `[${u.speaker}]: ${u.text}`)
-          .join('\n\n');
-        setClassifiedTranscript(revisedTranscript);
-        setTranscript(revisedTranscript);
-      }
 
-      setStatus({ type: 'processing', message: 'Processing medical information...' });
+  if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
+    // Use speaker label if it's not a fallback like 'Speaker 0/1', else use 'Doctor' or 'Patient' if available
+    const revisedTranscript = correctedUtterances
+      .map(u => {
+        let speaker = u.speaker;
+        if (/^Speaker\s*\d+$/i.test(speaker)) {
+          // Try to infer from role or fallback
+          if (u.role && typeof u.role === 'string') {
+            speaker = u.role.charAt(0).toUpperCase() + u.role.slice(1);
+          } else {
+            speaker = u.speaker === 'Speaker 0' ? 'Doctor' : u.speaker === 'Speaker 1' ? 'Patient' : u.speaker;
+          }
+        }
+        return `[${speaker}]: ${u.text}`;
+      })
+      .join('\n\n');
+    setClassifiedTranscript(revisedTranscript);
+    setTranscript(revisedTranscript);
+  }
+
+  // Set status to ready so transcript is visible and not stuck in 'processing'
+  setStatus({ type: 'ready', message: 'Transcript updated with correct speakers.' });
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
