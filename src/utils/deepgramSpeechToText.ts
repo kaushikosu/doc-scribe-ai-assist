@@ -9,6 +9,8 @@ export interface DeepgramResult {
   speakerTag?: number;
   error?: string;
   topics?: string[];
+  audioBlob?: Blob;  // Add audioBlob for diarization processing
+  utterances?: any[];  // Add utterances from diarization
 }
 
 // Helper function to format the transcript with speaker information
@@ -96,10 +98,13 @@ export const processCompleteAudio = async (
   apiKey: string,  // We'll still accept this for backwards compatibility, but won't use it
 ): Promise<{transcript: string, utterances?: DiarizedUtterance[], error?: string}> => {
   try {
+    console.log('[DEBUG] processCompleteAudio ENTRY - audioBlob size:', audioBlob?.size, 'apiKey present:', !!apiKey);
     console.log('Processing complete audio with Deepgram via backend server');
     
     // Convert blob to base64 for transmission
+    console.log('[DEBUG] About to convert blob to base64...');
     const base64Audio = await blobToBase64(audioBlob);
+    console.log('[DEBUG] Base64 conversion complete, length:', base64Audio?.length);
     
     // Determine the correct mime type for the blob
     let mimeType = audioBlob.type;

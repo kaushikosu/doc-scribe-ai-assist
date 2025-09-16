@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus } from 'lucide-react';
+import { Mic, MicOff, UserPlus, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import useDualTranscription from '@/hooks/useDualTranscription';
@@ -9,7 +9,8 @@ import { DeepgramResult } from '@/utils/deepgramSpeechToText';
 
 interface VoiceRecorderProps {
   onTranscriptUpdate: (transcript: string) => void;
-  onDiarizedTranscriptUpdate?: (transcript: string) => void;
+  onAudioProcessingComplete?: (audioBlob: Blob) => Promise<void>;
+  onDiarizedResultComplete?: (utterances: any[], audioBlob: Blob) => Promise<void>;
   onPatientInfoUpdate: (patientInfo: { name: string; time: string }) => void;
   onRecordingStateChange?: (isRecording: boolean) => void;
   onNewPatient?: () => void;
@@ -18,7 +19,8 @@ interface VoiceRecorderProps {
 
 const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ 
   onTranscriptUpdate, 
-  onDiarizedTranscriptUpdate,
+  onAudioProcessingComplete,
+  onDiarizedResultComplete,
   onPatientInfoUpdate,
   onRecordingStateChange,
   onNewPatient,
@@ -53,62 +55,38 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Get Deepgram API key from environment
   const deepgramApiKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
 
-  // Safe toast functions to avoid render-time calls
-
-  // Initialize dual transcription
-  const { 
-    isRecording: dualIsRecording, 
-    detectedLanguage,
-    startRecording, 
-    stopRecording,
-    toggleRecording: dualToggleRecording,
-    resetTranscript,
-    getAccumulatedTranscript,
-    processFinalAudio
-  } = useDualTranscription({
-    onRealtimeResult: handleSpeechResult,
-    onSilence: handleSilence,
-    pauseThreshold,
-    deepgramApiKey
-  });
-  
-  // Update local recording state when dual recording state changes
-  useEffect(() => {
-    setIsRecording(dualIsRecording);
-    if (dualIsRecording) setJustStopped(false);
+  // Memoized callback for diarized results
+  // NOTE: Using empty dependency array because onAudioProcessingComplete
+  // changes on every render due to processDiarizedTranscription dependencies
+  const handleDiarizedResult = useCallback(async (result: DeepgramResult) => {
+    console.log("🎯 [VOICE RECORDER] Diarized result received, triggering medical pipeline");
     
-    if (onRecordingStateChange) {
-      onRecordingStateChange(dualIsRecording);
+    // NEW: Use diarized utterances directly instead of calling Deepgram again
+    if (onDiarizedResultComplete && result.utterances && result.audioBlob) {
+      try {
+        console.log("🎯 [VOICE RECORDER] Calling onDiarizedResultComplete with utterances:", result.utterances.length, "utterances, blob:", result.audioBlob.size, "bytes");
+        await onDiarizedResultComplete(result.utterances, result.audioBlob);
+      } catch (error) {
+        console.error("Error in diarized result processing:", error);
+      }
+    } else if (onAudioProcessingComplete && result.audioBlob) {
+      // Fallback to old method if new callback not provided
+      try {
+        console.log("🎯 [VOICE RECORDER] Falling back to onAudioProcessingComplete with blob:", result.audioBlob.size, "bytes");
+        await onAudioProcessingComplete(result.audioBlob);
+      } catch (error) {
+        console.error("Error in audio processing complete:", error);
+      }
+    } else {
+      console.log("🎯 [VOICE RECORDER] No suitable callback or missing data");
+      console.log("🎯 [VOICE RECORDER] onDiarizedResultComplete:", !!onDiarizedResultComplete, "onAudioProcessingComplete:", !!onAudioProcessingComplete);
+      console.log("🎯 [VOICE RECORDER] utterances:", !!result.utterances, "audioBlob:", !!result.audioBlob);
     }
-  }, [dualIsRecording, onRecordingStateChange]);
-
-  // Log when transcript changes - useful for debugging
-  useEffect(() => {
-    console.log("VoiceRecorder raw transcript:", rawTranscript);
-    
-    // Ensure full transcript is passed to parent component
-    if (rawTranscript) {
-      updateTranscriptDebounced(rawTranscript);
-    }
-  }, [rawTranscript]);
-
-  // Improved transcript update function with better real-time performance
-  const updateTranscriptDebounced = (newTranscript: string) => {
-    if (transcriptUpdateTimeoutRef.current) {
-      clearTimeout(transcriptUpdateTimeoutRef.current);
-    }
-    
-    // Update immediately for better real-time feel
-    onTranscriptUpdate(newTranscript);
-    
-    // Also schedule a debounced update to catch any pending changes
-    transcriptUpdateTimeoutRef.current = setTimeout(() => {
-      onTranscriptUpdate(newTranscript);
-    }, 50); // Small delay for better responsiveness
-  };
+  }, []); // Keep empty until parent callback is truly stable
 
   // Handler for Web Speech results (real-time transcription)
-  function handleSpeechResult({ 
+  // NOTE: Now properly memoized with onTranscriptUpdate dependency
+  const handleSpeechResult = useCallback(({ 
     transcript: result, 
     isFinal, 
     resultIndex 
@@ -116,7 +94,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     transcript: string, 
     isFinal: boolean, 
     resultIndex: number
-  }) {
+  }) => {
     // For diagnostic purposes
     console.log("Received speech result:", { result, isFinal, resultIndex });
     
@@ -157,30 +135,68 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
       // Update both the reference and the parent component
       onTranscriptUpdate(updatedTranscript);
     }
-  }
+  }, [onTranscriptUpdate]); // Now that parent callback is stable
+
+  // Safe toast functions to avoid render-time calls
+
+  // Initialize dual transcription
+  const {
+    isRecording: dualIsRecording, 
+    detectedLanguage,
+    startRecording, 
+    stopRecording,
+    toggleRecording: dualToggleRecording,
+    resetTranscript,
+    getAccumulatedTranscript,
+    lastRecordedBlob,
+    downloadLastRecording
+  } = useDualTranscription({
+    onRealtimeResult: handleSpeechResult,
+    onDiarizedResult: handleDiarizedResult,
+    onSilence: handleSilence,
+    pauseThreshold,
+    deepgramApiKey
+  });
   
+  // Update local recording state when dual recording state changes
+  useEffect(() => {
+    setIsRecording(dualIsRecording);
+    if (dualIsRecording) setJustStopped(false);
+    
+    if (onRecordingStateChange) {
+      onRecordingStateChange(dualIsRecording);
+    }
+  }, [dualIsRecording, onRecordingStateChange]);
+
+  // Log when transcript changes - useful for debugging
+  useEffect(() => {
+    console.log("VoiceRecorder raw transcript:", rawTranscript);
+    
+    // Ensure full transcript is passed to parent component
+    if (rawTranscript) {
+      updateTranscriptDebounced(rawTranscript);
+    }
+  }, [rawTranscript]);
+
+  // Improved transcript update function with better real-time performance
+  const updateTranscriptDebounced = (newTranscript: string) => {
+    if (transcriptUpdateTimeoutRef.current) {
+      clearTimeout(transcriptUpdateTimeoutRef.current);
+    }
+    
+    // Update immediately for better real-time feel
+    onTranscriptUpdate(newTranscript);
+    
+    // Also schedule a debounced update to catch any pending changes
+    transcriptUpdateTimeoutRef.current = setTimeout(() => {
+      onTranscriptUpdate(newTranscript);
+    }, 50); // Small delay for better responsiveness
+  };
 
   // Start a new session
   const startNewSession = async () => {
     setJustStopped(false);
-    // Process final audio for improved diarization if we have recorded audio
-    if (audioBlob) {
-      setProcessingTranscript(true);
-      
-      // Get final diarized transcript if possible
-      try {
-        const finalDiarizedTranscript = await processFinalAudio(audioBlob);
-        if (finalDiarizedTranscript && onDiarizedTranscriptUpdate) {
-          setDiarizedTranscript(finalDiarizedTranscript);
-          onDiarizedTranscriptUpdate(finalDiarizedTranscript);
-        }
-      } catch (error) {
-        console.error("Error processing final audio:", error);
-      }
-      
-      setProcessingTranscript(false);
-      setAudioBlob(null);
-    }
+    // REMOVE duplicate audio processing - this is now handled by useDualTranscription
     
     // Reset everything
     resetTranscript();
@@ -189,7 +205,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     setDiarizedTranscript('');
     diarizedMessagesRef.current = [];
     onTranscriptUpdate('');
-    if (onDiarizedTranscriptUpdate) onDiarizedTranscriptUpdate('');
     onNewPatient?.();
   };
 
@@ -230,18 +245,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         const recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
         setAudioBlob(recordedBlob);
         
-        // Process with Deepgram now if needed
-        if (onDiarizedTranscriptUpdate) {
-          try {
-            const finalDiarizedTranscript = await processFinalAudio(recordedBlob);
-            if (finalDiarizedTranscript) {
-              setDiarizedTranscript(finalDiarizedTranscript);
-              onDiarizedTranscriptUpdate(finalDiarizedTranscript);
-            }
-          } catch (error) {
-            console.error("Error processing final audio:", error);
-          }
-        }
+        // REMOVE duplicate processing - this is now handled by useDualTranscription
         
         setProcessingTranscript(false);
         
@@ -316,6 +320,15 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 disabled={isRecording || processingTranscript}
               >
                 <UserPlus className="h-8 w-8" />
+              </Button>
+              
+              <Button
+                onClick={downloadLastRecording}
+                className="w-16 h-16 rounded-full flex justify-center items-center bg-green-600 hover:bg-green-700 shadow-lg transition-all mx-auto sm:mx-0"
+                disabled={!lastRecordedBlob || isRecording}
+                title="Download last recording"
+              >
+                <Download className="h-8 w-8" />
               </Button>
             </div>
             

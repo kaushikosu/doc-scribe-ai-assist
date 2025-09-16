@@ -9,6 +9,7 @@ export type StatusType =
   | 'recording'
   | 'processing'
   | 'classifying'
+  | 'classified'
   | 'generating'
   | 'generated'
   | 'error';
@@ -37,6 +38,10 @@ export const STATUS_CONFIG: Record<StatusType, Omit<StatusBarState, 'type'>> = {
     message: 'Classifying speakers...',
     icon: <Edit className="h-5 w-5 text-indigo-500 animate-pulse" />, color: 'indigo'
   },
+  classified: {
+    message: 'Speakers classified',
+    icon: <Check className="h-5 w-5 text-blue-600" />, color: 'blue'
+  },
   generating: {
     message: 'Generating prescription...',
     icon: <Loader2 className="h-5 w-5 text-green-500 animate-spin" />, color: 'green'
@@ -48,10 +53,6 @@ export const STATUS_CONFIG: Record<StatusType, Omit<StatusBarState, 'type'>> = {
   error: {
     message: 'Error',
     icon: <AlertTriangle className="h-5 w-5 text-red-500" />, color: 'red'
-  },
-  transcriptReady: {
-    message: 'Transcript updated with correct speakers.',
-    icon: <Check className="h-5 w-5 text-green-600" />, color: 'green'
   },
 };
 

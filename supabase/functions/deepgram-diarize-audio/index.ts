@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface DiarizedUtterance {
-  speaker: string; // "DOCTOR", "PATIENT", or "SPEAKER_X"
+  speaker: string; // "SPEAKER_0", "SPEAKER_1", etc.
   ts_start: number; // Start time in seconds
   ts_end: number; // End time in seconds  
   text: string; // The utterance text
@@ -35,6 +35,11 @@ serve(async (req) => {
 
     console.log(`Processing audio for diarization: ${Math.round(audio.length / 1024)} KB, type: ${mimeType}`);
     
+    // Validate audio size - diarization needs sufficient audio
+    if (audio.length < 50000) { // Less than ~50KB base64 is probably too short
+      console.warn('Audio file may be too short for reliable diarization');
+    }
+    
     // Convert base64 to binary
     const binaryString = atob(audio);
     const bytes = new Uint8Array(binaryString.length);
@@ -46,7 +51,8 @@ serve(async (req) => {
     const audioBuffer = bytes.buffer;
     
     // Configure Deepgram request with diarization
-    const deepgramUrl = 'https://api.deepgram.com/v1/listen?' + new URLSearchParams({
+    // Note: Diarization requires longer audio samples (typically 10+ seconds)
+    const urlParams: Record<string, string> = {
       model: 'nova-2',
       language: 'en',
       punctuate: 'true',
@@ -54,15 +60,30 @@ serve(async (req) => {
       smart_format: 'true',
       paragraphs: 'true',
       utterances: 'true'
-    });
+    };
+    
+    // Only add encoding/sample_rate for raw audio formats
+    if (!mimeType || (!mimeType.includes('webm') && !mimeType.includes('mp4'))) {
+      urlParams.encoding = 'linear16';
+      urlParams.sample_rate = '16000';
+    }
+    
+    const deepgramUrl = 'https://api.deepgram.com/v1/listen?' + new URLSearchParams(urlParams);
 
     console.log('Sending request to Deepgram API...');
+    
+    // For WebM audio, use a generic audio content type that Deepgram handles better
+    let contentType = mimeType || 'application/octet-stream';
+    if (mimeType && mimeType.includes('webm')) {
+      contentType = 'audio/webm'; // Simplified content type for better compatibility
+      console.log('Adjusted WebM content type for Deepgram compatibility');
+    }
     
     const response = await fetch(deepgramUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-        'Content-Type': mimeType || 'application/octet-stream'
+        'Content-Type': contentType
       },
       body: audioBuffer,
     });
@@ -75,14 +96,28 @@ serve(async (req) => {
 
     const deepgramData = await response.json();
     console.log('Deepgram response received, processing...');
+    console.log('Full Deepgram response:', JSON.stringify(deepgramData, null, 2));
 
     // Extract utterances from Deepgram response - handle new format
     const utterances = deepgramData.results?.utterances || [];
     console.log('Utterances are: ', utterances);
     
-    // Map utterances to expected format with proper speaker mapping
+    // Also check if we have basic transcript even if no diarization
+    const basicTranscript = deepgramData.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    console.log('Basic transcript length:', basicTranscript.length);
+    console.log('Basic transcript:', basicTranscript.substring(0, 200) + '...');
+    
+    // Log more details about the response structure
+    console.log('Response structure check:');
+    console.log('- Has results:', !!deepgramData.results);
+    console.log('- Has channels:', !!deepgramData.results?.channels);
+    console.log('- Has utterances:', !!deepgramData.results?.utterances);
+    console.log('- Has paragraphs:', !!deepgramData.results?.channels?.[0]?.alternatives?.[0]?.paragraphs);
+    console.log('- Confidence score:', deepgramData.results?.channels?.[0]?.alternatives?.[0]?.confidence);
+    
+    // Map utterances to expected format with generic speaker labels
     const processedUtterances = utterances.map((utterance: any) => ({
-      speaker: utterance.speaker === 0 ? 'DOCTOR' : utterance.speaker === 1 ? 'PATIENT' : `SPEAKER_${utterance.speaker}`,
+      speaker: `SPEAKER_${utterance.speaker || 0}`,
       ts_start: Math.round((utterance.start || 0) * 100) / 100,
       ts_end: Math.round((utterance.end || 0) * 100) / 100,
       text: utterance.transcript || '',
@@ -90,9 +125,22 @@ serve(async (req) => {
     }));
     
     // Create formatted transcript for backward compatibility
-    const formattedTranscript = processedUtterances.length > 0 
-      ? processedUtterances.map(u => `Speaker ${u.speaker === 'DOCTOR' ? '0' : u.speaker === 'PATIENT' ? '1' : u.speaker.split('_')[1]}: ${u.text}`).join('\n\n')
-      : deepgramData.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    let formattedTranscript = '';
+    
+    if (processedUtterances.length > 0) {
+      // Use diarized utterances with generic speaker numbers
+      formattedTranscript = processedUtterances.map((u: any) => `Speaker ${u.speaker.split('_')[1]}: ${u.text}`).join('\n\n');
+    } else {
+      // Fallback: use basic transcript without creating fake utterances
+      // Let the client-side handle non-diarized content appropriately
+      const basicTranscript = deepgramData.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+      if (basicTranscript && basicTranscript.trim()) {
+        formattedTranscript = basicTranscript; // Return raw transcript without speaker labels
+        console.log('Diarization failed, returning basic transcript without speaker assignment');
+      } else {
+        console.log('No transcript available from Deepgram');
+      }
+    }
 
     const result = {
       transcript: formattedTranscript,
@@ -109,9 +157,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in deepgram-diarize-audio function:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: errorMessage,
         transcript: '',
         utterances: []
       }), {
@@ -131,9 +180,7 @@ function extractUtterancesFromDeepgramResponse(data: any): DiarizedUtterance[] {
     const paragraphs = data?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
     if (paragraphs && Array.isArray(paragraphs)) {
       return paragraphs.map((paragraph: any) => {
-        const speaker = paragraph.speaker !== undefined ? 
-          (paragraph.speaker === 0 ? 'DOCTOR' : paragraph.speaker === 1 ? 'PATIENT' : `SPEAKER_${paragraph.speaker}`) :
-          'SPEAKER_0';
+        const speaker = `SPEAKER_${paragraph.speaker !== undefined ? paragraph.speaker : 0}`;
         
         return {
           speaker,
@@ -182,7 +229,7 @@ function groupWordsIntoUtterances(words: any[]): DiarizedUtterance[] {
     currentWords.push(word);
     
     if (index === words.length - 1 && currentWords.length > 0) {
-      utterances.push(createUtteranceFromDeepgramWords(currentWords, currentSpeaker));
+      utterances.push(createUtteranceFromDeepgramWords(currentWords, currentSpeaker || 0));
     }
   });
   
@@ -196,7 +243,7 @@ function createUtteranceFromDeepgramWords(words: any[], speakerTag: number): Dia
   const confidences = words.filter(w => w.confidence !== undefined).map(w => w.confidence);
   const asr_conf = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0.8;
   
-  const speaker = speakerTag === 0 ? 'DOCTOR' : speakerTag === 1 ? 'PATIENT' : `SPEAKER_${speakerTag}`;
+  const speaker = `SPEAKER_${speakerTag}`;
   
   return {
     speaker,

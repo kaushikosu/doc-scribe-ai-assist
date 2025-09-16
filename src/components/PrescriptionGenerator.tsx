@@ -42,7 +42,7 @@ interface PrescriptionGeneratorProps {
   sessionId?: string;
   prescription?: any;
   getFormattedPrescription?: (fhirPrescription: any) => string;
-  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error'; message?: string };
+  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'classified' | 'generating' | 'generated' | 'error'; message?: string };
 }
 
 const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({ 
@@ -485,12 +485,8 @@ const handleGenerateAI = () => {
              </p>
            </div>
          ) : !!status && status.type === 'generated' ? (
-           <div className="min-h-[300px] p-4 rounded-md flex flex-col justify-center items-center">
-             <Check className="h-8 w-8 text-green-600 mb-2" />
-             <p className="font-medium text-green-700">{STATUS_CONFIG.generated.message}</p>
-             <div className="p-4 rounded-md min-h-[200px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200 w-full mt-2">
-               <pre className="whitespace-pre-wrap">{getFormattedPrescription ? getFormattedPrescription(prescription) : ''}</pre>
-             </div>
+           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
+             <pre className="whitespace-pre-wrap">{getFormattedPrescription ? getFormattedPrescription(prescription) : ''}</pre>
            </div>
          ) : isEditing ? (
           <Textarea

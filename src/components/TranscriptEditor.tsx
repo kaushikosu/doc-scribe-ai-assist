@@ -13,7 +13,7 @@ interface TranscriptEditorProps {
   onTranscriptChange: (transcript: string) => void;
   isRecording: boolean;
   mode?: 'live' | 'revised';
-  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error'; message?: string };
+  status?: { type: 'ready' | 'recording' | 'processing' | 'classifying' | 'classified' | 'generating' | 'generated' | 'error'; message?: string };
 }
 
 const TranscriptEditor: React.FC<TranscriptEditorProps> = ({ 

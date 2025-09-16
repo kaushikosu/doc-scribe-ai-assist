@@ -7,6 +7,7 @@ export type StatusType =
   | "recording"
   | "processing"
   | "classifying"
+  | "classified"
   | "generating"
   | "generated"
   | "error";
@@ -20,6 +21,7 @@ const iconMap: Record<StatusType, React.ReactNode> = {
   recording: <Mic className="h-4 w-4" />,
   processing: <Loader2 className="h-4 w-4 animate-spin" />,
   classifying: <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />,
+  classified: <CheckCircle2 className="h-4 w-4 text-blue-500" />,
   generating: <Loader2 className="h-4 w-4 animate-spin text-green-500" />,
   generated: <CheckCircle2 className="h-4 w-4 text-green-600" />,
   error: <TriangleAlert className="h-4 w-4" />,
@@ -30,6 +32,7 @@ const badgeDot: Record<StatusType, string> = {
   recording: "bg-destructive",
   processing: "bg-doctor-secondary",
   classifying: "bg-doctor-secondary",
+  classified: "bg-blue-500",
   generating: "bg-doctor-secondary",
   generated: "bg-doctor-primary",
   error: "bg-destructive",
@@ -42,6 +45,8 @@ export default function StatusBanner({ status }: StatusBannerProps) {
     {
       recording: "Recording in progress",
       processing: "Updating transcript...",
+      classifying: "Classifying speakers...",
+      classified: "Speakers classified",
       updated: "Transcript updated",
       generating: "Generating prescription...",
       ready: "Prescription ready",

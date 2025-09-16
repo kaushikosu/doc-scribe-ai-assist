@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSessionState } from '@/components/SessionStateContext';
 // Only import mock for test/dev usage
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -69,7 +69,7 @@ const DashboardPage = () => {
   const [soap, setSoap] = useState<any>(null);
   // Store prescription as FHIR object only
   const [prescription, setPrescription] = useState<any>(null);
-  type StatusType = 'ready' | 'recording' | 'processing' | 'classifying' | 'generating' | 'generated' | 'error';
+  type StatusType = 'ready' | 'recording' | 'processing' | 'classifying' | 'classified' | 'generating' | 'generated' | 'error';
   type ProgressStep = 'recording' | 'processing' | 'generating' | 'generated';
   const [status, setStatus] = useState<{ type: StatusType; message?: string }>({ type: 'ready' });
   const [progressStep, setProgressStep] = useState<ProgressStep>('recording');
@@ -209,14 +209,9 @@ const DashboardPage = () => {
         console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
 
-        // Only set transcript/classifiedTranscript if not already classified (i.e., not already Doctor/Patient)
-        // Only set transcript/classifiedTranscript if in 'live' mode (before speaker correction)
-        if (displayMode === 'live' && !isTranscriptFinalizedRef.current) {
-          setClassifiedTranscript(diarizedText);
-          setTranscript(diarizedText, 'diarization (displayMode live, not finalized)');
-        } else {
-          console.log('[DEBUG] Skipped setTranscript from diarization because isTranscriptFinalizedRef:', isTranscriptFinalizedRef.current);
-        }
+        // DON'T set transcript here - let medical pipeline handle final transcript update
+        // This prevents the race condition where diarization overwrites classified transcript
+        console.log('[DEBUG] Skipping transcript update from diarization - medical pipeline will handle final transcript');
         setDisplayMode('revised');
   console.log('[DEBUG] setStatus: generating (Generating prescription...)');
         if (!isTranscriptFinalizedRef.current) {
@@ -286,6 +281,8 @@ const DashboardPage = () => {
         throw new Error(correctError.message || 'Failed to classify speakers');
       }
 
+      console.log('🎯 [CLASSIFICATION] Raw response from edge function:', correctedData);
+
       const correctedUtterances = correctedData?.utterances || correctedData;
       if (!correctedUtterances || !Array.isArray(correctedUtterances)) {
         throw new Error('No corrected utterances returned from speaker classification');
@@ -303,25 +300,38 @@ const DashboardPage = () => {
         return; // Do not proceed to show transcript
       }
 
-
       setCorrectedUtterances(correctedUtterances);
 
       // Generate revised transcript string from correctedUtterances (after AI speaker correction)
+      if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
+        // Use the speaker label as returned by correct-transcript-speakers, no fallback/hardcoding
+        const revisedTranscript = correctedUtterances
+          .map(u => `[${u.speaker}]: ${u.text}`)
+          .join('\n');
+        setClassifiedTranscript(revisedTranscript);
+        setTranscript(revisedTranscript, 'after speaker classification');
+        setDisplayMode('revised'); // Ensure display mode is set to show the revised transcript
+        
+        // Update diarizedTranscription with the classified utterances for color-coded display
+        setDiarizedTranscription(prev => ({
+          transcript: revisedTranscript,
+          utterances: correctedUtterances,
+          error: prev?.error
+        }));
+      }
 
-  if (Array.isArray(correctedUtterances) && correctedUtterances.length > 0) {
-    // Use the speaker label as returned by correct-transcript-speakers, no fallback/hardcoding
-    const revisedTranscript = correctedUtterances
-      .map(u => `[${u.speaker}]: ${u.text}`)
-      .join('\n\n');
-    setClassifiedTranscript(revisedTranscript);
-    setTranscript(revisedTranscript);
-  }
+      // Show the transcript with proper speaker labels first
+      console.log('[DEBUG] setStatus: classified (Transcript updated with speakers)');
+      setStatus({ type: 'classified', message: 'Transcript updated with correct speakers.' });
+      debugSetIsTranscriptFinalized(true, 'after speaker classification');
 
-  // Switch to generating phase as soon as speakers are classified
-  console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
-  console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: after speaker classification');
-  setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
-  debugSetIsTranscriptFinalized(true, 'after speaker classification');
+  // Wait a moment to let user see the classified transcript, then start prescription generation
+  setTimeout(async () => {
+    console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
+    console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: after speaker classification');
+    setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
+
+    try {
 
       // 2. Call process-medical-transcript with the corrected utterances
       const { data, error } = await supabase.functions.invoke('process-medical-transcript', {
@@ -367,21 +377,27 @@ const DashboardPage = () => {
         prescription: result.prescription,
       });
     } catch (error) {
-      console.error('Error in medical pipeline:', error);
+      console.error('Error in medical pipeline (prescription generation):', error);
       setStatus({ type: 'error', message: 'Medical processing error: ' + String(error) });
+    }
+  }, 1500); // 1.5 second delay to show the transcript
+
+    } catch (error) {
+      console.error('Error in medical pipeline (speaker classification):', error);
+      setStatus({ type: 'error', message: 'Speaker classification error: ' + String(error) });
     }
   };
 
 
   // Handle recording start - create patient if none exists
-  const handleRecordingStart = async () => {
+  const handleRecordingStart = useCallback(async () => {
     debugSetIsTranscriptFinalized(false, 'recording start');
     if (!currentPatientRecord) {
       await generateNewPatient();
     }
-  };
+  }, [currentPatientRecord, generateNewPatient]);
   
-const handleRecordingStateChange = (recordingState: boolean) => {
+const handleRecordingStateChange = useCallback((recordingState: boolean) => {
   console.log("Recording state changed to:", recordingState);
   setIsRecording(recordingState);
 
@@ -389,9 +405,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     if (!hasRecordingStarted) setHasRecordingStarted(true);
     setDisplayMode('live');
     setProgressStep('recording');
-    if (status.type !== 'recording') {
-      setStatus({ type: 'recording', message: 'Recording in progress' });
-    }
+    setStatus({ type: 'recording', message: 'Recording in progress' });
   } else if (hasRecordingStarted) {
     setDisplayMode('revised');
     setProgressStep('processing');
@@ -399,9 +413,73 @@ const handleRecordingStateChange = (recordingState: boolean) => {
     setStatus({ type: 'processing', message: 'Updating transcript...' });
     // Diarization is now only triggered in onRecordingComplete
   }
-};
+  }, [hasRecordingStarted]);
 
-  // Only expose the mock button in development or if a test flag is set
+  const handleTranscriptUpdateCallback = useCallback((t: string) => {
+    setTranscript(t);
+    setLiveTranscript(t);
+  }, []); // No dependencies needed since setters are stable
+
+  const handleNewPatient = useCallback(() => {
+    setIsRecording(false);
+    setHasRecordingStarted(false);
+    setDisplayMode('live');
+    setTranscript('');
+    setClassifiedTranscript('');
+    setDiarizedTranscription(null);
+    setLiveTranscript('');
+    setDeepgramTranscript('');
+    setDeepgramUtterances([]);
+    setIr(null);
+    setSoap(null);
+    setPrescription(null);
+    setProgressStep('recording');
+    setStatus({ type: 'ready' });
+    setSessionId(id => id + 1);
+    debugSetIsTranscriptFinalized(false, 'new patient/session');
+    generateNewPatient();
+  }, [generateNewPatient]);
+
+  const handleAudioProcessingComplete = useCallback(async (audioBlob: Blob) => {
+    console.log("🎯 [DASHBOARD] onAudioProcessingComplete called with blob:", audioBlob.size, "bytes");
+    await processDiarizedTranscription(audioBlob);
+  }, []); // processDiarizedTranscription doesn't need to be memoized for this use case
+
+  // NEW: Handle diarized utterances directly (no duplicate Deepgram call)
+  const handleDiarizedResultComplete = useCallback(async (utterances: any[], audioBlob: Blob) => {
+    console.log("🎯 [DASHBOARD] onDiarizedResultComplete called with", utterances.length, "utterances, blob:", audioBlob.size, "bytes");
+    
+    setIsDiarizing(true);
+    setStatus({ type: 'processing', message: 'Classifying speakers...' });
+    
+    try {
+      // Store utterances for debug panel
+      setDeepgramUtterances(
+        utterances.map(u => ({
+          speaker: u.speaker,
+          start: u.ts_start,
+          end: u.ts_end,
+          transcript: u.text,
+          confidence: u.asr_conf
+        }))
+      );
+      
+      // Generate transcript for debug panel
+      const diarizedText = utterances
+        .map(u => `${u.speaker}: ${u.text}`)
+        .join('\n');
+      setDeepgramTranscript(diarizedText);
+      
+      // Process with medical pipeline directly using existing utterances
+      await processWithMedicalPipeline(utterances);
+      
+    } catch (error) {
+      console.error("Error processing diarized utterances:", error);
+      setStatus({ type: 'error', message: 'Error processing diarized audio: ' + String(error) });
+    } finally {
+      setIsDiarizing(false);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-doctor-light via-white to-doctor-light/20">
@@ -411,29 +489,13 @@ const handleRecordingStateChange = (recordingState: boolean) => {
         <div className="grid gap-6 md:grid-cols-12">
           <div className="md:col-span-4 space-y-6">
             <VoiceRecorder 
-              onTranscriptUpdate={(t) => handleTranscriptUpdate(t, setTranscript, setLiveTranscript)}
+              onTranscriptUpdate={handleTranscriptUpdateCallback}
+              onAudioProcessingComplete={handleAudioProcessingComplete}
+              onDiarizedResultComplete={handleDiarizedResultComplete}
               onPatientInfoUpdate={handlePatientInfoUpdate}
               onRecordingStateChange={handleRecordingStateChange}
               onRecordingStart={handleRecordingStart}
-              onNewPatient={() => {
-                setIsRecording(false);
-                setHasRecordingStarted(false);
-                setDisplayMode('live');
-                setTranscript('');
-                setClassifiedTranscript('');
-                setDiarizedTranscription(null);
-                setLiveTranscript('');
-                setDeepgramTranscript('');
-                setDeepgramUtterances([]);
-                setIr(null);
-                setSoap(null);
-                setPrescription(null);
-                setProgressStep('recording');
-                setStatus({ type: 'ready' });
-                setSessionId(id => id + 1);
-                debugSetIsTranscriptFinalized(false, 'new patient/session');
-                generateNewPatient();
-              }}
+              onNewPatient={handleNewPatient}
             />
             <HowToUseCard />
           </div>
@@ -493,6 +555,7 @@ const handleRecordingStateChange = (recordingState: boolean) => {
             deepgramTranscript={deepgramTranscript}
             deepgramUtterances={deepgramUtterances}
             correctedUtterances={correctedUtterances}
+            classifiedTranscript={classifiedTranscript}
             ir={ir}
             soap={soap}
             prescription={prescription}

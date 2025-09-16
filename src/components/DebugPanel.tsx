@@ -17,6 +17,7 @@ interface DebugPanelProps {
     start?: number;
     end?: number;
   }>;
+  classifiedTranscript?: string;
   ir?: any;
   soap?: any;
   prescription?: any;
@@ -28,6 +29,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
   deepgramTranscript,
   deepgramUtterances = [],
   correctedUtterances = [],
+  classifiedTranscript = '',
   ir,
   soap,
   prescription,
@@ -175,12 +177,38 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               </CardContent>
             </Card>
 
+            {/* Classified Transcript */}
+            <Card className="h-64">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${classifiedTranscript ? 'bg-green-500' : 'bg-muted'}`} />
+                  3. Classified Transcript
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Doctor/Patient labeled</p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-40 overflow-y-auto bg-muted/50 p-3 rounded text-xs leading-relaxed">
+                  {classifiedTranscript ? (
+                    formatParagraphs(classifiedTranscript).map((paragraph, index) => (
+                      <p key={index} className="mb-2 last:mb-0">
+                        {paragraph}
+                      </p>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground italic">
+                      Waiting for speaker classification...
+                    </span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* IR */}
             <Card className="h-64">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${ir ? 'bg-purple-500' : 'bg-muted'}`} />
-                  3. IR
+                  4. IR
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Intermediate Representation</p>
               </CardHeader>
@@ -221,7 +249,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${soap ? 'bg-green-500' : 'bg-muted'}`} />
-                  4. SOAP
+                  5. SOAP
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">Clinical note format</p>
               </CardHeader>
@@ -268,7 +296,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${prescription ? 'bg-orange-500' : 'bg-muted'}`} />
-                  5. Prescription
+                  6. Prescription
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">FHIR MedicationRequest</p>
               </CardHeader>

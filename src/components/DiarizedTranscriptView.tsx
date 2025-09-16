@@ -125,11 +125,12 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
   };
 
   // Render structured utterances with timing and confidence
-  const renderStructuredUtterances = (utterances: DiarizedUtterance[]) => {
+  const renderStructuredUtterances = (utterances: any[]) => {
     return utterances.map((utterance, index) => {
-      const roleColor = utterance.speaker === 'DOCTOR' 
+      const speakerNormalized = utterance.speaker?.toUpperCase?.() || '';
+      const roleColor = speakerNormalized === 'DOCTOR' 
         ? 'text-blue-600 font-semibold' 
-        : utterance.speaker === 'PATIENT'
+        : speakerNormalized === 'PATIENT'
         ? 'text-green-600 font-semibold'
         : 'text-purple-600 font-semibold';
 
@@ -139,23 +140,31 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
         return `${mins}:${secs.padStart(4, '0')}`;
       };
 
+      // Check if timing information is available
+      const hasTiming = utterance.ts_start !== undefined && utterance.ts_end !== undefined;
+      const hasConfidence = utterance.asr_conf !== undefined;
+
       return (
         <div key={index} className="mb-4 p-3 rounded-lg border border-gray-200 bg-white">
           <div className="flex items-center justify-between mb-2">
             <span className={`${roleColor} text-sm font-medium`}>
               [{utterance.speaker}]
             </span>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {formatTime(utterance.ts_start)} - {formatTime(utterance.ts_end)}
-              </span>
-              <span className="bg-gray-100 px-2 py-0.5 rounded">
-                Conf: {(utterance.asr_conf * 100).toFixed(0)}%
-              </span>
-            </div>
+            {hasTiming && (
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatTime(utterance.ts_start)} - {formatTime(utterance.ts_end)}
+                </span>
+                {hasConfidence && (
+                  <span className="text-xs">
+                    {Math.round(utterance.asr_conf * 100)}% conf
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-foreground leading-relaxed">{utterance.text}</p>
+          <p className="text-sm leading-relaxed text-gray-700">{utterance.text}</p>
         </div>
       );
     });

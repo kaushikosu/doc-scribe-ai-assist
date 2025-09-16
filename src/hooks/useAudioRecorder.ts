@@ -31,7 +31,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
   
   const startRecording = useCallback(async () => {
     try {
-      console.log("Starting audio recording for diarization...");
+      console.log("🚀 [START RECORDING] Function called - beginning audio recording setup...");
       setRecordingStatus('initializing');
       
       // Try to get audio stream with optimal quality settings
@@ -44,19 +44,31 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
         } 
       });
       
-      console.log("Audio stream obtained successfully");
+      console.log("🎧 [AUDIO STREAM] Audio stream obtained successfully");
       streamRef.current = stream;
       
-      // Determine the best supported audio format
-      let mimeType = 'audio/mp4';
+      // Determine the best supported audio format for Deepgram diarization
+      // Prefer formats that work better with Deepgram
+      console.log(`[AUDIO DEBUG] Checking audio format support...`);
+      console.log(`[AUDIO DEBUG] audio/mp4 supported:`, MediaRecorder.isTypeSupported('audio/mp4'));
+      console.log(`[AUDIO DEBUG] audio/wav supported:`, MediaRecorder.isTypeSupported('audio/wav'));
+      console.log(`[AUDIO DEBUG] audio/webm;codecs=opus supported:`, MediaRecorder.isTypeSupported('audio/webm;codecs=opus'));
+      console.log(`[AUDIO DEBUG] audio/webm supported:`, MediaRecorder.isTypeSupported('audio/webm'));
+      
+      let mimeType = 'audio/mp4'; // Start with MP4 instead of WAV
       
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        console.warn('M4A/MP4 recording is not supported in this browser, falling back to WebM');
-        mimeType = 'audio/webm;codecs=opus';
+        console.warn('MP4 recording not supported, trying WAV...');
+        mimeType = 'audio/wav';
         
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-          // Fall back further if needed
-          mimeType = 'audio/webm';
+          console.warn('WAV recording not supported, trying WebM with Opus...');
+          mimeType = 'audio/webm;codecs=opus';
+          
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.warn('WebM+Opus not supported, falling back to basic WebM...');
+            mimeType = 'audio/webm';
+          }
         }
       }
       
@@ -67,6 +79,8 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
         audioBitsPerSecond: 128000 // 128 kbps
       });
       
+      console.log(`[AUDIO DEBUG] MediaRecorder created with mimeType: ${mimeType}, audioBitsPerSecond: 128000`);
+      
       mediaRecorderRef.current = mediaRecorder;
 
       // Create a scoped array for this recording session to prevent race conditions
@@ -74,15 +88,18 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
-          console.log(`Audio chunk received: ${event.data.size} bytes`);
+          console.log(`🎵 [AUDIO CHUNK] Received: ${event.data.size} bytes, type: ${event.data.type}, total chunks: ${audioChunks.length + 1}`);
           audioChunks.push(event.data);
+        } else {
+          console.error(`❌ [AUDIO CHUNK] Empty or invalid chunk:`, event.data);
         }
       };
       
       // Define onstop handler before starting the recorder
       mediaRecorder.onstop = () => {
         // Log regardless of mounted state for debugging
-        console.log(`Recording stopped, processing ${audioChunks.length} audio chunks`);
+        console.log(`🛑 [RECORDER STOP] Recording stopped, processing ${audioChunks.length} audio chunks`);
+        console.log(`📊 [RECORDER STOP] Individual chunk sizes:`, audioChunks.map(chunk => chunk.size));
         
         // Only prevent state updates if component is unmounted
         if (!mountedRef.current) {
@@ -120,7 +137,11 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
           }
           
           const blob = new Blob(audioChunks, { type: mimeType });
-          console.log(`Created audio blob: ${blob.size} bytes, type: ${mimeType}`);
+          console.log(`🎯 [FINAL BLOB] Created audio blob: ${blob.size} bytes, type: ${mimeType}`);
+          console.log(`📈 [FINAL BLOB] Audio chunks count: ${audioChunks.length}, total size: ${blob.size} bytes`);
+          console.log(`⏱️ [FINAL BLOB] Recording duration: ${recordingDuration} seconds`);
+          console.log(`📐 [FINAL BLOB] Expected size for ${recordingDuration}s: ~${recordingDuration * 16000} bytes (rough estimate for 16kHz audio)`);
+          console.log(`📊 [FINAL BLOB] Actual vs Expected ratio: ${blob.size / (recordingDuration * 16000)}`);
           
           if (blob.size < 100) {
             console.warn("Audio blob is too small, likely empty");
@@ -147,8 +168,9 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
       };
       
       // Start recording with more frequent data collection
-      mediaRecorder.start(500); // Collect data every 500ms for more reliable chunks
-      console.log("MediaRecorder started successfully");
+      console.log(`🎤 [RECORDER START] Starting MediaRecorder.start() with format: ${mimeType}`);
+      mediaRecorder.start(1000); // Changed from 500ms to 1000ms for larger chunks
+      console.log(`✅ [RECORDER START] MediaRecorder started successfully, state: ${mediaRecorder.state}`);
       setIsRecording(true);
       setRecordingDuration(0);
       setRecordingStatus('recording');
@@ -173,6 +195,7 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
   }, [onRecordingComplete]);
   
   const stopRecording = useCallback(() => {
+    console.log("[AUDIO DEBUG] stopRecording called, isRecording:", isRecording);
     console.log("Stopping audio recording");
     if (timerRef.current) {
       window.clearInterval(timerRef.current);
@@ -180,18 +203,20 @@ const useAudioRecorder = ({ onRecordingComplete }: UseAudioRecorderProps = {}) =
     }
     
     if (mediaRecorderRef.current) {
+      console.log(`[AUDIO DEBUG] MediaRecorder state before stop: ${mediaRecorderRef.current.state}`);
       if (mediaRecorderRef.current.state === 'recording') {
         try {
-          console.log("Calling stop() on MediaRecorder");
+          console.log("[AUDIO DEBUG] Requesting final data chunk...");
           // Request one final chunk of data before stopping
           mediaRecorderRef.current.requestData();
           // Add a small delay before stopping to ensure data is captured
           setTimeout(() => {
             if (mediaRecorderRef.current) {
+              console.log("[AUDIO DEBUG] Calling MediaRecorder.stop()...");
               mediaRecorderRef.current.stop();
               console.log("MediaRecorder stop() called");
             }
-          }, 100);
+          }, 200); // Increased delay from 100ms to 200ms
         } catch (error) {
           console.error("Error stopping MediaRecorder:", error);
           // Handle the stop error by manually triggering processing
