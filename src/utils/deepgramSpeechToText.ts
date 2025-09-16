@@ -16,25 +16,20 @@ export interface DeepgramResult {
 // Helper function to format the transcript with speaker information
 // Handles the nested structure from Deepgram API responses
 function postProcessDeepgramResponse(data: any): string {
-  try {
-    console.log('Post-processing Deepgram response:', data);
-    
+  try {    
     // Check if we have a valid data structure
     if (!data) {
-      console.warn('No data provided to post-processor');
       return '';
     }
     
     // If the response already contains a formatted transcript, use it
     if (typeof data.transcript === 'string' && data.transcript.includes('Speaker')) {
-      console.log('Using already formatted transcript');
       return data.transcript;
     }
 
     // Check for paragraphs which already has formatted transcript with speaker info
     if (data.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.transcript) {
       const paragraphsTranscript = data.results.channels[0].alternatives[0].paragraphs.transcript;
-      console.log('Using paragraphs transcript:', paragraphsTranscript);
       return paragraphsTranscript.trim();
     }
     
@@ -42,13 +37,10 @@ function postProcessDeepgramResponse(data: any): string {
     let words;
     if (data.results?.channels?.[0]?.alternatives?.[0]?.words) {
       words = data.results.channels[0].alternatives[0].words;
-      console.log(`Found ${words.length} words in Deepgram response structure`);
     } else if (data.rawTranscript?.words) {
       words = data.rawTranscript.words;
-      console.log(`Found ${words.length} words in rawTranscript`);
     } else if (data.words) {
       words = data.words;
-      console.log(`Found ${words.length} words directly in data object`);
     }
     
     // If we found words with speaker info, format the transcript
@@ -76,7 +68,6 @@ function postProcessDeepgramResponse(data: any): string {
     
     // Fallback to simple transcript if available
     if (data.results?.channels?.[0]?.alternatives?.[0]?.transcript) {
-      console.log('Falling back to simple transcript');
       return data.results.channels[0].alternatives[0].transcript;
     }
     
@@ -97,14 +88,9 @@ export const processCompleteAudio = async (
   audioBlob: Blob,
   apiKey: string,  // We'll still accept this for backwards compatibility, but won't use it
 ): Promise<{transcript: string, utterances?: DiarizedUtterance[], error?: string}> => {
-  try {
-    console.log('[DEBUG] processCompleteAudio ENTRY - audioBlob size:', audioBlob?.size, 'apiKey present:', !!apiKey);
-    console.log('Processing complete audio with Deepgram via backend server');
-    
+  try {    
     // Convert blob to base64 for transmission
-    console.log('[DEBUG] About to convert blob to base64...');
     const base64Audio = await blobToBase64(audioBlob);
-    console.log('[DEBUG] Base64 conversion complete, length:', base64Audio?.length);
     
     // Determine the correct mime type for the blob
     let mimeType = audioBlob.type;
@@ -116,10 +102,7 @@ export const processCompleteAudio = async (
       mimeType = 'audio/wav'; // fallback
     }
     
-    console.log(`Sending audio to backend for processing: ${Math.round(base64Audio.length / 1024)} KB, type: ${mimeType}`);
-    
     // Call the backend Edge Function via Supabase client (reliable CORS + auth)
-    console.log('Invoking deepgram-diarize-audio edge function...');
     const invokePromise = supabase.functions.invoke('deepgram-diarize-audio', {
       body: { audio: base64Audio, mimeType }
     });
@@ -153,8 +136,6 @@ export const processCompleteAudio = async (
       }
       data = await resp.json();
     }
-
-    console.log('Received response from backend:', data);
 
     // Prefer transcript/utterances returned by the function. Fallback to raw results if needed.
     const transcript = (data?.transcript as string); //postProcessDeepgramResponse(data?.results);
@@ -231,10 +212,8 @@ export interface SpeakerCorrectionResult {
 
 export async function correctSpeakersWithAI(transcript: string): Promise<SpeakerCorrectionResult> {
   try {
-    console.log('🤖 Starting AI speaker correction for transcript:', transcript.substring(0, 200) + '...');
     const { supabase } = await import('@/integrations/supabase/client');
     
-    console.log('📡 Calling correct-transcript-speakers edge function...');
     const { data, error } = await supabase.functions.invoke('correct-transcript-speakers', {
       body: { transcript }
     });
@@ -249,7 +228,6 @@ export async function correctSpeakersWithAI(transcript: string): Promise<Speaker
       };
     }
 
-    console.log('✅ Speaker correction successful, confidence:', data?.confidence);
     return data;
   } catch (error) {
     console.error('Error in correctSpeakersWithAI:', error);
@@ -278,7 +256,6 @@ export async function processCompleteAudioWithCorrection(
 
     // Apply AI correction if enabled and transcript has speaker labels
     if (enableAICorrection && result.transcript.includes('Speaker')) {
-      console.log('🧠 AI correction enabled, found Speaker labels, applying correction...');
       const correctionResult = await correctSpeakersWithAI(result.transcript);
       
       // Only use corrected transcript if confidence is high enough
@@ -289,7 +266,6 @@ export async function processCompleteAudioWithCorrection(
           correctionResult
         };
       } else {
-        console.log('AI correction confidence too low, keeping original:', correctionResult.confidence);
         return {
           ...result,
           correctionResult
@@ -310,9 +286,7 @@ export async function processCompleteAudioWithCorrection(
 
 // Extract structured utterances from Deepgram response
 export function extractUtterancesFromDeepgramResponse(data: any): DiarizedUtterance[] {
-  try {
-    console.log('Extracting utterances from Deepgram response');
-    
+  try {    
     // Try to get paragraphs first (contains speaker timing info)
     const paragraphs = data?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs;
     if (paragraphs && Array.isArray(paragraphs)) {

@@ -18,8 +18,6 @@ export async function uploadAudioRecording(
     const fileName = `consultation-${sessionId}-${timestamp}.webm`;
     const filePath = `${userId}/${fileName}`;
 
-    console.log('Uploading audio file:', filePath);
-
     // Upload to Supabase storage
     const { data, error } = await supabase.storage
       .from('recordings')
@@ -33,7 +31,6 @@ export async function uploadAudioRecording(
       return { path: null, error: error.message };
     }
 
-    console.log('Audio uploaded successfully:', data.path);
     return { path: data.path, error: null };
 
   } catch (error) {
@@ -66,7 +63,6 @@ export async function updateSessionAudioPath(
       return { success: false, error: error.message };
     }
 
-    console.log('Session audio path updated successfully');
     return { success: true, error: null };
 
   } catch (error) {
@@ -125,7 +121,6 @@ export async function deleteAudioRecording(
       return { success: false, error: error.message };
     }
 
-    console.log('Audio deleted successfully');
     return { success: true, error: null };
 
   } catch (error) {

@@ -75,11 +75,6 @@ export async function processWithMedicalPipeline(utterances: any[], currentPatie
     setIr(result.ir);
     setSoap(result.soap);
     setPrescription(result.prescription || null);
-    console.log('Medical processing complete:', {
-      ir: result.ir,
-      soap: result.soap,
-      prescription: result.prescription,
-    });
   } catch (error) {
     console.error('Error in medical pipeline:', error);
     setStatus({ type: 'error', message: 'Medical processing error: ' + String(error) });

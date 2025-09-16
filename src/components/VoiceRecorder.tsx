@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, UserPlus, Download } from 'lucide-react';
+import { Mic, MicOff, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import useDualTranscription from '@/hooks/useDualTranscription';
@@ -58,13 +58,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   // Memoized callback for diarized results
   // NOTE: Using empty dependency array because onAudioProcessingComplete
   // changes on every render due to processDiarizedTranscription dependencies
-  const handleDiarizedResult = useCallback(async (result: DeepgramResult) => {
-    console.log("🎯 [VOICE RECORDER] Diarized result received, triggering medical pipeline");
-    
+  const handleDiarizedResult = useCallback(async (result: DeepgramResult) => {    
     // NEW: Use diarized utterances directly instead of calling Deepgram again
     if (onDiarizedResultComplete && result.utterances && result.audioBlob) {
       try {
-        console.log("🎯 [VOICE RECORDER] Calling onDiarizedResultComplete with utterances:", result.utterances.length, "utterances, blob:", result.audioBlob.size, "bytes");
         await onDiarizedResultComplete(result.utterances, result.audioBlob);
       } catch (error) {
         console.error("Error in diarized result processing:", error);
@@ -72,15 +69,10 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     } else if (onAudioProcessingComplete && result.audioBlob) {
       // Fallback to old method if new callback not provided
       try {
-        console.log("🎯 [VOICE RECORDER] Falling back to onAudioProcessingComplete with blob:", result.audioBlob.size, "bytes");
         await onAudioProcessingComplete(result.audioBlob);
       } catch (error) {
         console.error("Error in audio processing complete:", error);
       }
-    } else {
-      console.log("🎯 [VOICE RECORDER] No suitable callback or missing data");
-      console.log("🎯 [VOICE RECORDER] onDiarizedResultComplete:", !!onDiarizedResultComplete, "onAudioProcessingComplete:", !!onAudioProcessingComplete);
-      console.log("🎯 [VOICE RECORDER] utterances:", !!result.utterances, "audioBlob:", !!result.audioBlob);
     }
   }, []); // Keep empty until parent callback is truly stable
 
@@ -95,11 +87,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     isFinal: boolean, 
     resultIndex: number
   }) => {
-    // For diagnostic purposes
-    console.log("Received speech result:", { result, isFinal, resultIndex });
     
     if (!result) {
-      console.log("Empty result received, ignoring");
       return;
     }
     
@@ -148,8 +137,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
     toggleRecording: dualToggleRecording,
     resetTranscript,
     getAccumulatedTranscript,
-    lastRecordedBlob,
-    downloadLastRecording
+    lastRecordedBlob
   } = useDualTranscription({
     onRealtimeResult: handleSpeechResult,
     onDiarizedResult: handleDiarizedResult,
@@ -169,9 +157,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
   }, [dualIsRecording, onRecordingStateChange]);
 
   // Log when transcript changes - useful for debugging
-  useEffect(() => {
-    console.log("VoiceRecorder raw transcript:", rawTranscript);
-    
+  useEffect(() => {    
     // Ensure full transcript is passed to parent component
     if (rawTranscript) {
       updateTranscriptDebounced(rawTranscript);
@@ -320,15 +306,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 disabled={isRecording || processingTranscript}
               >
                 <UserPlus className="h-8 w-8" />
-              </Button>
-              
-              <Button
-                onClick={downloadLastRecording}
-                className="w-16 h-16 rounded-full flex justify-center items-center bg-green-600 hover:bg-green-700 shadow-lg transition-all mx-auto sm:mx-0"
-                disabled={!lastRecordedBlob || isRecording}
-                title="Download last recording"
-              >
-                <Download className="h-8 w-8" />
               </Button>
             </div>
             

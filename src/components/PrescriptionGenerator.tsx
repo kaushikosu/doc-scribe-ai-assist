@@ -75,6 +75,15 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
   const [editablePrescription, setEditablePrescription] = useState('');
   const [usePmjayFormat, setUsePmjayFormat] = useState(false);
   // Removed: isGenerating, now use parent's status prop
+
+  // Auto-enter edit mode when prescription is generated
+  useEffect(() => {
+    if (status?.type === 'generated' && prescription && getFormattedPrescription) {
+      const formattedText = getFormattedPrescription(prescription);
+      setEditablePrescription(formattedText);
+      setIsEditing(true);
+    }
+  }, [status?.type, prescription, getFormattedPrescription]);
   
 
   // Removed: all local state for formatting, editing, and settings (now handled by getFormattedPrescription)
@@ -289,6 +298,13 @@ const PrescriptionGenerator: React.FC<PrescriptionGeneratorProps> = ({
     setIsEditing(true);
   };
 
+  const handleAcceptAndPrint = () => {
+    // Save the edited prescription back
+    handleSave();
+    // Then print
+    handlePrint();
+  };
+
   const handleSave = () => {
     setIsEditing(false);
   };
@@ -484,18 +500,14 @@ const handleGenerateAI = () => {
                Creating structured prescription...
              </p>
            </div>
-         ) : !!status && status.type === 'generated' ? (
-           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
-             <pre className="whitespace-pre-wrap">{getFormattedPrescription ? getFormattedPrescription(prescription) : ''}</pre>
-           </div>
-         ) : isEditing ? (
-          <Textarea
-            value={editablePrescription}
-            onChange={handleChange}
-            className="min-h-[300px] p-4 rounded-md border-0 resize-none focus-visible:ring-primary text-sm font-prescription"
-            placeholder="Prescription will be generated here..."
-          />
-        ) : (
+         ) : !!status && status.type === 'generated' || isEditing ? (
+           <Textarea
+             value={editablePrescription}
+             onChange={handleChange}
+             className="min-h-[300px] p-4 rounded-md border-0 resize-none focus-visible:ring-primary text-sm font-prescription"
+             placeholder="Prescription will be generated here..."
+           />
+         ) : (
           <div className="p-4 rounded-md min-h-[300px] text-sm whitespace-pre-wrap font-prescription bg-white border border-gray-200">
             {prescription && getFormattedPrescription ? (
               <>
@@ -511,7 +523,18 @@ const handleGenerateAI = () => {
           </div>
         )}
       </CardContent>
-      {/* Print button and editing features removed; only display prescription */}
+      {(!!status && status.type === 'generated' || isEditing) && (
+        <CardFooter className="px-4 py-3 bg-gray-50 border-t flex justify-end gap-2">
+          <Button
+            onClick={handleAcceptAndPrint}
+            className="bg-doctor-primary hover:bg-doctor-primary/90 text-white font-medium"
+            size="sm"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Accept & Print
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 };

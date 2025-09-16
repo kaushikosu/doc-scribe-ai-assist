@@ -127,9 +127,6 @@ const useSpeechRecognition = ({
             isFinal: !!finalTranscript,
             resultIndex: event.resultIndex
           });
-          
-          // For diagnostic purposes
-          console.log("Accumulated transcript:", accumulatedTranscriptRef.current);
         };
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -142,7 +139,6 @@ const useSpeechRecognition = ({
             toast.error('Language not supported, switching to English');
           } else if (event.error === 'no-speech') {
             // This is normal, don't show an error
-            console.log('No speech detected');
           } else {
             toast.error('Error with speech recognition. Please try again.');
             setIsRecording(false);

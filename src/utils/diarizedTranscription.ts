@@ -32,8 +32,6 @@ export async function getDiarizedTranscription({
       throw new Error("API key is required");
     }
     
-    console.log(`Processing audio for diarization: ${audioBlob.size} bytes, type: ${audioBlob.type}`);
-    
     // Validate audio blob
     if (audioBlob.size === 0) {
       console.error("Empty audio blob provided");
@@ -42,7 +40,6 @@ export async function getDiarizedTranscription({
     
     // Convert audio blob to base64
     const base64Audio = await blobToBase64(audioBlob);
-    console.log("Audio converted to base64, length:", base64Audio.length);
     
     // Configure request with diarization settings
     const request = {
@@ -60,8 +57,6 @@ export async function getDiarizedTranscription({
         content: base64Audio
       }
     };
-    
-    console.log("Using LongRunningRecognize endpoint for diarization");
     
     // Step 1: Start the asynchronous operation
     const startResponse = await fetch(`${ASYNC_API_URL}?key=${apiKey}`, {
@@ -86,7 +81,6 @@ export async function getDiarizedTranscription({
     }
     
     const operationName = operationData.name;
-    console.log(`LongRunningRecognize operation started: ${operationName}`);
     
     // Step 2: Poll for operation completion
     const maxAttempts = 30;
@@ -96,7 +90,6 @@ export async function getDiarizedTranscription({
     
     while (!operationComplete && attempts < maxAttempts) {
       attempts++;
-      console.log(`Checking operation status (attempt ${attempts}/${maxAttempts})...`);
       
       // Wait 2 seconds between polling attempts
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -114,7 +107,6 @@ export async function getDiarizedTranscription({
       
       // Operation complete
       if (checkData.done === true) {
-        console.log("Operation completed successfully");
         operationComplete = true;
         operationResult = checkData;
       }
@@ -131,7 +123,6 @@ export async function getDiarizedTranscription({
     }
     
     const data = operationResult.response;
-    console.log("Google diarized speech response:", data);
     
     // Process response to extract diarized words
     if (!data.results || data.results.length === 0) {
@@ -168,8 +159,6 @@ export async function getDiarizedTranscription({
       }
     });
     
-    console.log(`Processed ${words.length} words with speaker tags`);
-    
     // Count actual speakers detected
     const uniqueSpeakers = new Set<number>();
     words.forEach(word => {
@@ -177,8 +166,6 @@ export async function getDiarizedTranscription({
         uniqueSpeakers.add(word.speakerTag);
       }
     });
-    
-    console.log(`Detected ${uniqueSpeakers.size} unique speakers`);
     
     // Generate structured utterances from words
     const utterances = generateUtterancesFromWords(words);

@@ -42,7 +42,6 @@ const useDeepgramSpeechToText = ({
   // Process recorded audio for diarization
   const processDiarization = async () => {
     if (audioChunksRef.current.length === 0 || !apiKey) {
-      console.log("No audio data available for diarization");
       return '';
     }
     
@@ -59,8 +58,6 @@ const useDeepgramSpeechToText = ({
         return '';
       }
       
-      console.log(`Processing audio blob for diarization: ${audioBlob.size} bytes`);
-      
       // Process the complete audio
       const result = await processCompleteAudio(audioBlob, apiKey);
       
@@ -76,8 +73,6 @@ const useDeepgramSpeechToText = ({
         setProcessingDiarization(false);
         return '';
       }
-      
-      console.log("Diarized transcript ready:", result.transcript.substring(0, 100) + "...");
       
       // Send the diarized transcript back to the component
       if (onDiarizedTranscriptReady) {
@@ -107,7 +102,6 @@ const useDeepgramSpeechToText = ({
       const timeSinceLastSpeech = now - lastSpeechTimeRef.current;
       
       if (timeSinceLastSpeech > pauseThreshold && isRecording) {
-        console.log("Silence detected");
         onSilence();
         lastSpeechTimeRef.current = now;
       }
@@ -146,8 +140,6 @@ const useDeepgramSpeechToText = ({
         audioBitsPerSecond: 128000 // 128 kbps audio quality
       });
       
-      console.log(`Recording using format: ${mimeType}`);
-      
       mediaRecorderRef.current = mediaRecorder;
       
       // Set up data collection
@@ -167,7 +159,6 @@ const useDeepgramSpeechToText = ({
       setupSilenceDetection();
       
       setIsRecording(true);
-      console.log("Started recording audio");
       
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -234,7 +225,6 @@ const useDeepgramSpeechToText = ({
 
   // Stop recording and clean up resources
   const stopRecording = async () => {
-    console.log("Stopping recording");
     
     // Stop MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {

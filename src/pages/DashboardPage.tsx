@@ -22,19 +22,11 @@ import { updateConsultationSession, uploadSessionAudio } from '@/integrations/su
 import { useRecordingSession } from '@/hooks/useRecordingSession';
 
 const DashboardPage = () => {
-  const [transcript, _setTranscript] = useState('');
-  const setTranscript = (val: string, trigger?: string) => {
-    console.log(`[DEBUG] setTranscript:`, val, trigger ? `| Trigger: ${trigger}` : '');
-    _setTranscript(val);
-  };
+  const [transcript, setTranscript] = useState('');
   const { isTranscriptFinalized, setIsTranscriptFinalized } = useSessionState();
   // Ref to always have latest finalized state in async/closure
   const isTranscriptFinalizedRef = useRef(isTranscriptFinalized);
   useEffect(() => { isTranscriptFinalizedRef.current = isTranscriptFinalized; }, [isTranscriptFinalized]);
-  const debugSetIsTranscriptFinalized = (val: boolean, trigger?: string) => {
-    console.log(`[DEBUG] setIsTranscriptFinalized:`, val, trigger ? `| Trigger: ${trigger}` : '');
-    setIsTranscriptFinalized(val);
-  };
   const [classifiedTranscript, setClassifiedTranscript] = useState('');
   const {
     patientInfo,
@@ -94,7 +86,6 @@ const DashboardPage = () => {
     audioBlob
   } = useAudioRecorder({
     onRecordingComplete: (blob) => {
-      console.log("Full audio recording complete:", blob.size, "bytes");
       processDiarizedTranscription(blob);
     }
   });
@@ -105,10 +96,6 @@ const DashboardPage = () => {
     };
   }, []);
 
-  useEffect(() => {
-    console.log("Transcript updated in DashboardPage:", transcript);
-  }, [transcript]);
-  
   
   // Removed useEffect that triggers diarization on isRecording/isAudioRecording/audioBlob changes
 
@@ -123,17 +110,13 @@ const DashboardPage = () => {
       return;
     }
     
-    console.log("Processing audio blob for diarization with Deepgram:", audioBlob.size, "bytes");
     setIsDiarizing(true);
-  console.log('[DEBUG] setStatus: processing (Updating transcript...)');
-  console.log('[DEBUG] setStatus: processing (Updating transcript...) | Trigger: diarization start');
   setStatus({ type: 'processing', message: 'Updating transcript...' });
     const startSession = sessionRef.current;
     
     try {
       // Process audio with Deepgram only (no correction)
       const { transcript: diarizedText, utterances, error } = await processCompleteAudio(audioBlob, apiKeyForCompat);
-      console.log("Diarized text from Deepgram:", diarizedText?.length, "characters");
       
       // Update debug panel with Deepgram result
       if (diarizedText) {
@@ -181,7 +164,6 @@ const DashboardPage = () => {
       }
       
       if (sessionRef.current !== startSession) {
-        console.log("Stale diarization result ignored");
         setIsDiarizing(false);
         return;
       }
@@ -206,28 +188,20 @@ const DashboardPage = () => {
           error: undefined
         };
         
-        console.log("Deepgram diarization complete:", result);
         setDiarizedTranscription(result);
 
         // DON'T set transcript here - let medical pipeline handle final transcript update
         // This prevents the race condition where diarization overwrites classified transcript
-        console.log('[DEBUG] Skipping transcript update from diarization - medical pipeline will handle final transcript');
         setDisplayMode('revised');
-  console.log('[DEBUG] setStatus: generating (Generating prescription...)');
         if (!isTranscriptFinalizedRef.current) {
-          console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: diarization complete');
           setStatus({ type: 'generating', message: 'Generating prescription...' });
-        } else {
-          console.log('[DEBUG] Skipped setStatus: generating (already finalized)');
         }
 
         // Upload audio to storage after successful processing
         if (currentSessionRecord) {
-          console.log("Uploading audio to storage for session:", currentSessionRecord.id);
           try {
             const uploadResult = await uploadSessionAudio(currentSessionRecord.id, audioBlob);
             if (uploadResult.success) {
-              console.log("Audio uploaded successfully to storage");
               // Update current session record with the new data
               if (uploadResult.session) {
                 setCurrentSessionRecord(uploadResult.session);
@@ -257,8 +231,6 @@ const DashboardPage = () => {
   // New function to process with IR → SOAP → Prescription pipeline
   const processWithMedicalPipeline = async (utterances: any[]) => {
     try {
-  console.log('[DEBUG] setStatus: processing (Classifying speakers...)');
-  console.log('[DEBUG] setStatus: processing (Classifying speakers...) | Trigger: medical pipeline start');
   setStatus({ type: 'processing', message: 'Classifying speakers...' });
 
       // 1. Call correct-transcript-speakers to classify speakers
@@ -280,8 +252,6 @@ const DashboardPage = () => {
       if (correctError) {
         throw new Error(correctError.message || 'Failed to classify speakers');
       }
-
-      console.log('🎯 [CLASSIFICATION] Raw response from edge function:', correctedData);
 
       const correctedUtterances = correctedData?.utterances || correctedData;
       if (!correctedUtterances || !Array.isArray(correctedUtterances)) {
@@ -309,7 +279,7 @@ const DashboardPage = () => {
           .map(u => `[${u.speaker}]: ${u.text}`)
           .join('\n');
         setClassifiedTranscript(revisedTranscript);
-        setTranscript(revisedTranscript, 'after speaker classification');
+        setTranscript(revisedTranscript);
         setDisplayMode('revised'); // Ensure display mode is set to show the revised transcript
         
         // Update diarizedTranscription with the classified utterances for color-coded display
@@ -321,14 +291,11 @@ const DashboardPage = () => {
       }
 
       // Show the transcript with proper speaker labels first
-      console.log('[DEBUG] setStatus: classified (Transcript updated with speakers)');
       setStatus({ type: 'classified', message: 'Transcript updated with correct speakers.' });
-      debugSetIsTranscriptFinalized(true, 'after speaker classification');
+      setIsTranscriptFinalized(true);
 
   // Wait a moment to let user see the classified transcript, then start prescription generation
   setTimeout(async () => {
-    console.log('[DEBUG] setStatus: generating (Generating prescription...) after speaker classification');
-    console.log('[DEBUG] setStatus: generating (Generating prescription...) | Trigger: after speaker classification');
     setStatus({ type: 'generating', message: STATUS_CONFIG.generating.message });
 
     try {
@@ -367,15 +334,9 @@ const DashboardPage = () => {
       setSoap(result.soap);
       setPrescription(result.prescription || null);
 
-      console.log('[DEBUG] setStatus: generated (Prescription generated) | Trigger: medical processing complete');
       setStatus({ type: 'generated', message: STATUS_CONFIG.generated.message });
-      debugSetIsTranscriptFinalized(true, 'medical processing complete');
+      setIsTranscriptFinalized(true);
 
-      console.log('Medical processing complete:', {
-        ir: result.ir,
-        soap: result.soap,
-        prescription: result.prescription,
-      });
     } catch (error) {
       console.error('Error in medical pipeline (prescription generation):', error);
       setStatus({ type: 'error', message: 'Medical processing error: ' + String(error) });
@@ -391,14 +352,13 @@ const DashboardPage = () => {
 
   // Handle recording start - create patient if none exists
   const handleRecordingStart = useCallback(async () => {
-    debugSetIsTranscriptFinalized(false, 'recording start');
+    setIsTranscriptFinalized(false);
     if (!currentPatientRecord) {
       await generateNewPatient();
     }
   }, [currentPatientRecord, generateNewPatient]);
   
 const handleRecordingStateChange = useCallback((recordingState: boolean) => {
-  console.log("Recording state changed to:", recordingState);
   setIsRecording(recordingState);
 
   if (recordingState) {
@@ -436,18 +396,16 @@ const handleRecordingStateChange = useCallback((recordingState: boolean) => {
     setProgressStep('recording');
     setStatus({ type: 'ready' });
     setSessionId(id => id + 1);
-    debugSetIsTranscriptFinalized(false, 'new patient/session');
+    setIsTranscriptFinalized(false);
     generateNewPatient();
   }, [generateNewPatient]);
 
   const handleAudioProcessingComplete = useCallback(async (audioBlob: Blob) => {
-    console.log("🎯 [DASHBOARD] onAudioProcessingComplete called with blob:", audioBlob.size, "bytes");
     await processDiarizedTranscription(audioBlob);
   }, []); // processDiarizedTranscription doesn't need to be memoized for this use case
 
   // NEW: Handle diarized utterances directly (no duplicate Deepgram call)
   const handleDiarizedResultComplete = useCallback(async (utterances: any[], audioBlob: Blob) => {
-    console.log("🎯 [DASHBOARD] onDiarizedResultComplete called with", utterances.length, "utterances, blob:", audioBlob.size, "bytes");
     
     setIsDiarizing(true);
     setStatus({ type: 'processing', message: 'Classifying speakers...' });
@@ -530,14 +488,12 @@ const handleRecordingStateChange = useCallback((recordingState: boolean) => {
                     try {
                       // Save the formatted string for the DB, not the FHIR object
                       const formatted = formatPrescriptionString(prescription, {ir, soap, patientInfo, currentPatient: currentPatientRecord});
-                      console.log("Saving prescription to database:", formatted);
                       await updateConsultationSession(currentSessionRecord.id, {
                         live_transcript: transcript,
                         updated_transcript: classifiedTranscript,
                         prescription: formatted || '',
                         session_ended_at: new Date().toISOString()
                       });
-                      console.log("Consultation session updated successfully");
                     } catch (error) {
                       console.error('Failed to update consultation session:', error);
                     }

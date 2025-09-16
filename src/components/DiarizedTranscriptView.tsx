@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Copy, Mic, FileAudio, RotateCw, CheckCircle, Download, FileText, Clock } from 'lucide-react';
+import { Copy, Mic, FileAudio, RotateCw, CheckCircle, FileText, Clock } from 'lucide-react';
 import { toast } from '@/lib/toast';
 import { DiarizedTranscription } from '@/utils/diarizedTranscription';
 import { DiarizedUtterance } from '@/types/diarization';
@@ -35,29 +35,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
       navigator.clipboard.writeText(formattedTranscript);
       toast.success('Revised transcript copied to clipboard');
     }
-  };
-  
-  const handleDownloadRecording = () => {
-    if (!audioBlob) {
-      toast.error("No recording available to download");
-      return;
-    }
-    
-    // Create a URL for the blob
-    const url = URL.createObjectURL(audioBlob);
-    
-    // Create a link element to trigger the download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    
-    // Clean up
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast.success('Recording download started');
   };
 
   // Get the appropriate status message
@@ -213,17 +190,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
           </CardTitle>
         </div>
         <div className="flex gap-1">
-          {audioBlob && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadRecording}
-              className="h-7 text-doctor-secondary hover:text-doctor-secondary/80 hover:bg-doctor-secondary/10 border-doctor-secondary"
-            >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              Download
-            </Button>
-          )}
           {diarizedData && diarizedData.transcript && (
             <Button 
               variant="outline" 
@@ -247,19 +213,6 @@ const DiarizedTranscriptView: React.FC<DiarizedTranscriptViewProps> = ({
                 <p className="text-muted-foreground text-sm">
                   {statusMessage.description}
                 </p>
-                {audioBlob && statusMessage.title === "Recording available" && (
-                  <div className="mt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDownloadRecording}
-                      className="text-doctor-secondary border-doctor-secondary"
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download Recording
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
